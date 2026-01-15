@@ -1,81 +1,17 @@
-<!DOCTYPE html>
-<html lang="tr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kayıt Ol | Sohbet 2026</title>
-    <style>
-        :root { --wa-green: #25D366; --wa-dark: #075e54; --bg: #f0f2f5; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg); margin: 0; display: flex; align-items: center; justify-content: center; height: 100vh; }
-        .auth-container { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; }
-        .auth-container h2 { color: var(--wa-dark); margin-bottom: 25px; }
-        .input-group { margin-bottom: 15px; text-align: left; }
-        label { display: block; margin-bottom: 5px; color: #666; font-size: 14px; }
-        input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; outline: none; transition: border 0.3s; }
-        input:focus { border-color: var(--wa-green); }
-        .avatar-preview-container { margin: 20px 0; position: relative; display: inline-block; }
-        #avatar-preview { width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid var(--wa-green); background: #eee; }
-        .file-label { display: block; margin-top: 10px; font-size: 13px; color: var(--wa-dark); cursor: pointer; font-weight: bold; }
-        button { width: 100%; padding: 12px; background: var(--wa-green); color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; transition: background 0.3s; }
-        button:hover { background: #1ebc57; }
-        .switch-link { margin-top: 20px; font-size: 14px; color: #777; }
-        .switch-link a { color: var(--wa-dark); text-decoration: none; font-weight: bold; }
-    </style>
-</head>
-<body>
-    <div class="auth-container">
-        <h2>Yeni Hesap Oluştur</h2>
-        <form method="POST">
-            <div class="avatar-preview-container">
-                <img id="avatar-preview" src="https://cdn-icons-png.flaticon.com/512/149/149071.png">
-                <label for="avatar_file" class="file-label">Profil Resmi Seç</label>
-                <input type="hidden" name="avatar_choice" id="avatar_base64">
-                <input type="file" id="avatar_file" accept="image/*" style="display:none" onchange="processProfileImg(this)">
-            </div>
-
-            <div class="input-group">
-                <label>Kullanıcı Adı</label>
-                <input type="text" name="username" required placeholder="Kullanıcı adınız">
-            </div>
-            <div class="input-group">
-                <label>Şifre</label>
-                <input type="password" name="password" required placeholder="******">
-            </div>
-            <button type="submit">Kayıt Ol ve Başla</button>
-        </form>
-        <div class="switch-link">
-            Zaten üye misiniz? <a href="{{ url_for('login') }}">Giriş Yap</a>
-        </div>
+<form method="POST">
+    <input type="text" name="username" placeholder="Kullanıcı Adı" required>
+    <input type="password" name="password" placeholder="Şifre" required>
+    <div style="margin:10px 0;">
+        <label>Profil Resmi Seç:</label>
+        <input type="file" accept="image/*" onchange="encodeImage(this)">
+        <input type="hidden" name="avatar_data" id="avatar_data" value="https://www.w3schools.com/howto/img_avatar.png">
     </div>
-
-    <script>
-        function processProfileImg(input) {
-            if (input.files && input.files[0]) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    const img = new Image();
-                    img.onload = function() {
-                        const canvas = document.createElement('canvas');
-                        // Profil resmi için 400px fazlasıyla yeterli
-                        let w = img.width, h = img.height, max = 400; 
-                        if (w > h && w > max) { h *= max / w; w = max; }
-                        else if (h > max) { w *= max / h; h = max; }
-                        
-                        canvas.width = w; canvas.height = h;
-                        const ctx = canvas.getContext('2d');
-                        ctx.drawImage(img, 0, 0, w, h);
-                        
-                        // %60 kaliteye sıkıştır (Boyut düşer, hata çözülür)
-                        const compressed = canvas.toDataURL('image/jpeg', 0.6);
-                        
-                        document.getElementById('avatar-preview').src = compressed;
-                        document.getElementById('avatar_base64').value = compressed;
-                    };
-                    img.src = e.target.result;
-                };
-                reader.readAsDataURL(input.files[0]);
-            }
-        }
-    </script>
-</body>
-</html>
+    <button type="submit">Kayıt Ol</button>
+</form>
+<script>
+    function encodeImage(input) {
+        const reader = new FileReader();
+        reader.onload = e => document.getElementById('avatar_data').value = e.target.result;
+        reader.readAsDataURL(input.files[0]);
+    }
+</script>
