@@ -10,14 +10,14 @@
         
         #side-panel { width: 320px; background: white; border-right: 1px solid #ddd; display: flex; flex-direction: column; }
         
-        /* Story Section */
+        /* Hikaye Barı */
         #story-bar { display: flex; padding: 15px 10px; gap: 15px; overflow-x: auto; background: white; border-bottom: 1px solid #eee; align-items: center; }
         .story-container { display: flex; flex-direction: column; align-items: center; min-width: 65px; position: relative; cursor: pointer; }
         .story-circle { width: 56px; height: 56px; border-radius: 50%; border: 3px solid #25D366; object-fit: cover; padding: 2px; }
         .add-btn { position: absolute; bottom: 18px; right: 5px; width: 20px; height: 20px; background: #25D366; border-radius: 50%; border: 2px solid white; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 14px; }
         .story-name { font-size: 11px; margin-top: 5px; color: #555; }
 
-        /* Chat Area */
+        /* Mesajlaşma Alanı */
         #main-chat { flex: 1; display: flex; flex-direction: column; }
         #chat-area { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; }
         .msg-wrap { display: flex; align-items: flex-end; gap: 8px; max-width: 80%; }
@@ -27,10 +27,10 @@
         .sent { background: var(--wa-light); }
         .received { background: white; }
 
-        /* Story Modal */
+        /* Modal */
         #story-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.95); z-index:10000; flex-direction:column; align-items:center; justify-content:center; }
         #story-img { max-width: 90%; max-height: 75%; border-radius: 8px; }
-        .viewer-info { color: white; margin-top: 15px; text-align: center; font-size: 14px; }
+        .viewer-info { color: white; margin-top: 15px; text-align: center; }
     </style>
 </head>
 <body>
@@ -38,7 +38,10 @@
 <div id="side-panel">
     <div style="padding:15px; background:var(--wa-green); color:white; display:flex; justify-content:space-between; align-items:center;">
         <b>Sohbetler</b>
-        <img src="{{ user.avatar }}" id="top-avatar" style="width:35px; height:35px; border-radius:50%; cursor:pointer;" onclick="document.getElementById('pIn').click()">
+        <div style="display:flex; gap:10px;">
+            <img src="{{ user.avatar }}" id="top-avatar" style="width:35px; height:35px; border-radius:50%; cursor:pointer;" onclick="document.getElementById('pIn').click()">
+            <a href="{{ url_for('logout') }}" style="color:white; text-decoration:none; font-size:12px; align-self:center;">Çıkış</a>
+        </div>
         <input type="file" id="pIn" style="display:none" onchange="uploadProfile(this)">
     </div>
 
@@ -68,7 +71,7 @@
 <div id="story-modal" onclick="this.style.display='none'">
     <img id="story-img" src="">
     <div class="viewer-info" onclick="event.stopPropagation()">
-        <b id="st-owner"></b><br><br>
+        <b id="st-owner"></b><br>
         👀 İzleyenler: <span id="st-views">Kimse yok</span>
     </div>
 </div>
@@ -77,7 +80,6 @@
     const socket = io();
     const myName = "{{ user.username }}";
 
-    // 1. PROFİL GÜNCELLEME
     function uploadProfile(input) {
         if(input.files[0]) {
             const r = new FileReader();
@@ -91,13 +93,11 @@
         }
     }
 
-    // 2. HİKAYE EKLEME
     function uploadStory(input) {
         if(input.files[0]) {
             const r = new FileReader();
             r.onload = e => socket.emit('add_story', {image: e.target.result});
             r.readAsDataURL(input.files[0]);
-            alert("Hikaye paylaşılıyor...");
         }
     }
 
@@ -116,7 +116,7 @@
         area.innerHTML = '';
         for(let u in data) {
             if(u === myName) {
-                document.getElementById('my-s-avatar').src = data[u].avatar; // Kendi resmini güncelle
+                document.getElementById('my-s-avatar').src = data[u].avatar;
                 continue;
             }
             const div = document.createElement('div');
@@ -127,7 +127,6 @@
         }
     });
 
-    // 3. MESAJLAŞMA
     function sendMsg() {
         const i = document.getElementById('mIn');
         if(i.value.trim()) { socket.emit('message', {msg: i.value, type:'text'}); i.value=''; }
@@ -138,17 +137,8 @@
         const isMe = d.user === myName;
         const wrap = document.createElement('div');
         wrap.className = `msg-wrap ${isMe ? 'sent-wrap' : ''}`;
-        
         let content = (d.type === 'image') ? `<img src="${d.msg}" style="max-width:230px; border-radius:10px;">` : d.msg;
-        const dispName = isMe ? "Siz" : d.user;
-
-        wrap.innerHTML = `
-            <img src="${d.avatar}" class="avatar-chat">
-            <div class="msg ${isMe ? 'sent' : 'received'}">
-                <div style="font-size:11px; font-weight:bold; color:var(--wa-green); margin-bottom:3px;">${dispName}</div>
-                ${content}
-                <div style="text-align:right; font-size:9px; color:#999; margin-top:4px;">${d.time}</div>
-            </div>`;
+        wrap.innerHTML = `<img src="${d.avatar}" class="avatar-chat"><div class="msg ${isMe ? 'sent' : 'received'}"><div style="font-size:11px; font-weight:bold; color:var(--wa-green);">${isMe ? "Siz" : d.user}</div>${content}<div style="text-align:right; font-size:9px; color:#999; margin-top:4px;">${d.time}</div></div>`;
         area.appendChild(wrap); area.scrollTop = area.scrollHeight;
     }
 
@@ -161,7 +151,6 @@
     socket.on('message', d => addMsg(d));
     socket.on('history', h => { document.getElementById('chat-area').innerHTML=''; h.forEach(addMsg); });
     socket.on('profile_updated', d => { if(d.username === myName) document.getElementById('top-avatar').src = d.avatar; });
-
     socket.emit('join', {});
 </script>
 </body>
