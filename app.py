@@ -9,9 +9,9 @@ from flask_socketio import SocketIO, emit, join_room
 from datetime import datetime
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'whatsapp-clone-final-2026'
+app.config['SECRET_KEY'] = 'whatsapp-final-2026-complete'
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'final_v15.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'ultimate_v20.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
@@ -98,4 +98,41 @@ def handle_msg(data):
     now = datetime.now().strftime("%H:%M")
     msg = Message(username=current_user.username, user_avatar=current_user.avatar, content=data['msg'], msg_type=data.get('type','text'), room=room, timestamp=now)
     db.session.add(msg); db.session.commit()
-    emit('message', {'id':msg.id, 'user':current_user.username, 'avatar':current_user.avatar, 'msg':data['msg'], 'type':msg.
+    emit('message', {'id':msg.id, 'user':current_user.username, 'avatar':current_user.avatar, 'msg':data['msg'], 'type':msg.msg_type, 'time':now, 'read':False}, to=room)
+
+@socketio.on('mark_read')
+def mark_read(data):
+    msg = db.session.get(Message, data['id'])
+    if msg:
+        msg.is_read = True; db.session.commit()
+        emit('msg_read_status', {'id': data['id']}, room=session.get('room'), include_self=False)
+
+@socketio.on('upload_story')
+def handle_story(data):
+    db.session.add(Story(username=current_user.username, user_avatar=current_user.avatar, content=data['img']))
+    db.session.commit()
+    send_stories()
+
+@socketio.on('update_avatar')
+def change_av(data):
+    user = db.session.get(User, current_user.id)
+    user.avatar = data['img']
+    db.session.commit()
+    online_users[user.username] = data['img']
+    emit('user_list', online_users, broadcast=True)
+
+@socketio.on('delete_msg')
+def delete_msg(data):
+    msg = db.session.get(Message, data['id'])
+    if msg and msg.username == current_user.username:
+        db.session.delete(msg); db.session.commit()
+        emit('msg_deleted', {'id': data['id']}, room=session.get('room'))
+
+@socketio.on('disconnect')
+def on_disconnect():
+    if current_user.is_authenticated and current_user.username in online_users:
+        del online_users[current_user.username]
+        emit('user_list', online_users, broadcast=True)
+
+if __name__ == '__main__':
+    socketio.run(app, host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
