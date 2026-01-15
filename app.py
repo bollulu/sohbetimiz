@@ -8,11 +8,12 @@ from flask_socketio import SocketIO, emit, join_room
 from datetime import datetime
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'wa_ultra_final_2026'
+app.config['SECRET_KEY'] = 'whatsapp_ultra_2026_safe'
 basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'database.db')
-app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024 * 1024 # 1GB Limit
 
+# --- KRİTİK: LİMİTLERİ 1GB YAPTIK ---
+app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024 * 1024 
 db = SQLAlchemy(app)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent', max_http_buffer_size=1024 * 1024 * 1024)
 
@@ -28,7 +29,7 @@ class Message(db.Model):
     username = db.Column(db.String(50))
     user_avatar = db.Column(db.Text)
     content = db.Column(db.Text)
-    msg_type = db.Column(db.String(20))
+    msg_type = db.Column(db.String(20)) # text, image
     timestamp = db.Column(db.String(10))
     room = db.Column(db.String(50), default='Genel')
 
@@ -58,7 +59,7 @@ def register():
         if not User.query.filter_by(username=u).first():
             gen = request.form.get('gender')
             ava = request.form.get('avatar_data')
-            if not ava: # Eğer resim seçilmediyse varsayılan ata
+            if not ava: # Seçilmezse varsayılan
                 ava = "https://www.w3schools.com/howto/img_avatar.png" if gen == "Erkek" else "https://www.w3schools.com/howto/img_avatar2.png"
             new_u = User(username=u, password=request.form.get('password'), gender=gen, avatar=ava)
             db.session.add(new_u); db.session.commit()
@@ -77,7 +78,7 @@ online_users = {}
 @socketio.on('join')
 def on_join(data):
     join_room('Genel')
-    online_users[current_user.username] = {"avatar": current_user.avatar, "sid": request.sid}
+    online_users[current_user.username] = {"avatar": current_user.avatar}
     emit('update_user_list', online_users, broadcast=True)
     msgs = Message.query.filter_by(room='Genel').all()
     history = [{'user':m.username,'avatar':m.user_avatar,'msg':m.content,'type':m.msg_type,'time':m.timestamp} for m in msgs]
