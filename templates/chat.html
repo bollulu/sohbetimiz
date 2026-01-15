@@ -1,108 +1,55 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Sohbetimiz Süper Pro</title>
+    <title>Sohbetimiz Pro</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <style>
-        :root { --wa-green: #075e54; --wa-light: #dcf8c6; --wa-bg: #e5ddd5; }
+        :root { --wa-green: #075e54; --wa-light: #dcf8c6; --wa-bg: #e5ddd5; --blue-tick: #34b7f1; }
         body { font-family: 'Segoe UI', sans-serif; background: #ece5dd; margin: 0; display: flex; height: 100vh; overflow: hidden; }
         
-        /* Yan Panel */
-        #side-panel { width: 300px; background: #fff; border-right: 1px solid #ddd; display: flex; flex-direction: column; z-index: 20; }
-        .user-item { padding: 15px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid #f2f2f2; transition: 0.3s; }
-        .user-item:hover { background: #f9f9f9; }
-        .user-avatar { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; border: 2px solid var(--wa-green); }
+        #main-chat { flex: 1; display: flex; flex-direction: column; background: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); background-attachment: fixed; }
+        #chat-area { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 5px; }
 
-        /* Ana Sohbet Alanı */
-        #main-chat { flex: 1; display: flex; flex-direction: column; position: relative; }
-        #bg-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; opacity: 0.8; background-size: cover; background-position: center; }
+        /* Mesaj ve Avatar Kutusu */
+        .message-wrapper { display: flex; align-items: flex-end; gap: 8px; margin-bottom: 4px; }
+        .wrapper-sent { flex-direction: row-reverse; }
         
-        #header { background: var(--wa-green); color: white; padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; z-index: 10; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
-        #chat-area { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 10px; z-index: 5; }
+        .chat-avatar { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; }
         
-        /* Mesaj Balonları */
-        .msg { padding: 10px 15px; border-radius: 12px; max-width: 75%; font-size: 0.95em; box-shadow: 0 2px 4px rgba(0,0,0,0.1); position: relative; word-wrap: break-word; }
-        .received { align-self: flex-start; background: white; border-top-left-radius: 0; }
-        .sent { align-self: flex-end; background: var(--wa-light); border-top-right-radius: 0; }
-        
-        .msg-info { font-size: 0.75em; color: #666; margin-top: 5px; display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
-        .del-link { color: #ff4d4d; font-weight: bold; cursor: pointer; text-decoration: none; font-size: 0.8em; }
+        .msg { padding: 8px 12px; border-radius: 12px; max-width: 70%; font-size: 0.95em; box-shadow: 0 1px 2px rgba(0,0,0,0.1); position: relative; }
+        .received { background: white; border-bottom-left-radius: 2px; }
+        .sent { background: var(--wa-light); border-bottom-right-radius: 2px; }
 
-        /* Alt Panel */
-        #input-area { background: #f0f0f0; padding: 15px; display: flex; align-items: center; gap: 12px; z-index: 10; }
-        #msgInput { flex: 1; padding: 12px 20px; border-radius: 25px; border: 1px solid #ddd; outline: none; font-size: 1em; }
-        
-        .btn-circle { width: 45px; height: 45px; border-radius: 50%; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 20px; transition: 0.2s; }
-        .btn-send { background: var(--wa-green); color: white; }
-        .btn-bg { background: #fff; border: 1px solid #ddd; }
+        .msg-info { font-size: 0.7em; color: #888; display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin-top: 3px; }
+        .tick { font-size: 14px; color: #999; }
+        .read-tick { color: var(--blue-tick); }
 
-        @media (max-width: 700px) { #side-panel { display: none; } }
+        #input-area { background: #f0f0f0; padding: 10px; display: flex; align-items: center; gap: 8px; }
+        #msgInput { flex: 1; padding: 12px; border-radius: 25px; border: none; outline: none; }
+        
+        .mic-btn { font-size: 22px; cursor: pointer; border: none; background: none; }
+        .recording { color: red; animation: blink 1s infinite; }
+        @keyframes blink { 50% { opacity: 0; } }
     </style>
 </head>
 <body>
-    <div id="side-panel">
-        <div style="padding:20px; background:#f0f0f0; font-weight:bold; color:var(--wa-green); font-size:1.1em; border-bottom:1px solid #ddd;">Çevrimiçi Kişiler</div>
-        <div id="user-list"></div>
-    </div>
 
     <div id="main-chat">
-        <div id="bg-layer" style="background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png');"></div>
-        
-        <div id="header">
-            <div style="display:flex; align-items:center; gap:12px;">
-                <input type="file" id="avatarInput" style="display:none;" accept="image/*" onchange="uploadFile(this, 'avatar')">
-                <img id="myAvatarDisplay" src="{{ user.avatar }}" class="user-avatar" onclick="document.getElementById('avatarInput').click()" title="Profil Resmini Değiştir">
-                <b style="font-size:1.1em;">{{ user.username }}</b>
-            </div>
-            <div style="display:flex; gap:10px;">
-                <button class="btn-circle btn-bg" onclick="document.getElementById('bgInput').click()" title="Arka Planı Değiştir">🖼️</button>
-                <input type="file" id="bgInput" style="display:none;" accept="image/*" onchange="uploadFile(this, 'background')">
-                <a href="/live" style="background:#ff3b30; color:white; padding:10px 20px; border-radius:25px; text-decoration:none; font-weight:bold;">CANLI YAYIN</a>
-            </div>
-        </div>
-
         <div id="chat-area"></div>
-        <div id="typing-status" style="z-index:10; padding: 5px 25px; font-style: italic; color: var(--wa-green); font-size: 0.8em; min-height: 20px;"></div>
-
         <div id="input-area">
-            <button class="btn-circle btn-bg" onclick="document.getElementById('fileInput').click()">📁</button>
-            <input type="file" id="fileInput" style="display:none;" onchange="uploadFile(this, 'chat-file')">
-            <button id="micBtn" class="btn-circle btn-bg" onclick="toggleMic()">🎤</button>
-            <input type="text" id="msgInput" placeholder="Mesajınızı buraya yazın..." oninput="sendTyping()" onkeypress="if(event.key==='Enter') send()">
-            <button class="btn-circle btn-send" onclick="send()">➤</button>
+            <button id="micBtn" class="mic-btn" onmousedown="startRecording()" onmouseup="stopRecording()" ontouchstart="startRecording()" ontouchend="stopRecording()">🎤</button>
+            <input type="text" id="msgInput" placeholder="Mesaj yazın..." onkeypress="if(event.key==='Enter') send()">
+            <button onclick="send()" style="background:var(--wa-green); color:white; border:none; width:40px; height:40px; border-radius:50%; cursor:pointer;">➤</button>
         </div>
     </div>
-
-    <audio id="notifSound" src="https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3"></audio>
 
     <script>
         const socket = io();
         const myName = "{{ user.username }}";
-        const sound = document.getElementById('notifSound');
+        let mediaRecorder, audioChunks = [];
 
-        socket.emit('join', {room: 'Genel'});
-
-        // Dosya ve Resim İşlemleri (Avatar, Arka Plan, Chat)
-        function uploadFile(input, type) {
-            const file = input.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = e => {
-                const data = e.target.result;
-                if (type === 'avatar') {
-                    document.getElementById('myAvatarDisplay').src = data;
-                    socket.emit('update_avatar', {img: data});
-                } else if (type === 'background') {
-                    document.getElementById('bgLayer').style.backgroundImage = `url(${data})`;
-                } else {
-                    const msgType = file.type.startsWith('image') ? 'image' : 'video';
-                    socket.emit('message', {msg: data, type: msgType});
-                }
-            };
-            reader.readAsDataURL(file);
-        }
-
+        // --- MESAJ GÖNDERME ---
         function send() {
             const input = document.getElementById('msgInput');
             if(input.value.trim()) {
@@ -111,60 +58,74 @@
             }
         }
 
-        // Yazıyor... Bilgisi
-        let typingTimer;
-        function sendTyping() {
-            socket.emit('typing', {is_typing: true});
-            clearTimeout(typingTimer);
-            typingTimer = setTimeout(() => socket.emit('typing', {is_typing: false}), 2000);
-        }
-        socket.on('display_typing', data => {
-            document.getElementById('typing-status').innerText = data.is_typing ? `${data.user} yazıyor...` : '';
+        socket.on('message', data => {
+            addMessage(data);
+            // Eğer mesajı biz alıyorsak, "okundu" sinyali gönderelim
+            if(data.user !== myName) {
+                socket.emit('mark_read', {id: data.id});
+            }
         });
 
-        socket.on('message', data => { addMessage(data); if(data.user !== myName) sound.play().catch(e=>{}); });
-        socket.on('history', msgs => msgs.forEach(addMessage));
-        socket.on('remove_message', data => document.getElementById('msg-'+data.id)?.remove());
+        socket.on('message_read', data => {
+            const tick = document.querySelector(`#msg-${data.id} .tick`);
+            if(tick) {
+                tick.innerHTML = "✓✓"; 
+                tick.classList.add('read-tick');
+            }
+        });
 
         function addMessage(data) {
             const area = document.getElementById('chat-area');
-            const div = document.createElement('div');
-            div.id = 'msg-' + data.id;
-            div.className = `msg ${data.user === myName ? 'sent' : 'received'}`;
+            const isMe = data.user === myName;
+            
+            const wrapper = document.createElement('div');
+            wrapper.className = `message-wrapper ${isMe ? 'wrapper-sent' : ''}`;
             
             let content = '';
-            if (data.type === 'text') content = data.msg;
-            else if (data.type === 'image') content = `<img src="${data.msg}" style="max-width:100%; border-radius:8px; margin-top:5px;">`;
-            else if (data.type === 'video') content = `<video src="${data.msg}" controls style="max-width:100%; border-radius:8px;"></video>`;
-            else if (data.type === 'audio') content = `<audio src="${data.msg}" controls style="max-width:200px;"></audio>`;
+            if(data.type === 'text') content = data.msg;
+            else if(data.type === 'audio') content = `<audio src="${data.msg}" controls style="width:200px; height:30px;"></audio>`;
 
-            let delBtn = data.user === myName ? `<span class="del-link" onclick="deleteMsg(${data.id})">SİL</span>` : '';
-            
-            div.innerHTML = `
-                <b style="color:var(--wa-green); font-size:0.85em;">${data.user}</b><br>
-                ${content}
-                <div class="msg-info">
-                    ${data.time} ${delBtn}
-                </div>`;
-            area.appendChild(div);
+            wrapper.innerHTML = `
+                <img src="${data.avatar || 'https://www.w3schools.com/howto/img_avatar.png'}" class="chat-avatar">
+                <div class="msg ${isMe ? 'sent' : 'received'}" id="msg-${data.id}">
+                    <b style="font-size:0.75em; color:var(--wa-green);">${data.user}</b><br>
+                    ${content}
+                    <div class="msg-info">
+                        ${data.time}
+                        ${isMe ? `<span class="tick">✓✓</span>` : ''}
+                    </div>
+                </div>
+            `;
+            area.appendChild(wrapper);
             area.scrollTop = area.scrollHeight;
         }
 
-        function deleteMsg(id) {
-            if(confirm("Bu mesajı silmek istiyor musun?")) {
-                socket.emit('delete_message', {id: id});
+        // --- SES KAYDI (GÜÇLENDİRİLMİŞ) ---
+        async function startRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+                mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+                mediaRecorder.onstop = () => {
+                    const blob = new Blob(audioChunks, { type: 'audio/webm' });
+                    const reader = new FileReader();
+                    reader.onload = e => socket.emit('message', {msg: e.target.result, type: 'audio'});
+                    reader.readAsDataURL(blob);
+                };
+                mediaRecorder.start();
+                document.getElementById('micBtn').classList.add('recording');
+            } catch (err) { alert("Mikrofon izni gerekli!"); }
+        }
+
+        function stopRecording() {
+            if(mediaRecorder && mediaRecorder.state !== "inactive") {
+                mediaRecorder.stop();
+                document.getElementById('micBtn').classList.remove('recording');
             }
         }
 
-        // Kullanıcı Listesi Güncelleme
-        socket.on('user_list', users => {
-            const list = document.getElementById('user-list');
-            list.innerHTML = '';
-            for (let u in users) {
-                list.innerHTML += `<div class="user-item"><img class="user-avatar" src="${users[u]}"><b>${u}</b></div>`;
-            }
-        });
+        socket.on('history', msgs => msgs.forEach(addMessage));
     </script>
 </body>
 </html>
-
