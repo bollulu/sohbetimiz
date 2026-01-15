@@ -9,9 +9,11 @@ from flask_socketio import SocketIO, emit, join_room, leave_room
 from datetime import datetime
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'chat-2026-final-v6'
+app.config['SECRET_KEY'] = 'chat-2026-ultimate-v8'
+
+# Veritabanı v8
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'chat_v6.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'chat_v8.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
@@ -20,6 +22,7 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
+# Modeller
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True, nullable=False)
@@ -31,6 +34,7 @@ class Message(db.Model):
     room = db.Column(db.String(50), nullable=False, default='Genel')
     username = db.Column(db.String(50), nullable=False)
     content = db.Column(db.Text, nullable=False)
+    type = db.Column(db.String(10), default='text') # 'text', 'image', 'video'
     timestamp = db.Column(db.String(10))
 
 with app.app_context():
@@ -40,6 +44,7 @@ with app.app_context():
 def load_user(user_id):
     return User.query.get(int(user_id))
 
+# Rotalar
 @app.route('/')
 def index(): return redirect(url_for('login'))
 
@@ -67,41 +72,42 @@ def chat(): return render_template('chat.html', user=current_user)
 @app.route('/logout')
 def logout(): logout_user(); return redirect(url_for('login'))
 
+# Socket İşlemleri
 active_users = {}
 
 @socketio.on('join')
 def on_join(data):
     room = data['room']
     if room.startswith("Özel") and data.get('password') != "1234":
-        emit('error', {'msg': 'Hatalı Şifre!'}); return
+        emit('error', {'msg': 'Hatalı Oda Şifresi!'}); return
+    
     join_room(room)
     session['room'] = room
     
-    # Geçmişi çekerken her kullanıcının güncel avatarını eşleştiriyoruz
     msgs = Message.query.filter_by(room=room).all()
     history = []
     for m in msgs:
         u = User.query.filter_by(username=m.username).first()
         history.append({
-            'id': m.id, 'user': m.username, 'msg': m.content, 'time': m.timestamp,
-            'avatar': u.avatar if u and u.avatar else ''
+            'id': m.id, 'user': m.username, 'msg': m.content, 'type': m.type,
+            'time': m.timestamp, 'avatar': u.avatar if u and u.avatar else ''
         })
     emit('history', history)
     
     active_users[request.sid] = {"name": current_user.username, "room": room, "avatar": current_user.avatar or ''}
-    # Sadece o odadaki kullanıcıları gönder
-    room_users = [u for u in active_users.values() if u['room'] == room]
-    emit('user_list', room_users, to=room)
+    emit('user_list', [u for u in active_users.values() if u['room'] == room], to=room)
 
 @socketio.on('message')
 def handle_msg(data):
     room = session.get('room', 'Genel')
     now = datetime.now().strftime("%H:%M")
-    new_m = Message(username=current_user.username, content=data['msg'], room=room, timestamp=now)
+    m_type = data.get('type', 'text')
+    new_m = Message(username=current_user.username, content=data['msg'], room=room, timestamp=now, type=m_type)
     db.session.add(new_m); db.session.commit()
+    
     emit('message', {
         'id': new_m.id, 'user': current_user.username, 'msg': data['msg'], 
-        'time': now, 'avatar': current_user.avatar or ''
+        'time': now, 'type': m_type, 'avatar': current_user.avatar or ''
     }, to=room)
 
 @socketio.on('delete_message')
@@ -117,9 +123,9 @@ def update_avatar(data):
     user = User.query.get(current_user.id)
     user.avatar = data['img']
     db.session.commit()
-    if request.sid in active_users:
-        active_users[request.sid]['avatar'] = data['img']
-    emit('user_list', [u for u in active_users.values() if u['room'] == session.get('room')], to=session.get('room'))
+    if request.sid in active_users: active_users[request.sid]['avatar'] = data['img']
+    room = session.get('room')
+    emit('user_list', [u for u in active_users.values() if u['room'] == room], to=room)
 
 @socketio.on('disconnect')
 def disconnect():
@@ -129,4 +135,5 @@ def disconnect():
         emit('user_list', [u for u in active_users.values() if u['room'] == room], to=room)
 
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=int(os.environ.get("PORT", 5000)))
+    port = int(os.environ.get("PORT", 5000))
+    socketio.run(app, host='0.0.0.0', port=port, debug=False)
