@@ -9,12 +9,12 @@
         .video-box { flex: 1; position: relative; background: #111; display: flex; align-items: center; justify-content: center; overflow: hidden; }
         #remoteVideo { width: 100%; height: 100%; object-fit: cover; }
         #localVideo { position: absolute; right: 15px; top: 15px; width: 100px; height: 140px; border: 2px solid white; border-radius: 10px; object-fit: cover; z-index: 10; background: #222; }
-        .controls { padding: 20px; display: flex; justify-content: center; gap: 10px; background: #000; }
-        .btn { padding: 15px 20px; border-radius: 25px; border: none; font-weight: bold; cursor: pointer; color: white; font-size: 14px; }
+        .controls { padding: 20px; display: flex; justify-content: center; gap: 10px; background: #000; flex-wrap: wrap; }
+        .btn { padding: 12px 18px; border-radius: 25px; border: none; font-weight: bold; cursor: pointer; color: white; font-size: 13px; }
         .btn-blue { background: #007bff; }
         .btn-orange { background: #fd7e14; }
-        .btn-red { background: #dc3545; text-decoration: none; }
-        #status { background: #333; padding: 8px; font-size: 12px; text-align: center; color: #ccc; }
+        .btn-red { background: #dc3545; text-decoration: none; display: flex; align-items: center; }
+        #status { background: #333; padding: 8px; font-size: 11px; text-align: center; color: #ccc; }
     </style>
 </head>
 <body>
@@ -28,7 +28,7 @@
 
     <div class="controls">
         <button id="startBtn" class="btn btn-blue" onclick="startStream('user')">Kamerayı Başlat</button>
-        <button id="switchBtn" class="btn btn-orange" onclick="startStream('environment')" style="display:none;">Arka Kamera</button>
+        <button id="switchBtn" class="btn btn-orange" onclick="startStream('environment')">Arka Kamera</button>
         <a href="/chat" class="btn btn-red">Kapat</a>
     </div>
 
@@ -37,52 +37,65 @@
         let localStream, peer;
         const config = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
-        // Cihaz Kontrolü: Telefon mu Bilgisayar mı?
-        function checkDevice() {
+        // BUTON KONTROLÜ: Sayfa yüklenir yüklenmez cihazı kontrol et
+        window.onload = function() {
             const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            const switchBtn = document.getElementById('switchBtn');
+            const startBtn = document.getElementById('startBtn');
+            
             if (isMobile) {
-                document.getElementById('switchBtn').style.display = 'inline-block';
-                document.getElementById('startBtn').innerText = 'Ön Kamera';
+                switchBtn.style.display = 'inline-block';
+                startBtn.innerText = 'Ön Kamera';
+            } else {
+                switchBtn.style.display = 'none';
+                startBtn.innerText = 'Kamerayı Başlat';
             }
-        }
-        checkDevice(); // Sayfa açılır açılmaz çalıştır
+        };
 
         async function startStream(mode) {
+            document.getElementById('status').innerText = "Kamera hazırlanıyor...";
+
+            // HATA ÖNLEME: Önce eski akışı durdurup tamamen temizle
+            if (localStream) {
+                localStream.getTracks().forEach(track => {
+                    track.stop();
+                    track.enabled = false;
+                });
+                localStream = null;
+            }
+
             try {
+                // Kamera isteği
                 const constraints = {
-                    video: { facingMode: mode },
-                    audio: true
+                    audio: true,
+                    video: { facingMode: mode }
                 };
 
                 const newStream = await navigator.mediaDevices.getUserMedia(constraints);
-                
-                // Eğer zaten bir görüşme varsa (donmayı engellemek için replaceTrack kullan)
+                localStream = newStream;
+                document.getElementById('localVideo').srcObject = localStream;
+
+                // EĞER peer zaten varsa, video kanalını güncelle
                 if (peer) {
-                    const videoTrack = newStream.getVideoTracks()[0];
+                    const videoTrack = localStream.getVideoTracks()[0];
                     const sender = peer.getSenders().find(s => s.track && s.track.kind === 'video');
                     if (sender) {
-                        sender.replaceTrack(videoTrack);
-                    }
-                    // Eski stream'i kapat
-                    if (localStream) {
-                        localStream.getTracks().forEach(t => t.stop());
+                        await sender.replaceTrack(videoTrack);
+                        document.getElementById('status').innerText = "Görüntü aktarıldı.";
                     }
                 } else {
-                    // İlk kez oda kuruluyor
+                    document.getElementById('status').innerText = "Bağlantı sinyali gönderiliyor...";
                     socket.emit('join_live', { room: 'live_room' });
                 }
 
-                localStream = newStream;
-                document.getElementById('localVideo').srcObject = localStream;
-                document.getElementById('status').innerText = "Kamera aktif. Bağlantı bekleniyor...";
-
             } catch (err) {
-                console.error("Kamera hatası:", err);
-                document.getElementById('status').innerText = "Hata: Kameraya erişilemedi.";
-                alert("Kamera başlatılamadı. Lütfen izin verdiğinizden emin olun.");
+                console.error("Hata Detayı:", err);
+                document.getElementById('status').innerText = "Hata: Kamera başlatılamadı.";
+                alert("Kamera izni veya donanım hatası: " + err.name);
             }
         }
 
+        // --- WebRTC Sinyalleşme Mantığı (Aynı Kalıyor) ---
         socket.on('user_joined', async () => {
             setupPeer();
             const offer = await peer.createOffer();
@@ -100,33 +113,18 @@
             } else if (data.type === 'answer') {
                 await peer.setRemoteDescription(new RTCSessionDescription(data.sdp));
             } else if (data.type === 'candidate') {
-                if (peer) {
-                    await peer.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(e => {});
-                }
+                if (peer) await peer.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(() => {});
             }
         });
 
         function setupPeer() {
             if (peer) return;
             peer = new RTCPeerConnection(config);
-
             localStream.getTracks().forEach(track => peer.addTrack(track, localStream));
-
-            peer.onicecandidate = (event) => {
-                if (event.candidate) {
-                    socket.emit('signal', { type: 'candidate', candidate: event.candidate });
-                }
-            };
-
-            peer.ontrack = (event) => {
-                document.getElementById('remoteVideo').srcObject = event.streams[0];
+            peer.onicecandidate = (e) => e.candidate && socket.emit('signal', { type: 'candidate', candidate: e.candidate });
+            peer.ontrack = (e) => {
+                document.getElementById('remoteVideo').srcObject = e.streams[0];
                 document.getElementById('status').innerText = "Görüşme başladı!";
-            };
-
-            peer.onconnectionstatechange = () => {
-                if (peer.connectionState === 'disconnected') {
-                    document.getElementById('status').innerText = "Bağlantı kesildi.";
-                }
             };
         }
     </script>
