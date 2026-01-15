@@ -5,28 +5,33 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <style>
-        :root { --wa-green: #075e54; --wa-light: #dcf8c6; }
-        body { font-family: 'Segoe UI', sans-serif; margin: 0; display: flex; height: 100vh; background: #e5ddd5; overflow: hidden; }
-        #side-panel { width: 300px; background: white; border-right: 1px solid #ddd; display: flex; flex-direction: column; }
+        :root { --wa-green: #075e54; --wa-light: #dcf8c6; --bg: #e5ddd5; }
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; display: flex; height: 100vh; background: var(--bg); overflow: hidden; }
+        
+        #side-panel { width: 300px; background: white; border-right: 1px solid #ddd; display: flex; flex-direction: column; z-index: 100; }
         .user-row { padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; display: flex; align-items: center; gap: 10px; }
         .online-dot { width: 10px; height: 10px; background: #4CAF50; border-radius: 50%; margin-left: auto; }
         .me-tag { font-size: 10px; background: #e1f5fe; padding: 2px 5px; border-radius: 4px; color: #0288d1; font-weight: bold; }
-        #main-chat { flex: 1; display: flex; flex-direction: column; }
+
+        /* Profil Resmi Değiştirme Efekti */
+        .my-avatar-container { position: relative; cursor: pointer; width: 40px; height: 40px; }
+        .my-avatar-container:hover::after { content: "✎"; position: absolute; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.4); border-radius: 50%; color: white; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+        .my-avatar-img { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; background: white; }
+
+        #main-chat { flex: 1; display: flex; flex-direction: column; position: relative; }
         #story-bar { display: flex; gap: 15px; padding: 10px; background: white; border-bottom: 1px solid #ddd; overflow-x: auto; min-height: 95px; }
         .story-circle { width: 55px; height: 55px; border-radius: 50%; border: 3px solid #25D366; padding: 2px; object-fit: cover; }
+        
         #chat-area { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 15px; }
         .msg-wrap { display: flex; align-items: flex-start; gap: 8px; max-width: 85%; }
         .sent-wrap { align-self: flex-end; flex-direction: row-reverse; }
-        .avatar-container { display: flex; flex-direction: column; align-items: center; min-width: 50px; }
-        .avatar-chat { width: 35px; height: 35px; border-radius: 50%; object-fit: cover; }
-        .avatar-name { font-size: 9px; color: #777; margin-top: 2px; text-align: center; }
-        .msg { padding: 10px 14px; border-radius: 12px; font-size: 14px; box-shadow: 0 1px 1px rgba(0,0,0,0.1); }
+        .msg { padding: 10px 14px; border-radius: 12px; font-size: 14px; box-shadow: 0 1px 1px rgba(0,0,0,0.1); position: relative; }
         .sent { background: var(--wa-light); border-top-right-radius: 2px; }
         .received { background: white; border-top-left-radius: 2px; }
+
         #input-area { background: #f0f0f0; padding: 10px; display: flex; align-items: center; gap: 10px; }
         input[type="text"] { flex: 1; padding: 12px; border-radius: 25px; border: none; outline: none; }
         #story-viewer { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:black; z-index:2000; flex-direction:column; align-items:center; justify-content:center; }
-        #story-img { max-height: 80%; max-width: 95%; border-radius: 10px; }
     </style>
 </head>
 <body>
@@ -34,7 +39,10 @@
 <div id="side-panel">
     <div style="padding:15px; background:var(--wa-green); color:white; display:flex; justify-content:space-between; align-items:center;">
         <b>Sohbetler</b>
-        <img src="{{ user.avatar }}" style="width:35px; height:35px; border-radius:50%; object-fit:cover; background:white;">
+        <div class="my-avatar-container" onclick="document.getElementById('profileIn').click()" title="Profil Resmini Değiştir">
+            <img src="{{ user.avatar }}" id="my-top-avatar" class="my-avatar-img">
+            <input type="file" id="profileIn" style="display:none" onchange="changeProfilePic(this)">
+        </div>
     </div>
     <div class="user-row" onclick="joinRoom('Genel')">🌍 <b>Genel Sohbet</b></div>
     <div id="user-list"></div>
@@ -49,7 +57,9 @@
         </div>
         <div id="stories-cont" style="display:flex; gap:12px;"></div>
     </div>
+
     <div id="chat-area"></div>
+
     <div id="input-area">
         <button onclick="document.getElementById('fIn').click()" style="font-size:20px; border:none; background:none; cursor:pointer;">📁</button>
         <input type="file" id="fIn" style="display:none" onchange="upMedia(this)">
@@ -64,7 +74,7 @@
         <b id="story-owner-name"></b>
     </div>
     <span onclick="closeStoryViewer()" style="position:absolute; top:20px; right:30px; color:white; font-size:40px; cursor:pointer;">&times;</span>
-    <img id="story-img" src="" onclick="nextStory()">
+    <img id="story-img" src="" style="max-height:80%; max-width:95%; border-radius:10px;" onclick="nextStory()">
 </div>
 
 <script>
@@ -74,51 +84,76 @@
 
     socket.emit('join', {room: 'Genel'});
 
-    // KRİTİK SIKIŞTIRMA FONKSİYONU
-    function compressAndSend(file, callback) {
-        if(!file.type.startsWith('image')) { // Resim değilse (video/audio) sıkıştırmadan gönder
-            const r = new FileReader(); r.onload = e => callback(e.target.result); r.readAsDataURL(file);
-            return;
-        }
+    // RESİM SIKIŞTIRMA VE GÖNDERME (Genel Fonksiyon)
+    function compressAndProcess(file, maxSize, quality, callback) {
         const reader = new FileReader();
         reader.onload = (e) => {
+            if(!file.type.startsWith('image')) { callback(e.target.result); return; }
             const img = new Image();
             img.onload = () => {
                 const canvas = document.createElement('canvas');
-                let w = img.width, h = img.height, max = 800; // Sohbet için 800px yeterli
-                if (w > h && w > max) { h *= max / w; w = max; }
-                else if (h > max) { w *= max / h; h = max; }
+                let w = img.width, h = img.height;
+                if (w > h && w > maxSize) { h *= maxSize / w; w = maxSize; }
+                else if (h > maxSize) { w *= maxSize / h; h = maxSize; }
                 canvas.width = w; canvas.height = h;
-                const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, w, h);
-                callback(canvas.toDataURL('image/jpeg', 0.6)); // %60 kalite
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, w, h);
+                callback(canvas.toDataURL('image/jpeg', quality));
             };
             img.src = e.target.result;
         };
         reader.readAsDataURL(file);
     }
 
+    // Profil Resmini Değiştirme
+    function changeProfilePic(input) {
+        if (input.files && input.files[0]) {
+            compressAndProcess(input.files[0], 400, 0.6, (data) => {
+                socket.emit('update_profile_pic', { avatar: data });
+                document.getElementById('my-top-avatar').src = data;
+                alert("Profil resminiz güncellendi!");
+            });
+        }
+    }
+
+    // Mesaj/Medya/Story Gönderimleri (Sıkıştırmalı)
     function send() {
         const i = document.getElementById('msgInput');
         if(i.value.trim()) { socket.emit('message', {msg: i.value, type:'text', room: currentRoom}); i.value=''; }
     }
 
     function upMedia(i) {
-        if (!i.files[0]) return;
-        compressAndSend(i.files[0], (data) => {
+        if (i.files[0]) compressAndProcess(i.files[0], 800, 0.5, (data) => {
             const type = i.files[0].type.startsWith('image') ? 'image' : 'video';
             socket.emit('message', {msg: data, type: type, room: currentRoom});
         });
     }
 
     function upStory(i) {
-        if (!i.files[0]) return;
-        compressAndSend(i.files[0], (data) => {
+        if (i.files[0]) compressAndProcess(i.files[0], 1000, 0.5, (data) => {
             socket.emit('upload_story', { img: data });
-            i.value = ''; 
+            i.value = '';
         });
     }
 
-    function addMsg(d) {
+    // Socket Olayları
+    socket.on('user_list', users => {
+        const list = document.getElementById('user-list'); list.innerHTML = '';
+        if(users[myName]) {
+            list.innerHTML += `<div class="user-row">
+                <img src="${users[myName]}" style="width:35px; height:35px; border-radius:50%; object-fit:cover;">
+                <span><b>${myName}</b> <span class="me-tag">Siz</span></span><div class="online-dot"></div>
+            </div>`;
+        }
+        for(let u in users) if(u !== myName) {
+            list.innerHTML += `<div class="user-row" onclick="joinRoom('${u}')">
+                <img src="${users[u]}" style="width:35px; height:35px; border-radius:50%; object-fit:cover;">
+                <span>${u}</span><div class="online-dot"></div>
+            </div>`;
+        }
+    });
+
+    socket.on('message', d => {
         const area = document.getElementById('chat-area');
         const isMe = d.user === myName;
         const wrap = document.createElement('div');
@@ -134,18 +169,6 @@
             </div>
             <div class="msg ${isMe ? 'sent' : 'received'}">${content}<br><small style="font-size:9px; color:#999;">${d.time}</small></div>`;
         area.appendChild(wrap); area.scrollTop = area.scrollHeight;
-    }
-
-    socket.on('user_list', users => {
-        const list = document.getElementById('user-list'); list.innerHTML = '';
-        if(users[myName]) list.innerHTML += `<div class="user-row">
-            <img src="${users[myName]}" style="width:35px; height:35px; border-radius:50%; object-fit:cover;">
-            <span><b>${myName}</b> <span class="me-tag">Siz</span></span><div class="online-dot"></div></div>`;
-        for(let u in users) if(u !== myName) {
-            list.innerHTML += `<div class="user-row" onclick="joinRoom('${u}')">
-                <img src="${users[u]}" style="width:35px; height:35px; border-radius:50%; object-fit:cover;">
-                <span>${u}</span><div class="online-dot"></div></div>`;
-        }
     });
 
     socket.on('story_list', grouped => {
@@ -177,14 +200,14 @@
     }
 
     function closeStoryViewer() { document.getElementById('story-viewer').style.display = 'none'; }
+    
     function joinRoom(t) {
         currentRoom = t === 'Genel' ? 'Genel' : [myName, t].sort().join('-');
         document.getElementById('chat-area').innerHTML = '';
         socket.emit('join', {room: currentRoom});
     }
 
-    socket.on('message', addMsg);
-    socket.on('history', h => h.forEach(addMsg));
+    socket.on('history', h => h.forEach(msg => socket.emit('message_history_trigger', msg))); // Bu kısmı basitleştirmek için history doğrudan basılabilir
 </script>
 </body>
 </html>
