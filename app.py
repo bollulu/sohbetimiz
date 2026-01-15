@@ -1,6 +1,5 @@
 import eventlet
 eventlet.monkey_patch(all=True)
-
 import os
 from flask import Flask, render_template, request, redirect, url_for, session
 from flask_sqlalchemy import SQLAlchemy
@@ -9,16 +8,13 @@ from flask_socketio import SocketIO, emit, join_room, leave_room
 from datetime import datetime
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'chat-2026-mobile-v9'
-
-# Veritabanı v9
+app.config['SECRET_KEY'] = 'chat-2026-v10-final'
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'chat_v9.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'chat_v10.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
-
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
@@ -40,12 +36,10 @@ with app.app_context():
     db.create_all()
 
 @login_manager.user_loader
-def load_user(user_id):
-    return User.query.get(int(user_id))
+def load_user(user_id): return User.query.get(int(user_id))
 
 @app.route('/')
 def index(): return redirect(url_for('login'))
-
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
@@ -54,7 +48,6 @@ def register():
             db.session.add(User(username=u, password=p)); db.session.commit()
             return redirect(url_for('login'))
     return render_template('register.html')
-
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -62,11 +55,9 @@ def login():
         if user and user.password == request.form.get('password'):
             login_user(user); return redirect(url_for('chat'))
     return render_template('login.html')
-
 @app.route('/chat')
 @login_required
 def chat(): return render_template('chat.html', user=current_user)
-
 @app.route('/logout')
 def logout(): logout_user(); return redirect(url_for('login'))
 
@@ -75,28 +66,16 @@ active_users = {}
 @socketio.on('join')
 def on_join(data):
     room = data['room']
-    # SUNUCU TARAFLI ŞİFRE KONTROLÜ (GÜVENLİK İÇİN)
     if room == 'Özel Oda' and data.get('password') != '1234':
-        emit('error', {'msg': 'Hatalı Oda Şifresi!'})
-        return
-    
-    # Eski odadan çık
-    old_room = session.get('room')
-    if old_room: leave_room(old_room)
-    
+        emit('error', {'msg': 'Hatalı Oda Şifresi!'}); return
     join_room(room)
     session['room'] = room
-    
     msgs = Message.query.filter_by(room=room).all()
     history = []
     for m in msgs:
         u = User.query.filter_by(username=m.username).first()
-        history.append({
-            'id': m.id, 'user': m.username, 'msg': m.content, 'type': m.type,
-            'time': m.timestamp, 'avatar': u.avatar if u and u.avatar else ''
-        })
+        history.append({'id':m.id,'user':m.username,'msg':m.content,'type':m.type,'time':m.timestamp,'avatar':u.avatar if u else ''})
     emit('history', history)
-    
     active_users[request.sid] = {"name": current_user.username, "room": room, "avatar": current_user.avatar or ''}
     emit('user_list', [u for u in active_users.values() if u['room'] == room], to=room)
 
@@ -104,37 +83,23 @@ def on_join(data):
 def handle_msg(data):
     room = session.get('room', 'Genel')
     now = datetime.now().strftime("%H:%M")
-    m_type = data.get('type', 'text')
-    new_m = Message(username=current_user.username, content=data['msg'], room=room, timestamp=now, type=m_type)
+    new_m = Message(username=current_user.username, content=data['msg'], room=room, timestamp=now, type=data.get('type', 'text'))
     db.session.add(new_m); db.session.commit()
-    emit('message', {
-        'id': new_m.id, 'user': current_user.username, 'msg': data['msg'], 
-        'time': now, 'type': m_type, 'avatar': current_user.avatar or ''
-    }, to=room)
+    emit('message', {'id':new_m.id,'user':current_user.username,'msg':data['msg'],'time':now,'type':new_m.type,'avatar':current_user.avatar or ''}, to=room)
 
 @socketio.on('delete_message')
 def delete_msg(data):
     msg = Message.query.get(data['id'])
     if msg and msg.username == current_user.username:
-        room = msg.room
         db.session.delete(msg); db.session.commit()
-        emit('remove_message', {'id': data['id']}, to=room)
+        emit('remove_message', {'id': data['id']}, to=msg.room)
 
 @socketio.on('update_avatar')
 def update_avatar(data):
-    user = User.query.get(current_user.id)
-    user.avatar = data['img']
+    current_user.avatar = data['img']
     db.session.commit()
     if request.sid in active_users: active_users[request.sid]['avatar'] = data['img']
-    room = session.get('room')
-    emit('user_list', [u for u in active_users.values() if u['room'] == room], to=room)
-
-@socketio.on('disconnect')
-def disconnect():
-    if request.sid in active_users:
-        room = active_users[request.sid]['room']
-        active_users.pop(request.sid)
-        emit('user_list', [u for u in active_users.values() if u['room'] == room], to=room)
+    emit('user_list', [u for u in active_users.values() if u['room'] == session.get('room')], to=session.get('room'))
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=int(os.environ.get("PORT", 5000)))
