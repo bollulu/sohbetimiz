@@ -1,79 +1,75 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>WhatsApp Ultra Final</title>
+    <title>WhatsApp Ultra</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <style>
         :root { --green: #075e54; --light-green: #dcf8c6; --blue: #34b7f1; }
         body { font-family: 'Segoe UI', sans-serif; margin: 0; display: flex; height: 100vh; background: #e5ddd5; overflow: hidden; }
         
-        /* Sol Panel */
-        #side { width: 350px; background: white; border-right: 1px solid #ddd; display: flex; flex-direction: column; }
-        #story-bar { display: flex; padding: 10px; gap: 15px; overflow-x: auto; background: #f0f2f5; border-bottom: 1px solid #ddd; }
+        /* SOL PANEL: Sadece Kişiler ve Profil */
+        #side { width: 300px; background: white; border-right: 1px solid #ddd; display: flex; flex-direction: column; }
+        .side-header { padding: 10px; background: #ededed; display: flex; justify-content: space-between; align-items: center; }
+        
+        /* ORTA PANEL: Hikayeler ve Mesajlar */
+        #main { flex: 1; display: flex; flex-direction: column; position: relative; }
+        
+        /* İSTEDİĞİN YER: Orta barın üstündeki hikaye şeridi */
+        #story-top-bar { 
+            height: 90px; background: white; border-bottom: 1px solid #ddd; 
+            display: flex; align-items: center; gap: 15px; padding: 0 15px; overflow-x: auto;
+        }
         .st-container { text-align: center; min-width: 65px; cursor: pointer; position: relative; }
-        .st-img { width: 55px; height: 55px; border-radius: 50%; border: 3px solid #25D366; object-fit: cover; padding: 2px; background: white; }
-        .add-btn { position: absolute; bottom: 20px; right: 8px; background: #25D366; color: white; border-radius: 50%; width: 20px; height: 20px; font-weight: bold; border: 2px solid white; display: flex; align-items: center; justify-content: center; }
+        .st-img { width: 50px; height: 50px; border-radius: 50%; border: 3px solid #25D366; object-fit: cover; }
+        .add-icon { position: absolute; bottom: 20px; right: 8px; background: #25D366; color: white; border-radius: 50%; width: 18px; height: 18px; font-size: 14px; border: 2px solid white; display: flex; align-items: center; justify-content: center; }
 
-        /* Mesajlaşma */
-        #main { flex: 1; display: flex; flex-direction: column; }
+        /* Mesaj Kutuları */
         #chat-box { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
-        .msg { display: flex; align-items: flex-end; gap: 8px; max-width: 75%; }
+        .msg { display: flex; align-items: flex-end; gap: 8px; max-width: 70%; }
         .msg.me { align-self: flex-end; flex-direction: row-reverse; }
-        .bubble { padding: 8px 12px; border-radius: 12px; font-size: 14px; position: relative; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        .bubble { padding: 8px 12px; border-radius: 12px; font-size: 14px; box-shadow: 0 1px 2px rgba(0,0,0,0.1); position: relative; }
         .me .bubble { background: var(--light-green); }
         .not-me .bubble { background: white; }
-        .avatar-chat { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; }
+        .avatar-chat { width: 25px; height: 25px; border-radius: 50%; object-fit: cover; }
         .tick { font-size: 11px; margin-left: 5px; color: var(--blue); font-weight: bold; }
 
-        /* Video / Hikaye Overlay */
         #overlay { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:9999; flex-direction:column; align-items:center; justify-content:center; }
-        video { width: 80%; max-width: 500px; border-radius: 10px; }
     </style>
 </head>
 <body>
 
 <div id="side">
-    <div style="padding:10px; background:var(--green); color:white; display:flex; justify-content:space-between; align-items:center;">
-        <img src="{{ user.avatar }}" id="my-avatar" onclick="document.getElementById('pIn').click()" style="width:40px; height:40px; border-radius:50%; cursor:pointer; object-fit:cover; border:1px solid white;">
-        <div style="display:flex; gap:15px; font-size:20px;">
-            <span onclick="toggleVideo()" style="cursor:pointer;">📞</span>
-            <a href="{{ url_for('logout') }}" style="color:white; text-decoration:none;">🚪</a>
+    <div class="side-header">
+        <img src="{{ user.avatar }}" id="my-avatar" onclick="document.getElementById('pIn').click()" style="width:40px; height:40px; border-radius:50%; cursor:pointer; object-fit:cover;">
+        <div style="display:flex; gap:10px;">
+            <span onclick="startVideo()" style="cursor:pointer; font-size:20px;">📞</span>
+            <a href="{{ url_for('logout') }}" style="text-decoration:none;">🚪</a>
         </div>
     </div>
-
-    <div id="story-bar">
-        <div class="st-container" onclick="document.getElementById('sIn').click()">
-            <img src="{{ user.avatar }}" class="st-img" style="border-color:#ccc">
-            <div class="add-btn">+</div>
-            <div style="font-size:11px;">Siz</div>
-        </div>
-        <div id="others-st" style="display:flex; gap:15px;"></div>
-    </div>
-
-    <div id="online-list" style="flex:1; overflow-y:auto; padding:10px;">
-        <h4 style="color:var(--green)">Çevrimiçi</h4>
+    <div id="online-list" style="padding:10px;">
+        <h4 style="margin:5px 0;">Çevrimiçi</h4>
         <div id="users-div"></div>
     </div>
 </div>
 
 <div id="main">
-    <div id="chat-box"></div>
-    <div style="padding:15px; background:#f0f0f0; display:flex; gap:12px; align-items:center;">
-        <button onclick="document.getElementById('fIn').click()">📎</button>
-        <button id="mic-btn" onmousedown="startAudio()" onmouseup="stopAudio()">🎤</button>
-        <input type="text" id="mIn" style="flex:1; padding:10px; border-radius:20px; border:none;" placeholder="Mesaj yaz..." onkeydown="if(event.key==='Enter') sendText()">
-        <button onclick="sendText()" style="color:var(--green); font-size:20px; background:none; border:none;">➤</button>
+    <div id="story-top-bar">
+        <div class="st-container" onclick="document.getElementById('sIn').click()">
+            <img src="{{ user.avatar }}" class="st-img" style="border-color:#ccc">
+            <div class="add-icon">+</div>
+            <div style="font-size:11px;">Siz</div>
+        </div>
+        <div id="others-st" style="display:flex; gap:15px;"></div>
     </div>
-</div>
 
-<div id="overlay">
-    <div id="story-content" style="text-align:center;"></div>
-    <video id="v-remote" autoplay playsinline style="display:none;"></video>
-    <video id="v-local" autoplay muted playsinline style="display:none; width:150px; border:2px solid white; margin-top:10px;"></video>
-    <div style="margin-top:20px; display:flex; gap:20px;">
-        <button onclick="switchCam()" id="cam-btn" style="display:none;">📷 Kamera Değiştir</button>
-        <button onclick="closeOverlay()" style="background:red; color:white; padding:10px 20px; border-radius:5px; border:none;">Kapat</button>
+    <div id="chat-box"></div>
+
+    <div style="padding:15px; background:#f0f0f0; display:flex; gap:12px; align-items:center;">
+        <span onclick="document.getElementById('fIn').click()" style="cursor:pointer;">📎</span>
+        <span id="mic" onmousedown="startAudio()" onmouseup="stopAudio()" style="cursor:pointer;">🎤</span>
+        <input type="text" id="mIn" style="flex:1; padding:10px; border-radius:20px; border:none;" placeholder="Mesaj yaz..." onkeydown="if(event.key==='Enter') sendText()">
+        <button onclick="sendText()" style="border:none; background:none; color:var(--green); font-size:20px;">➤</button>
     </div>
 </div>
 
@@ -81,12 +77,19 @@
 <input type="file" id="sIn" style="display:none" onchange="uploadFile(this, 'story')">
 <input type="file" id="fIn" style="display:none" onchange="uploadFile(this, 'chat')">
 
+<div id="overlay">
+    <div id="story-content" style="text-align:center;"></div>
+    <video id="v-remote" autoplay playsinline style="width:80%; max-width:500px; display:none;"></video>
+    <video id="v-local" autoplay muted playsinline style="width:120px; border:2px solid white; display:none; margin-top:10px;"></video>
+    <button onclick="closeOverlay()" style="margin-top:20px; padding:10px 20px; background:red; color:white; border:none; border-radius:5px;">Kapat</button>
+</div>
+
 <script>
     const socket = io();
     const myName = "{{ user.username }}";
-    let mediaRec, chunks = [], camMode = "user";
+    let mediaRec, chunks = [];
 
-    // --- PROFIL & HIKAYE & DOSYA ---
+    // PROFIL GÜNCELLEME (Hemen çalışması için düzeltildi)
     function uploadFile(input, mode) {
         if (!input.files[0]) return;
         const reader = new FileReader();
@@ -95,6 +98,8 @@
             if(mode === 'profile') {
                 socket.emit('update_profile', {avatar: data});
                 document.getElementById('my-avatar').src = data;
+                // Hikaye barındaki resmi de güncelle
+                document.querySelector('.st-container img').src = data;
             } else if(mode === 'story') {
                 socket.emit('add_story', {image: data});
             } else {
@@ -104,15 +109,12 @@
         reader.readAsDataURL(input.files[0]);
     }
 
-    // --- HİKAYE GÖSTERİMİ (ÇOKLU) ---
+    // HİKAYE LİSTESİ VE ÇOKLU GEÇİŞ
     socket.on('story_list', data => {
         const div = document.getElementById('others-st');
         div.innerHTML = '';
         for(let user in data) {
-            if(user === myName) { // Kendi hikayemize tıklayınca silme seçeneği
-                document.querySelector('.st-container img').onclick = () => viewStories(data[user].items, user);
-                continue;
-            }
+            if(user === myName) continue;
             const st = document.createElement('div');
             st.className = 'st-container';
             st.onclick = () => viewStories(data[user].items, user);
@@ -126,21 +128,16 @@
         const overlay = document.getElementById('overlay');
         const content = document.getElementById('story-content');
         overlay.style.display = 'flex';
-        
         const show = () => {
-            content.innerHTML = `<img src="${items[i].content}" style="max-width:90%; max-height:80vh; border-radius:10px;">
+            content.innerHTML = `<img src="${items[i].content}" style="max-width:90%; max-height:80vh;">
                                  <p style="color:white;">${user} (${i+1}/${items.length})</p>
                                  ${user === myName ? `<button onclick="socket.emit('delete_story',{id:${items[i].id}}); closeOverlay();">SİL</button>` : ''}`;
         };
         show();
-        content.onclick = () => {
-            i++;
-            if(i < items.length) show();
-            else closeOverlay();
-        };
+        content.onclick = () => { i++; if(i < items.length) show(); else closeOverlay(); };
     }
 
-    // --- MESAJLAŞMA ---
+    // MESAJLAŞMA VE SİLME
     function sendText() {
         const i = document.getElementById('mIn');
         if(i.value.trim()) { socket.emit('message', {msg: i.value, type: 'text'}); i.value=''; }
@@ -152,20 +149,15 @@
         const row = document.createElement('div');
         row.className = `msg ${isMe ? 'me' : ''}`;
         row.id = `msg-${d.id}`;
-        
-        let body = d.msg;
-        if(d.type === 'image') body = `<img src="${d.msg}" style="max-width:250px; border-radius:10px;">`;
-        if(d.type === 'audio') body = `<audio src="${d.msg}" controls></audio>`;
-
         row.innerHTML = `
             <img src="${d.avatar}" class="avatar-chat">
             <div class="bubble">
                 <div style="font-size:10px; font-weight:bold; color:var(--green);">${isMe ? 'Siz' : d.user}</div>
-                ${body}
+                ${d.type==='image' ? `<img src="${d.msg}" style="max-width:200px;">` : d.msg}
                 <div style="text-align:right;">
                     <span style="font-size:9px; color:#999;">${d.time}</span>
                     ${isMe ? `<span class="tick">✓✓</span>` : ''}
-                    ${isMe ? `<span onclick="socket.emit('delete_message',{id:${d.id}})" style="cursor:pointer; color:red; margin-left:10px; font-size:10px;">SİL</span>` : ''}
+                    ${isMe ? `<span onclick="socket.emit('delete_message',{id:${d.id}})" style="cursor:pointer; color:red; font-size:10px; margin-left:5px;">SİL</span>` : ''}
                 </div>
             </div>`;
         box.appendChild(row);
@@ -173,56 +165,12 @@
     });
 
     socket.on('msg_deleted', d => document.getElementById(`msg-${d.id}`)?.remove());
-
-    // --- ÇEVRİMİÇİ LİSTESİ ---
-    socket.on('update_user_list', users => {
-        const div = document.getElementById('users-div');
-        div.innerHTML = '';
-        for(let u in users) {
-            div.innerHTML += `<div style="padding:8px; border-bottom:1px solid #eee;">● ${u === myName ? '<b>Siz</b>' : u}</div>`;
-        }
+    socket.on('update_user_list', u => {
+        const d = document.getElementById('users-div'); d.innerHTML = '';
+        for(let name in u) d.innerHTML += `<div style="padding:5px;">● ${name===myName ? '<b>Siz</b>' : name}</div>`;
     });
 
-    // --- GÖRÜNTÜLÜ KONUŞMA ---
-    async function toggleVideo() {
-        const overlay = document.getElementById('overlay');
-        overlay.style.display = 'flex';
-        document.getElementById('v-remote').style.display = 'block';
-        document.getElementById('v-local').style.display = 'block';
-        document.getElementById('cam-btn').style.display = 'inline-block';
-        
-        const stream = await navigator.mediaDevices.getUserMedia({video: {facingMode: camMode}, audio: true});
-        document.getElementById('v-local').srcObject = stream;
-    }
-
-    function switchCam() {
-        camMode = camMode === "user" ? "environment" : "user";
-        toggleVideo();
-    }
-
-    function closeOverlay() {
-        document.getElementById('overlay').style.display = 'none';
-        document.getElementById('story-content').innerHTML = '';
-        const v = document.getElementById('v-local');
-        if(v.srcObject) v.srcObject.getTracks().forEach(t => t.stop());
-    }
-
-    // --- SES KAYDI ---
-    async function startAudio() {
-        const s = await navigator.mediaDevices.getUserMedia({audio:true});
-        mediaRec = new MediaRecorder(s);
-        mediaRec.ondataavailable = e => chunks.push(e.data);
-        mediaRec.onstop = () => {
-            const b = new Blob(chunks, {type:'audio/webm'});
-            const r = new FileReader();
-            r.onload = e => socket.emit('message', {msg: e.target.result, type: 'audio'});
-            r.readAsDataURL(b); chunks = [];
-        };
-        mediaRec.start();
-        document.getElementById('mic-btn').style.color = 'red';
-    }
-    function stopAudio() { mediaRec.stop(); document.getElementById('mic-btn').style.color = 'black'; }
-
+    function closeOverlay() { document.getElementById('overlay').style.display = 'none'; }
     socket.emit('join', {});
 </script>
 </body>
