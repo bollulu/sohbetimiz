@@ -1,4 +1,3 @@
-# DİKKAT: Bu 2 satır en üstte olmalı!
 from gevent import monkey
 monkey.patch_all()
 
@@ -6,20 +5,17 @@ import os
 from flask import Flask, render_template, request, redirect, url_for, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
-from flask_socketio import SocketIO, emit, join_room, leave_room
+from flask_socketio import SocketIO, emit, join_room
 from datetime import datetime
 
-# Uygulama ve DB Ayarları
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'ultimate-sohbet-2026-gevent'
+app.config['SECRET_KEY'] = 'sohbet-gevent-2026'
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'gevent_chat_v1.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'chat_final.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
-# async_mode='gevent' olarak güncellendi
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
-
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
@@ -32,10 +28,9 @@ class User(UserMixin, db.Model):
 
 class Message(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    room = db.Column(db.String(50), nullable=False, default='Genel')
-    username = db.Column(db.String(50), nullable=False)
-    content = db.Column(db.Text, nullable=False)
-    type = db.Column(db.String(10), default='text')
+    room = db.Column(db.String(50), default='Genel')
+    username = db.Column(db.String(50))
+    content = db.Column(db.Text)
     timestamp = db.Column(db.String(10))
 
 with app.app_context():
@@ -45,21 +40,10 @@ with app.app_context():
 def load_user(user_id):
     return db.session.get(User, int(user_id))
 
-# --- Rotalar ---
+# Rotalar
 @app.route('/')
 def index():
     return redirect(url_for('login'))
-
-@app.route('/register', methods=['GET', 'POST'])
-def register():
-    if request.method == 'POST':
-        u = request.form.get('username')
-        p = request.form.get('password')
-        if u and p and not User.query.filter_by(username=u).first():
-            db.session.add(User(username=u, password=p))
-            db.session.commit()
-            return redirect(url_for('login'))
-    return render_template('register.html')
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -70,75 +54,55 @@ def login():
             return redirect(url_for('chat'))
     return render_template('login.html')
 
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        u, p = request.form.get('username'), request.form.get('password')
+        if u and p and not User.query.filter_by(username=u).first():
+            db.session.add(User(username=u, password=p))
+            db.session.commit()
+            return redirect(url_for('login'))
+    return render_template('register.html')
+
 @app.route('/chat')
 @login_required
 def chat():
     return render_template('chat.html', user=current_user)
+
+@app.route('/live')
+@login_required
+def live():
+    # Burası 404 hatasını çözen yer!
+    return render_template('live.html', user=current_user)
 
 @app.route('/logout')
 def logout():
     logout_user()
     return redirect(url_for('login'))
 
-# --- Socket İşlemleri ---
-active_users = {}
-
+# Socket Olayları
 @socketio.on('join')
 def on_join(data):
     room = data.get('room', 'Genel')
     join_room(room)
     session['room'] = room
-    
     msgs = Message.query.filter_by(room=room).order_by(Message.id.desc()).limit(50).all()
-    history = []
-    for m in reversed(msgs):
-        u = User.query.filter_by(username=m.username).first()
-        history.append({
-            'id': m.id, 'user': m.username, 'msg': m.content, 
-            'type': m.type, 'time': m.timestamp, 'avatar': u.avatar if u else ''
-        })
+    history = [{'id': m.id, 'user': m.username, 'msg': m.content, 'time': m.timestamp} for m in reversed(msgs)]
     emit('history', history)
-    
-    active_users[request.sid] = {"name": current_user.username, "room": room, "avatar": current_user.avatar or ''}
-    emit('user_list', [u for u in active_users.values() if u['room'] == room], to=room)
 
 @socketio.on('message')
 def handle_msg(data):
     room = session.get('room', 'Genel')
     now = datetime.now().strftime("%H:%M")
-    new_m = Message(username=current_user.username, content=data['msg'], room=room, timestamp=now, type=data.get('type', 'text'))
-    db.session.add(new_m)
+    msg = Message(username=current_user.username, content=data['msg'], room=room, timestamp=now)
+    db.session.add(msg)
     db.session.commit()
-    emit('message', {
-        'id': new_m.id, 'user': current_user.username, 'msg': data['msg'], 
-        'time': now, 'type': new_m.type, 'avatar': current_user.avatar or ''
-    }, to=room)
+    emit('message', {'id': msg.id, 'user': current_user.username, 'msg': data['msg'], 'time': now}, to=room)
 
-@socketio.on('delete_message')
-def delete_msg(data):
-    msg = db.session.get(Message, data['id'])
-    if msg and msg.username == current_user.username:
-        rid = msg.id; rname = msg.room
-        db.session.delete(msg)
-        db.session.commit()
-        emit('remove_message', {'id': rid}, to=rname)
-
-@socketio.on('update_avatar')
-def update_avatar(data):
-    user = db.session.get(User, current_user.id)
-    user.avatar = data['img']
-    db.session.commit()
-    if request.sid in active_users: 
-        active_users[request.sid]['avatar'] = data['img']
-    emit('user_list', [u for u in active_users.values() if u['room'] == session.get('room')], to=session.get('room'))
-
-@socketio.on('disconnect')
-def on_disconnect():
-    if request.sid in active_users:
-        room = active_users[request.sid]['room']
-        del active_users[request.sid]
-        emit('user_list', [u for u in active_users.values() if u['room'] == room], to=room)
+# WebRTC Sinyalleşme (Canlı Yayın İçin)
+@socketio.on('signal')
+def handle_signal(data):
+    emit('signal', data, to=data['to'], include_self=False)
 
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))
-    socketio.run(app, host='0.0.0.0', port=port)
+    socketio.run(app, host='0.0.0.0', port=10000)
