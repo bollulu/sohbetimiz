@@ -1,8 +1,67 @@
-<form method="POST">
-    <input type="text" name="username" placeholder="Kullanıcı Adı" required><br>
-    <input type="password" name="password" placeholder="Şifre" required><br>
-    <p>Avatar Seçiniz:</p>
-    <label><input type="radio" name="avatar_choice" value="https://www.w3schools.com/howto/img_avatar.png" checked> 👦 Erkek</label>
-    <label><input type="radio" name="avatar_choice" value="https://www.w3schools.com/howto/img_avatar2.png"> 👧 Kız</label><br><br>
-    <button type="submit">Kayıt Ol</button>
-</form>
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kayıt Ol | Sohbet 2026</title>
+    <style>
+        :root { --wa-green: #25D366; --wa-dark: #075e54; --bg: #f0f2f5; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: var(--bg); margin: 0; display: flex; align-items: center; justify-content: center; height: 100vh; }
+        .auth-container { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); width: 100%; max-width: 400px; text-align: center; }
+        .auth-container h2 { color: var(--wa-dark); margin-bottom: 25px; }
+        .input-group { margin-bottom: 15px; text-align: left; }
+        label { display: block; margin-bottom: 5px; color: #666; font-size: 14px; }
+        input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; outline: none; transition: border 0.3s; }
+        input:focus { border-color: var(--wa-green); }
+        
+        /* Profil Seçimi Tasarımı */
+        .avatar-preview-container { margin: 20px 0; position: relative; display: inline-block; }
+        #avatar-preview { width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid var(--wa-green); background: #eee; }
+        .file-label { display: block; margin-top: 10px; font-size: 13px; color: var(--wa-dark); cursor: pointer; font-weight: bold; }
+        
+        button { width: 100%; padding: 12px; background: var(--wa-green); color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; transition: background 0.3s; }
+        button:hover { background: #1ebc57; }
+        .switch-link { margin-top: 20px; font-size: 14px; color: #777; }
+        .switch-link a { color: var(--wa-dark); text-decoration: none; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="auth-container">
+        <h2>Yeni Hesap Oluştur</h2>
+        <form method="POST">
+            <div class="avatar-preview-container">
+                <img id="avatar-preview" src="https://cdn-icons-png.flaticon.com/512/149/149071.png">
+                <label for="avatar_file" class="file-label">Profil Resmi Seç</label>
+                <input type="file" id="avatar_file" accept="image/*" style="display:none" onchange="previewImg(this)">
+                <input type="hidden" name="avatar_choice" id="avatar_base64">
+            </div>
+
+            <div class="input-group">
+                <label>Kullanıcı Adı</label>
+                <input type="text" name="username" required placeholder="Kullanıcı adınız">
+            </div>
+            <div class="input-group">
+                <label>Şifre</label>
+                <input type="password" name="password" required placeholder="******">
+            </div>
+            <button type="submit">Kayıt Ol ve Başla</button>
+        </form>
+        <div class="switch-link">
+            Zaten üye misiniz? <a href="{{ url_for('login') }}">Giriş Yap</a>
+        </div>
+    </div>
+
+    <script>
+        function previewImg(input) {
+            if (input.files && input.files[0]) {
+                var reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('avatar-preview').src = e.target.result;
+                    document.getElementById('avatar_base64').value = e.target.result;
+                }
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+    </script>
+</body>
+</html>
