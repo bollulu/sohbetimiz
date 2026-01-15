@@ -9,15 +9,17 @@ from flask_socketio import SocketIO, emit, join_room
 from datetime import datetime
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'sohbet-pro-v2026-final'
+app.config['SECRET_KEY'] = 'sohbet-pro-v2026-ultra'
 basedir = os.path.abspath(os.path.dirname(__file__))
-# Veritabanını sıfırlamak için yeni bir isim veriyoruz
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'final_chat_v5.db')
+# Veritabanı temiz kurulum için yeni isim
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'chat_v26_final.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+# Flask dosya boyutu limiti (50MB)
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
 
 db = SQLAlchemy(app)
-# max_http_buffer_size ile yüksek çözünürlüklü fotoğrafların yüklenmesini sağlıyoruz
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent', max_http_buffer_size=20 * 1024 * 1024)
+# SocketIO buffer boyutunu artırarak büyük veri transferine izin veriyoruz
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent', max_http_buffer_size=50 * 1024 * 1024)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
