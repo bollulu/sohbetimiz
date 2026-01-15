@@ -9,11 +9,11 @@ from flask_socketio import SocketIO, emit, join_room, leave_room
 from datetime import datetime
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'chat-2026-ultimate-v8'
+app.config['SECRET_KEY'] = 'chat-2026-mobile-v9'
 
-# Veritabanı v8
+# Veritabanı v9
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'chat_v8.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'chat_v9.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
@@ -22,7 +22,6 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
-# Modeller
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True, nullable=False)
@@ -34,7 +33,7 @@ class Message(db.Model):
     room = db.Column(db.String(50), nullable=False, default='Genel')
     username = db.Column(db.String(50), nullable=False)
     content = db.Column(db.Text, nullable=False)
-    type = db.Column(db.String(10), default='text') # 'text', 'image', 'video'
+    type = db.Column(db.String(10), default='text')
     timestamp = db.Column(db.String(10))
 
 with app.app_context():
@@ -44,7 +43,6 @@ with app.app_context():
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# Rotalar
 @app.route('/')
 def index(): return redirect(url_for('login'))
 
@@ -72,14 +70,19 @@ def chat(): return render_template('chat.html', user=current_user)
 @app.route('/logout')
 def logout(): logout_user(); return redirect(url_for('login'))
 
-# Socket İşlemleri
 active_users = {}
 
 @socketio.on('join')
 def on_join(data):
     room = data['room']
-    if room.startswith("Özel") and data.get('password') != "1234":
-        emit('error', {'msg': 'Hatalı Oda Şifresi!'}); return
+    # SUNUCU TARAFLI ŞİFRE KONTROLÜ (GÜVENLİK İÇİN)
+    if room == 'Özel Oda' and data.get('password') != '1234':
+        emit('error', {'msg': 'Hatalı Oda Şifresi!'})
+        return
+    
+    # Eski odadan çık
+    old_room = session.get('room')
+    if old_room: leave_room(old_room)
     
     join_room(room)
     session['room'] = room
@@ -104,7 +107,6 @@ def handle_msg(data):
     m_type = data.get('type', 'text')
     new_m = Message(username=current_user.username, content=data['msg'], room=room, timestamp=now, type=m_type)
     db.session.add(new_m); db.session.commit()
-    
     emit('message', {
         'id': new_m.id, 'user': current_user.username, 'msg': data['msg'], 
         'time': now, 'type': m_type, 'avatar': current_user.avatar or ''
@@ -135,5 +137,4 @@ def disconnect():
         emit('user_list', [u for u in active_users.values() if u['room'] == room], to=room)
 
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))
-    socketio.run(app, host='0.0.0.0', port=port, debug=False)
+    socketio.run(app, host='0.0.0.0', port=int(os.environ.get("PORT", 5000)))
