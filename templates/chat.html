@@ -22,18 +22,19 @@
         .msg { padding: 8px 12px; border-radius: 15px; font-size: 14px; box-shadow: 0 1px 1px rgba(0,0,0,0.1); position: relative; }
         .sent { background: var(--wa-light); border-bottom-right-radius: 2px; }
         .received { background: white; border-bottom-left-radius: 2px; }
-        .del-btn { cursor: pointer; visibility: hidden; font-size: 10px; margin-left: 5px; }
+        .del-btn { cursor: pointer; visibility: hidden; font-size: 10px; color: #999; }
         .msg-wrap:hover .del-btn { visibility: visible; }
 
-        /* Video Arayüzü */
+        /* Video/Audio UI */
         #video-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 9999; flex-direction: column; }
         .video-grid { flex: 1; position: relative; }
         #remote-video { width: 100%; height: 100%; object-fit: cover; }
         #local-video { position: absolute; bottom: 20px; right: 20px; width: 100px; height: 140px; border: 2px solid white; border-radius: 8px; object-fit: cover; transform: scaleX(-1); }
         .v-controls { height: 80px; display: flex; justify-content: center; align-items: center; gap: 30px; background: #111; }
         .v-btn { padding: 15px; border-radius: 50%; border: none; cursor: pointer; font-size: 20px; }
-        .v-hang { background: #ff3b30; color: white; }
-        .v-switch { background: #444; color: white; display: none; }
+        .recording { color: #ff3b30; animation: pulse 1s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+        audio { height: 35px; width: 220px; }
     </style>
 </head>
 <body>
@@ -41,7 +42,7 @@
 <div id="side-panel">
     <div style="padding:15px; background:var(--wa-green); color:white; display:flex; justify-content:space-between; align-items:center;">
         <b>Sohbetler</b>
-        <img src="{{ user.avatar }}" id="my-top-avatar" style="width:35px; height:35px; border-radius:50%; cursor:pointer;" onclick="document.getElementById('pIn').click()">
+        <img src="{{ user.avatar }}" id="my-top-avatar" style="width:35px; height:35px; border-radius:50%;" onclick="document.getElementById('pIn').click()">
         <input type="file" id="pIn" style="display:none" onchange="changeProfile(this)">
     </div>
     <div class="user-row" onclick="joinRoom('Genel')">🌍 <b>Genel Sohbet</b></div>
@@ -54,39 +55,54 @@
         <button onclick="document.getElementById('fIn').click()">📁</button>
         <input type="file" id="fIn" style="display:none" onchange="upMedia(this)">
         <input type="text" id="mIn" style="flex:1; padding:10px; border-radius:20px; border:none;" placeholder="Mesaj yaz..." onkeydown="if(event.key==='Enter') sendMsg()">
-        <button onclick="sendMsg()">➤</button>
+        <button id="mic-btn" onclick="toggleMic()" style="border:none; background:none; font-size:20px; cursor:pointer;">🎤</button>
+        <button onclick="sendMsg()" style="border:none; background:none; font-size:20px; cursor:pointer;">➤</button>
     </div>
 </div>
 
 <div id="video-overlay">
-    <div class="video-grid">
-        <video id="remote-video" autoplay playsinline></video>
-        <video id="local-video" autoplay playsinline muted></video>
-    </div>
+    <div class="video-grid"><video id="remote-video" autoplay playsinline></video><video id="local-video" autoplay playsinline muted></video></div>
     <div class="v-controls">
-        <button id="v-switch" class="v-btn v-switch" onclick="switchCam()">🔄</button>
-        <button class="v-btn v-hang" onclick="endCall()">📞</button>
+        <button id="v-switch" class="v-btn" style="background:#444; color:white; display:none;" onclick="switchCam()">🔄</button>
+        <button class="v-btn" style="background:#ff3b30; color:white;" onclick="location.reload()">📞</button>
     </div>
 </div>
 
 <script>
     const socket = io();
     const myName = "{{ user.username }}";
-    let currentRoom = "Genel", localStream, peerConnection, currentFacing = "user", targetUser = "";
+    let currentRoom = "Genel", mediaRecorder, audioChunks = [], localStream, peerConnection, currentFacing = "user", targetUser = "";
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     if(isMobile) document.getElementById('v-switch').style.display = 'block';
 
-    // --- Mesajlaşma Fonksiyonları ---
-    function sendMsg() {
-        const i = document.getElementById('mIn');
-        if(i.value.trim()) { socket.emit('message', {msg: i.value, room: currentRoom}); i.value=''; }
+    // --- SES KAYIT ---
+    async function toggleMic() {
+        const btn = document.getElementById('mic-btn');
+        if (!mediaRecorder || mediaRecorder.state === "inactive") {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream);
+            audioChunks = [];
+            mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(audioChunks, { type: 'audio/webm' });
+                const reader = new FileReader();
+                reader.onloadend = () => socket.emit('message', { msg: reader.result, type: 'audio', room: currentRoom });
+                reader.readAsDataURL(blob);
+                stream.getTracks().forEach(t => t.stop());
+            };
+            mediaRecorder.start();
+            btn.classList.add('recording');
+        } else {
+            mediaRecorder.stop();
+            btn.classList.remove('recording');
+        }
     }
 
-    function deleteMsg(id) { if(confirm("Silinsin mi?")) socket.emit('delete_msg', {id: id}); }
-
-    socket.on('message', d => addMsg(d));
-    socket.on('history', h => { document.getElementById('chat-area').innerHTML=''; h.forEach(addMsg); });
-    socket.on('msg_deleted', d => document.getElementById(`msg-${d.id}`)?.remove());
+    // --- MESAJLAR ---
+    function sendMsg() {
+        const i = document.getElementById('mIn');
+        if(i.value.trim()) { socket.emit('message', {msg: i.value, type:'text', room: currentRoom}); i.value=''; }
+    }
 
     function addMsg(d) {
         const area = document.getElementById('chat-area');
@@ -94,45 +110,24 @@
         const wrap = document.createElement('div');
         wrap.className = `msg-wrap ${isMe ? 'sent-wrap' : ''}`;
         wrap.id = `msg-${d.id}`;
-        wrap.innerHTML = `
-            <img src="${d.avatar}" class="avatar-chat">
-            <div class="msg ${isMe ? 'sent' : 'received'}">
-                ${d.msg} <span class="del-btn" onclick="deleteMsg(${d.id})">🗑️</span>
-                <div style="font-size:9px; color:#999; text-align:right;">${d.time}</div>
-            </div>`;
+        
+        let content = d.msg;
+        if(d.type === 'audio') content = `<audio controls src="${d.msg}"></audio>`;
+        else if(d.type === 'image') content = `<img src="${d.msg}" style="max-width:200px; border-radius:8px;">`;
+
+        wrap.innerHTML = `<img src="${d.avatar}" class="avatar-chat"><div class="msg ${isMe ? 'sent' : 'received'}">${content} <span class="del-btn" onclick="socket.emit('delete_msg', {id:${d.id}})">🗑️</span><div style="font-size:9px; color:#999; text-align:right;">${d.time}</div></div>`;
         area.appendChild(wrap); area.scrollTop = area.scrollHeight;
     }
 
-    // --- Profil & Medya ---
-    function changeProfile(i) {
-        const reader = new FileReader();
-        reader.onload = e => socket.emit('update_profile_pic', {avatar: e.target.result});
-        reader.readAsDataURL(i.files[0]);
-    }
+    socket.on('message', d => addMsg(d));
+    socket.on('history', h => { document.getElementById('chat-area').innerHTML=''; h.forEach(addMsg); });
+    socket.on('msg_deleted', d => document.getElementById(`msg-${d.id}`)?.remove());
 
-    socket.on('user_list', users => {
-        const list = document.getElementById('user-list'); list.innerHTML = '';
-        for(let u in users) {
-            list.innerHTML += `
-                <div class="user-row">
-                    <img src="${users[u]}" style="width:30px; height:30px; border-radius:50%;">
-                    <span>${u}</span>
-                    ${u !== myName ? `<button onclick="startCall('${u}')">📞</button>` : ''}
-                    <div class="online-dot"></div>
-                </div>`;
-        }
-    });
-
-    // --- Görüntülü Konuşma (WebRTC) ---
+    // --- WEBRTC ---
     async function initCam(mode) {
         if(localStream) localStream.getTracks().forEach(t => t.stop());
         localStream = await navigator.mediaDevices.getUserMedia({video: isMobile ? {facingMode: mode} : true, audio: true});
         document.getElementById('local-video').srcObject = localStream;
-        if(peerConnection) {
-            const videoTrack = localStream.getVideoTracks()[0];
-            const sender = peerConnection.getSenders().find(s => s.track.kind === 'video');
-            if(sender) sender.replaceTrack(videoTrack);
-        }
     }
 
     async function switchCam() {
@@ -148,7 +143,6 @@
         localStream.getTracks().forEach(t => peerConnection.addTrack(t, localStream));
         peerConnection.onicecandidate = e => e.candidate && socket.emit('ice-candidate', {candidate: e.candidate, to: targetUser});
         peerConnection.ontrack = e => document.getElementById('remote-video').srcObject = e.streams[0];
-        
         const offer = await peerConnection.createOffer();
         await peerConnection.setLocalDescription(offer);
         socket.emit('call-user', {offer: offer, to: targetUser});
@@ -162,7 +156,6 @@
             localStream.getTracks().forEach(t => peerConnection.addTrack(t, localStream));
             peerConnection.onicecandidate = e => e.candidate && socket.emit('ice-candidate', {candidate: e.candidate, to: targetUser});
             peerConnection.ontrack = e => document.getElementById('remote-video').srcObject = e.streams[0];
-            
             await peerConnection.setRemoteDescription(new RTCSessionDescription(d.offer));
             const answer = await peerConnection.createAnswer();
             await peerConnection.setLocalDescription(answer);
@@ -173,7 +166,18 @@
     socket.on('answer-made', async d => await peerConnection.setRemoteDescription(new RTCSessionDescription(d.answer)));
     socket.on('ice-candidate', async d => { try { await peerConnection.addIceCandidate(new RTCIceCandidate(d.candidate)); } catch(e){} });
 
-    function endCall() { location.reload(); }
+    socket.on('user_list', users => {
+        const list = document.getElementById('user-list'); list.innerHTML = '';
+        for(let u in users) {
+            list.innerHTML += `<div class="user-row"><img src="${users[u]}" style="width:30px; height:30px; border-radius:50%;"><span>${u}</span> ${u!==myName ? `<button onclick="startCall('${u}')">📞</button>` : ''} <div class="online-dot"></div></div>`;
+        }
+    });
+
+    function changeProfile(i) {
+        const reader = new FileReader();
+        reader.onload = e => socket.emit('update_profile_pic', {avatar: e.target.result});
+        reader.readAsDataURL(i.files[0]);
+    }
 </script>
 </body>
 </html>
