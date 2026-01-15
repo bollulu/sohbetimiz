@@ -8,11 +8,12 @@ from flask_socketio import SocketIO, emit, join_room
 from datetime import datetime
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'whatsapp_ultra_v8'
+app.config['SECRET_KEY'] = 'wa_ultra_final_v10'
 basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'database.db')
-app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024 * 1024 
 
+# --- 1GB LİMİT (Hata Almamak İçin) ---
+app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024 * 1024 
 db = SQLAlchemy(app)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent', max_http_buffer_size=1024 * 1024 * 1024)
 
@@ -36,7 +37,7 @@ class Story(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50))
     user_avatar = db.Column(db.Text)
-    content = db.Column(db.Text) # Base64 Image
+    content = db.Column(db.Text)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
 with app.app_context():
@@ -65,7 +66,7 @@ def register():
         if not User.query.filter_by(username=u).first():
             gen = request.form.get('gender')
             ava = request.form.get('avatar_data')
-            if not ava:
+            if not ava: 
                 ava = "https://www.w3schools.com/howto/img_avatar.png" if gen == "Erkek" else "https://www.w3schools.com/howto/img_avatar2.png"
             new_u = User(username=u, password=request.form.get('password'), gender=gen, avatar=ava)
             db.session.add(new_u); db.session.commit()
@@ -86,14 +87,11 @@ def on_join(data):
     join_room('Genel')
     online_users[current_user.username] = {"avatar": current_user.avatar}
     emit('update_user_list', online_users, broadcast=True)
+    send_stories() # Hikayeleri gönder
     
-    # Geçmiş mesajlar
     msgs = Message.query.filter_by(room='Genel').all()
     history = [{'id':m.id, 'user':m.username,'avatar':m.user_avatar,'msg':m.content,'type':m.msg_type,'time':m.timestamp} for m in msgs]
     emit('history', history)
-    
-    # Hikayeleri gönder
-    send_stories()
 
 @socketio.on('message')
 def handle_msg(data):
@@ -106,9 +104,27 @@ def handle_msg(data):
 def delete_msg(data):
     msg = db.session.get(Message, data['id'])
     if msg and msg.username == current_user.username:
-        db.session.delete(msg)
-        db.session.commit()
+        db.session.delete(msg); db.session.commit()
         emit('message_deleted', {'id': data['id']}, broadcast=True)
+
+# --- PROFİL GÜNCELLEME ---
+@socketio.on('update_profile')
+def update_profile(data):
+    user = db.session.get(User, current_user.id)
+    user.avatar = data['avatar']
+    
+    # Kullanıcının eski hikayelerindeki avatarı da güncelle (İsteğe bağlı, veritabanı tutarlılığı için)
+    Story.query.filter_by(username=current_user.username).update({"user_avatar": data['avatar']})
+    Message.query.filter_by(username=current_user.username).update({"user_avatar": data['avatar']})
+    
+    db.session.commit()
+    
+    # Online listesini güncelle
+    online_users[current_user.username]['avatar'] = data['avatar']
+    emit('update_user_list', online_users, broadcast=True)
+    
+    # Hikaye listesini de yenile ki yeni avatar orada da gözüksün
+    send_stories()
 
 @socketio.on('add_story')
 def add_story(data):
