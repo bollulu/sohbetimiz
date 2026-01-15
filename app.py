@@ -9,39 +9,38 @@ from flask_socketio import SocketIO, emit, join_room
 from datetime import datetime
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'chat-pro-v2026-final-ultra'
+app.config['SECRET_KEY'] = 'chat-ultra-pro-2026-secure'
 basedir = os.path.abspath(os.path.dirname(__file__))
 
-# Veritabanı dosya yolu
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'chat_v26_final.db')
+# Veritabanı yapılandırması
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'database_v5.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Flask dosya yükleme limiti (100MB)
+# Flask dosya yükleme limiti (100MB) - Kayıt ve Profil işlemleri için
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 
 db = SQLAlchemy(app)
 
-# SocketIO: Büyük veri transferi ve timeout ayarları
+# SocketIO: Büyük veri (Base64) transferi ve kesintisiz bağlantı ayarları
 socketio = SocketIO(app, 
                     cors_allowed_origins="*", 
                     async_mode='gevent', 
-                    max_http_buffer_size=100 * 1024 * 1024, # 100MB tampon bellek
-                    ping_timeout=120,
-                    ping_interval=25)
+                    max_http_buffer_size=100 * 1024 * 1024, # 100MB tampon
+                    ping_timeout=120)
 
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
-# Çevrimiçi kullanıcıları ve avatarlarını tutan sözlük
+# Aktif kullanıcı takibi
 online_users = {}
 
-# --- VERİTABANI MODELLERİ ---
+# --- MODELLER ---
 
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True, nullable=False)
     password = db.Column(db.String(100), nullable=False)
-    avatar = db.Column(db.Text) # Base64 profil resmi
+    avatar = db.Column(db.Text)
 
 class Message(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -51,19 +50,18 @@ class Message(db.Model):
     content = db.Column(db.Text)
     msg_type = db.Column(db.String(10)) # 'text', 'image', 'video'
     timestamp = db.Column(db.String(10))
-    is_read = db.Column(db.Boolean, default=False)
 
 class Story(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50))
     user_avatar = db.Column(db.Text)
-    content = db.Column(db.Text) # Base64 medya
+    content = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 with app.app_context():
     db.create_all()
 
-# --- LOGIN YÖNETİMİ ---
+# --- AUTH ---
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -87,7 +85,7 @@ def register():
     if request.method == 'POST':
         u = request.form.get('username')
         p = request.form.get('password')
-        av = request.form.get('avatar_choice') # Kayıttaki sıkıştırılmış resim
+        av = request.form.get('avatar_choice') # JS ile sıkıştırılmış resim
         if not User.query.filter_by(username=u).first():
             new_user = User(username=u, password=p, avatar=av)
             db.session.add(new_user)
@@ -105,31 +103,20 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
-# --- SOCKET.IO OLAYLARI ---
+# --- SOKET OLAYLARI ---
 
 @socketio.on('join')
 def on_join(data):
     room = data.get('room', 'Genel')
     join_room(room)
     session['room'] = room
-    
-    # Kullanıcıyı çevrimiçi listesine ekle
     online_users[current_user.username] = current_user.avatar
     emit('user_list', online_users, broadcast=True)
     
-    # Geçmiş mesajları yükle (Son 50 mesaj)
+    # Geçmiş mesajları yükle
     msgs = Message.query.filter_by(room=room).order_by(Message.id.desc()).limit(50).all()
-    history = [{
-        'id': m.id, 
-        'user': m.username, 
-        'avatar': m.user_avatar, 
-        'msg': m.content, 
-        'type': m.msg_type, 
-        'time': m.timestamp
-    } for m in reversed(msgs)]
+    history = [{'id': m.id, 'user': m.username, 'avatar': m.user_avatar, 'msg': m.content, 'type': m.msg_type, 'time': m.timestamp} for m in reversed(msgs)]
     emit('history', history)
-    
-    # Hikayeleri gönder
     send_stories()
 
 def send_stories():
@@ -166,49 +153,40 @@ def handle_msg(data):
         'time': now
     }, to=room)
 
+# MESAJ SİLME
+@socketio.on('delete_msg')
+def delete_msg(data):
+    msg_id = data.get('id')
+    msg = db.session.get(Message, msg_id)
+    if msg and msg.username == current_user.username:
+        room = msg.room
+        db.session.delete(msg)
+        db.session.commit()
+        # Herkese bu ID'ye sahip mesajı silmesini söyle
+        emit('msg_deleted', {'id': msg_id}, to=room)
+
+# PROFİL RESMİ GÜNCELLEME
+@socketio.on('update_profile_pic')
+def update_profile_pic(data):
+    new_avatar = data.get('avatar')
+    if new_avatar:
+        user = db.session.get(User, current_user.id)
+        user.avatar = new_avatar
+        # Kullanıcının tüm geçmiş mesajlarındaki ve hikayelerindeki resmi de güncelle
+        Message.query.filter_by(username=current_user.username).update({Message.user_avatar: new_avatar})
+        Story.query.filter_by(username=current_user.username).update({Story.user_avatar: new_avatar})
+        db.session.commit()
+        
+        online_users[current_user.username] = new_avatar
+        emit('user_list', online_users, broadcast=True)
+        send_stories()
+
 @socketio.on('upload_story')
 def handle_story(data):
-    new_story = Story(
-        username=current_user.username,
-        user_avatar=current_user.avatar,
-        content=data['img']
-    )
+    new_story = Story(username=current_user.username, user_avatar=current_user.avatar, content=data['img'])
     db.session.add(new_story)
     db.session.commit()
     send_stories()
-
-# PROFIL RESMI GÜNCELLEME SOKETI
-@socketio.on('update_profile_pic')
-def update_profile_pic(data):
-    if not current_user.is_authenticated:
-        return
-    
-    new_avatar = data.get('avatar')
-    if new_avatar:
-        # 1. Kullanıcı tablosunu güncelle
-        user = db.session.get(User, current_user.id)
-        user.avatar = new_avatar
-        
-        # 2. Mesajlar ve Hikayelerdeki eski avatarları güncelle (Senkronizasyon)
-        Message.query.filter_by(username=current_user.username).update({Message.user_avatar: new_avatar})
-        Story.query.filter_by(username=current_user.username).update({Story.user_avatar: new_avatar})
-        
-        db.session.commit()
-        
-        # 3. Global online listesini güncelle
-        online_users[current_user.username] = new_avatar
-        emit('user_list', online_users, broadcast=True)
-        
-        # 4. Hikaye listesini de yenile (Avatarların değişmesi için)
-        send_stories()
-
-@socketio.on('delete_story')
-def delete_story(data):
-    story = Story.query.filter_by(id=data['id'], username=current_user.username).first()
-    if story:
-        db.session.delete(story)
-        db.session.commit()
-        send_stories()
 
 @socketio.on('disconnect')
 def on_disconnect():
@@ -217,6 +195,5 @@ def on_disconnect():
         emit('user_list', online_users, broadcast=True)
 
 if __name__ == '__main__':
-    # Render ve diğer platformlar için port ayarı
     port = int(os.environ.get("PORT", 10000))
     socketio.run(app, host='0.0.0.0', port=port)
