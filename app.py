@@ -8,15 +8,15 @@ from flask_socketio import SocketIO, emit, join_room
 from datetime import datetime
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'wa-ultra-2026-v20'
+app.config['SECRET_KEY'] = 'wa-ultra-2026-final'
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'wa_final.db')
-app.config['MAX_CONTENT_LENGTH'] = 150 * 1024 * 1024 # 150MB
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'whatsapp_v20.db')
+app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024 
 
 db = SQLAlchemy(app)
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent', max_http_buffer_size=150 * 1024 * 1024)
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 
-# MODELLER
+# --- MODELLER ---
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True)
@@ -43,14 +43,41 @@ with app.app_context():
     db.create_all()
 
 login_manager = LoginManager(app)
+login_manager.login_view = 'login'
 @login_manager.user_loader
 def load_user(user_id): return db.session.get(User, int(user_id))
+
+# --- YOLLAR (ROUTES) ---
+@app.route('/')
+def index(): return redirect(url_for('login'))
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        user = User.query.filter_by(username=request.form.get('username')).first()
+        if user and user.password == request.form.get('password'):
+            login_user(user); return redirect(url_for('chat'))
+    return render_template('login.html')
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        u = request.form.get('username')
+        if not User.query.filter_by(username=u).first():
+            new_user = User(username=u, password=request.form.get('password'), 
+                            avatar=request.form.get('avatar_data'))
+            db.session.add(new_user); db.session.commit()
+            return redirect(url_for('login'))
+    return render_template('register.html')
+
+@app.route('/logout')
+def logout(): logout_user(); return redirect(url_for('login'))
 
 @app.route('/chat')
 @login_required
 def chat(): return render_template('chat.html', user=current_user)
 
-# --- SOKET MANTIĞI ---
+# --- SOKET İŞLEMLERİ ---
 online_users = {}
 
 @socketio.on('join')
@@ -66,14 +93,16 @@ def on_join(data):
 @socketio.on('message')
 def handle_msg(data):
     now = datetime.now().strftime("%H:%M")
-    msg = Message(username=current_user.username, user_avatar=current_user.avatar, content=data['msg'], msg_type=data.get('type','text'), timestamp=now)
+    msg = Message(username=current_user.username, user_avatar=current_user.avatar, 
+                  content=data['msg'], msg_type=data.get('type','text'), timestamp=now)
     db.session.add(msg); db.session.commit()
-    emit('message', {'id':msg.id,'user':current_user.username,'avatar':current_user.avatar,'msg':data['msg'],'type':msg.msg_type,'time':now,'read':False}, broadcast=True)
+    emit('message', {'id':msg.id,'user':current_user.username,'avatar':current_user.avatar,
+                     'msg':data['msg'],'type':msg.msg_type,'time':now,'read':False}, broadcast=True)
 
-@socketio.on('mark_as_read')
-def read_msg(data):
-    Message.query.filter_by(id=data['id']).update({"is_read": True})
-    db.session.commit()
+@socketio.on('mark_read')
+def mark_read(data):
+    msg = db.session.get(Message, data['id'])
+    if msg: msg.is_read = True; db.session.commit()
     emit('msg_read_update', {'id': data['id']}, broadcast=True)
 
 @socketio.on('add_story')
@@ -93,15 +122,6 @@ def send_stories():
         if s.username not in grouped: grouped[s.username] = {'avatar': s.user_avatar, 'items': []}
         grouped[s.username]['items'].append({'id': s.id, 'content': s.content})
     emit('story_list', grouped, broadcast=True)
-
-# Görüntülü Arama Sinyalleri (WebRTC)
-@socketio.on('call_user')
-def call_user(data):
-    emit('incoming_call', {'from': current_user.username, 'signal': data['signal']}, to=online_users[data['to']]['sid'])
-
-@socketio.on('answer_call')
-def answer_call(data):
-    emit('call_accepted', data['signal'], to=online_users[data['to']]['sid'])
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=10000)
