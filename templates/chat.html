@@ -1,212 +1,62 @@
 <!DOCTYPE html>
-<html lang="tr">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Global Chat Ultimate</title>
+    <title>Sohbetimiz - Chat</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src='https://meet.jit.si/external_api.js'></script>
     <style>
-        :root { --main: #075e54; --me: #dcf8c6; --bg: #e5ddd5; }
-        * { box-sizing: border-box; }
-        body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; background: var(--bg); position: fixed; font-family: sans-serif; }
-        
-        .app-container { display: flex; height: 100%; width: 100%; }
-        
-        /* Sidebar */
-        .sidebar { width: 280px; background: #fff; border-right: 1px solid #ddd; display: flex; flex-direction: column; z-index: 1100; transition: 0.3s; }
-        
-        /* Chat Area */
-        .chat-area { flex: 1; display: flex; flex-direction: column; position: relative; height: 100%; background: #efe7dd; min-width: 0; }
-        
-        #chat-box { flex: 1; overflow-y: auto; padding: 15px 15px 85px 15px; display: flex; flex-direction: column; background-size: cover; background-position: center; }
-
-        /* Video Paneli */
-        #video-container { display: none; height: 40%; background: #000; position: relative; border-bottom: 3px solid var(--main); }
-        #video-frame { height: 100%; width: 100%; }
-
-        /* Alt Mesaj Barı */
-        .input-bar { 
-            position: absolute; bottom: 0; left: 0; right: 0; 
-            padding: 10px; background: #f0f2f5; 
-            display: flex; align-items: center; gap: 8px; 
-            border-top: 1px solid #ddd; z-index: 1000;
-        }
-
-        #chat-form { display: flex; flex: 1; gap: 8px; align-items: center; }
-        #msgIn { flex: 1; padding: 12px; border-radius: 20px; border: 1px solid #ddd; font-size: 16px; outline: none; background: #fff; }
-        .send-btn { background: var(--main); color: white; border: none; width: 42px; height: 42px; border-radius: 50%; cursor: pointer; font-size: 18px; flex-shrink: 0; }
-
-        /* Mesaj Balonları */
-        .msg-row { display: flex; gap: 8px; margin-bottom: 12px; max-width: 85%; }
-        .msg-row.me { align-self: flex-end; flex-direction: row-reverse; }
-        .msg-bubble { padding: 8px 12px; border-radius: 12px; background: #fff; box-shadow: 0 1px 1px rgba(0,0,0,0.1); position: relative; }
-        .me .msg-bubble { background: var(--me); }
-        .avatar { width: 35px; height: 35px; border-radius: 50%; object-fit: cover; background: #ccc; }
-        
-        .header { display: flex; padding: 10px; background: var(--main); color: white; font-weight: bold; align-items: center; justify-content: space-between; height: 60px; z-index: 1050; }
-        .live-btn { background: #e74c3c; color: white; border: none; padding: 6px 12px; border-radius: 5px; cursor: pointer; font-size: 11px; font-weight: bold; }
-
-        @media (max-width: 768px) {
-            .sidebar { position: fixed; left: -280px; height: 100%; }
-            .sidebar.open { left: 0; }
-        }
-        .media-msg { max-width: 200px; border-radius: 8px; display: block; margin: 5px 0; }
+        body { font-family: sans-serif; background: #f0f2f5; margin: 0; display: flex; flex-direction: column; height: 100vh; }
+        #header { background: #075e54; color: white; padding: 15px; display: flex; justify-content: space-between; align-items: center; }
+        #chat-area { flex: 1; overflow-y: auto; padding: 20px; }
+        .msg { background: white; padding: 10px; border-radius: 8px; margin-bottom: 10px; max-width: 80%; position: relative; }
+        .msg b { color: #128c7e; display: block; font-size: 0.8em; }
+        .msg span { font-size: 0.7em; color: gray; float: right; margin-top: 5px; }
+        #input-area { background: white; padding: 15px; display: flex; gap: 10px; }
+        input { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 20px; outline: none; }
+        button { padding: 10px 20px; border-radius: 20px; border: none; background: #075e54; color: white; cursor: pointer; }
+        .live-btn { background: #d32f2f; text-decoration: none; padding: 8px 15px; border-radius: 5px; color: white; font-size: 0.9em; }
     </style>
 </head>
 <body>
-    <audio id="notifSound" src="https://assets.mixkit.co/active_storage/sfx/2358/2358-preview.mp3"></audio>
-
-    <div class="app-container">
-        <div class="sidebar" id="sidebar">
-            <div style="padding:20px; background: var(--main); color:white; text-align:center;">
-                <img src="{{ user.avatar or 'https://cdn-icons-png.flaticon.com/512/149/149071.png' }}" id="myAv" class="avatar" style="width:65px; height:65px; cursor:pointer; border: 2px solid #fff;" onclick="$('#avInput').click()">
-                <div style="margin-top:8px;">@{{ user.username }}</div>
-                <input type="file" id="avInput" style="display:none" accept="image/*">
-            </div>
-            <div style="flex:1; overflow-y:auto;">
-                <button class="room-btn" style="width:100%; padding:15px; border:none; background:#fff; text-align:left; border-bottom:1px solid #eee; cursor:pointer;" onclick="changeRoom('Genel')">📢 Genel Sohbet</button>
-                <button class="room-btn" style="width:100%; padding:15px; border:none; background:#fff; text-align:left; border-bottom:1px solid #eee; cursor:pointer;" onclick="changeRoom('Özel Oda', true)">🔒 Özel Oda (Şifre: 1234)</button>
-                <div id="user-list" style="padding:15px; font-size:12px; color: #555;"></div>
-            </div>
-            <div style="padding:10px; border-top:1px solid #eee;">
-                <button onclick="$('#bgInput').click()" style="width:100%; padding:10px; background:#3498db; color:white; border:none; border-radius:5px; cursor:pointer; margin-bottom:5px;">🖼️ Arka Plan Değiştir</button>
-                <input type="file" id="bgInput" style="display:none" accept="image/*">
-                <a href="/logout" style="display:block; text-align:center; padding:10px; color:#e74c3c; text-decoration:none; font-weight:bold;">Güvenli Çıkış</a>
-            </div>
-        </div>
-
-        <div class="chat-area">
-            <div class="header">
-                <div style="display:flex; align-items:center; gap:10px;">
-                    <button onclick="$('#sidebar').toggleClass('open')" style="background:none; border:none; color:white; font-size:24px; cursor:pointer;">☰</button>
-                    <span id="room-name">Oda: Genel</span>
-                </div>
-                <button class="live-btn" onclick="toggleLive()">📹 CANLI YAYIN</button>
-            </div>
-
-            <div id="video-container">
-                <div id="video-frame"></div>
-                <button onclick="toggleLive()" style="position:absolute; top:8px; right:8px; background:rgba(255,0,0,0.8); color:white; border:none; border-radius:50%; width:30px; height:30px; cursor:pointer; z-index:10;">X</button>
-            </div>
-            
-            <div id="chat-box"></div>
-            
-            <div class="input-bar">
-                <button onclick="$('#fileIn').click()" style="background:none; border:none; font-size:24px; cursor:pointer; color:#54656f;">📎</button>
-                <input type="file" id="fileIn" style="display:none" accept="image/*,video/*">
-                
-                <form id="chat-form" onsubmit="sendMsg(event)">
-                    <input type="text" id="msgIn" placeholder="Mesaj yazın..." autocomplete="off">
-                    <button type="submit" class="send-btn">➔</button>
-                </form>
-            </div>
-        </div>
+    <div id="header">
+        <span>Sohbet: <b>{{ user.username }}</b></span>
+        <a href="/live" class="live-btn">🔴 Canlı Yayına Geç</a>
+        <a href="/logout" style="color: white;">Çıkış</a>
+    </div>
+    <div id="chat-area"></div>
+    <div id="input-area">
+        <input type="text" id="msgInput" placeholder="Mesaj yazın...">
+        <button onclick="send()">Gönder</button>
     </div>
 
     <script>
-        var socket = io({transports: ['websocket', 'polling'], reconnection: true});
-        var myUser = "{{ user.username }}";
-        var jitsiApi = null;
-
-        $(document).ready(function() {
-            let bg = localStorage.getItem('chat_bg_v12');
-            if(bg) $('#chat-box').css('background-image', `url(${bg})`);
-        });
-
-        function toggleLive() {
-            let container = $('#video-container');
-            if(container.is(':visible')) {
-                container.hide();
-                if(jitsiApi) { jitsiApi.dispose(); jitsiApi = null; }
-            } else {
-                container.show();
-                const domain = "meet.jit.si";
-                const options = {
-                    roomName: "GlobalChat2026_" + $('#room-name').text().replace(/\s+/g, '_'),
-                    width: "100%", height: "100%",
-                    parentNode: document.querySelector('#video-frame'),
-                    userInfo: { displayName: myUser },
-                    interfaceConfigOverwrite: { TOOLBAR_BUTTONS: ['microphone', 'camera', 'hangup', 'tileview'] }
-                };
-                jitsiApi = new JitsiMeetExternalAPI(domain, options);
-            }
-        }
-
-        function changeRoom(name, priv = false) {
-            let p = priv ? prompt("Oda Şifresi:") : '';
-            if(priv && !p) return;
-            if(jitsiApi) toggleLive();
-            $('#room-name').text("Oda: " + name);
-            $('#chat-box').empty();
-            $('#sidebar').removeClass('open');
-            socket.emit('join', {room: name, password: p});
-        }
-
+        const socket = io();
         socket.emit('join', {room: 'Genel'});
 
-        function sendMsg(e) {
-            e.preventDefault();
-            let i = $('#msgIn');
-            if(i.val().trim()) {
-                socket.emit('message', {msg: i.val(), type: 'text'});
-                i.val('').focus();
+        function send() {
+            const input = document.getElementById('msgInput');
+            if(input.value) {
+                socket.emit('message', {msg: input.value});
+                input.value = '';
             }
         }
 
-        function addMessage(d, hist = false) {
-            let me = d.user == myUser;
-            if(!me && !hist) document.getElementById('notifSound').play().catch(()=>{});
-            
-            let content = d.msg;
-            if(d.type == 'image') content = `<img src="${d.msg}" class="media-msg" onclick="window.open(this.src)">`;
-            else if(d.type == 'video') content = `<video src="${d.msg}" class="media-msg" controls></video>`;
+        socket.on('message', data => {
+            addMessage(data);
+        });
 
-            let html = `
-            <div class="msg-row ${me?'me':''}" id="m-${d.id}">
-                <img src="${d.avatar || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}" class="avatar">
-                <div class="msg-bubble">
-                    <small style="color:var(--main); font-weight:bold; display:block;">${d.user}</small>
-                    <div style="margin:4px 0;">${content}</div>
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <small style="color:gray; font-size:9px;">${d.time}</small>
-                        ${me ? `<span style="color:#e74c3c; font-size:9px; cursor:pointer; margin-left:10px; font-weight:bold;" onclick="socket.emit('delete_message',{id:'${d.id}'})">Sil</span>` : ''}
-                    </div>
-                </div>
-            </div>`;
-            $('#chat-box').append(html);
-            $('#chat-box').scrollTop($('#chat-box')[0].scrollHeight);
+        socket.on('history', msgs => {
+            msgs.forEach(addMessage);
+        });
+
+        function addMessage(data) {
+            const area = document.getElementById('chat-area');
+            const div = document.createElement('div');
+            div.className = 'msg';
+            div.innerHTML = `<b>${data.user}</b>${data.msg}<span>${data.time}</span>`;
+            area.appendChild(div);
+            area.scrollTop = area.scrollHeight;
         }
-
-        socket.on('message', d => addMessage(d));
-        socket.on('history', data => data.forEach(d => addMessage(d, true)));
-        socket.on('remove_message', d => $(`#m-${d.id}`).fadeOut(300, function(){ $(this).remove(); }));
-        socket.on('user_list', l => {
-            let h = '<b>Odadakiler:</b><br>';
-            l.forEach(u => h += `<div style="padding:4px 0; font-size:11px;">🟢 ${u.name}</div>`);
-            $('#user-list').html(h);
-        });
-
-        $('#fileIn').change(function(e) {
-            let r = new FileReader();
-            r.onload = ev => socket.emit('message', {msg: ev.target.result, type: e.target.files[0].type.startsWith('image')?'image':'video'});
-            r.readAsDataURL(e.target.files[0]);
-        });
-
-        $('#avInput').change(function(e) {
-            let r = new FileReader();
-            r.onload = ev => { socket.emit('update_avatar', {img: ev.target.result}); $('#myAv').attr('src', ev.target.result); };
-            r.readAsDataURL(e.target.files[0]);
-        });
-
-        $('#bgInput').change(function(e) {
-            let r = new FileReader();
-            r.onload = ev => { $('#chat-box').css('background-image', `url(${ev.target.result})`); localStorage.setItem('chat_bg_v12', ev.target.result); };
-            r.readAsDataURL(e.target.files[0]);
-        });
-
-        socket.on('error', d => { alert(d.msg); location.reload(); });
     </script>
 </body>
 </html>
