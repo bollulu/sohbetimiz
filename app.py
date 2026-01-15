@@ -9,17 +9,16 @@ from flask_socketio import SocketIO, emit, join_room
 from datetime import datetime
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'sohbet-pro-v2026-ultra'
+app.config['SECRET_KEY'] = 'final-ultra-chat-2026'
 basedir = os.path.abspath(os.path.dirname(__file__))
-# Veritabanı temiz kurulum için yeni isim
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'chat_v26_final.db')
+# Yeni DB ismi ile temiz bir başlangıç yapabilirsin
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'chat_final_v10.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-# Flask dosya boyutu limiti (50MB)
-app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024
+app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024 # Flask limiti 100MB
 
 db = SQLAlchemy(app)
-# SocketIO buffer boyutunu artırarak büyük veri transferine izin veriyoruz
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent', max_http_buffer_size=50 * 1024 * 1024)
+# SocketIO limiti 100MB
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent', max_http_buffer_size=100 * 1024 * 1024)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
@@ -85,18 +84,16 @@ def on_join(data):
     session['room'] = room
     online_users[current_user.username] = current_user.avatar
     emit('user_list', online_users, broadcast=True)
-    
     msgs = Message.query.filter_by(room=room).order_by(Message.id.desc()).limit(50).all()
     history = [{'id':m.id, 'user':m.username, 'avatar':m.user_avatar, 'msg':m.content, 'type':m.msg_type, 'time':m.timestamp, 'read':m.is_read} for m in reversed(msgs)]
     emit('history', history)
-    send_stories_to_all()
+    send_stories()
 
-def send_stories_to_all():
+def send_stories():
     stories = Story.query.order_by(Story.created_at.asc()).all()
     grouped = {}
     for s in stories:
-        if s.username not in grouped: 
-            grouped[s.username] = {'avatar': s.user_avatar, 'stories': []}
+        if s.username not in grouped: grouped[s.username] = {'avatar': s.user_avatar, 'stories': []}
         grouped[s.username]['stories'].append({'id': s.id, 'content': s.content})
     emit('story_list', grouped, broadcast=True)
 
@@ -108,32 +105,15 @@ def handle_msg(data):
     db.session.add(msg); db.session.commit()
     emit('message', {'id':msg.id, 'user':current_user.username, 'avatar':current_user.avatar, 'msg':data['msg'], 'type':msg.msg_type, 'time':now, 'read':False}, to=room)
 
-@socketio.on('mark_read')
-def mark_read(data):
-    msg = db.session.get(Message, data['id'])
-    if msg:
-        msg.is_read = True; db.session.commit()
-        emit('msg_read_status', {'id': data['id']}, room=session.get('room'), include_self=False)
-
 @socketio.on('upload_story')
 def handle_story(data):
     db.session.add(Story(username=current_user.username, user_avatar=current_user.avatar, content=data['img']))
-    db.session.commit()
-    send_stories_to_all()
+    db.session.commit(); send_stories()
 
 @socketio.on('delete_story')
 def delete_story(data):
     story = Story.query.filter_by(id=data['id'], username=current_user.username).first()
-    if story:
-        db.session.delete(story); db.session.commit()
-        send_stories_to_all()
-
-@socketio.on('delete_msg')
-def delete_msg(data):
-    msg = db.session.get(Message, data['id'])
-    if msg and msg.username == current_user.username:
-        db.session.delete(msg); db.session.commit()
-        emit('msg_deleted', {'id': data['id']}, room=session.get('room'))
+    if story: db.session.delete(story); db.session.commit(); send_stories()
 
 @socketio.on('disconnect')
 def on_disconnect():
