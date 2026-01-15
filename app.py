@@ -1,5 +1,6 @@
 import eventlet
-eventlet.monkey_patch(all=True)  # Kritik: En üstte olmalı!
+# 'all=True' parametresi Render üzerindeki bloklama hatalarını engeller.
+eventlet.monkey_patch(all=True)
 
 import os
 from flask import Flask, render_template, request, redirect, url_for
@@ -8,21 +9,25 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from flask_socketio import SocketIO, emit
 from datetime import datetime
 
+# Uygulama Yapılandırması
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'chat-plus-secure-2026'
+app.config['SECRET_KEY'] = 'final-secure-chat-2026'
 
-# SQLite Veritabanı Yolu (Render için tam yol)
+# --- VERİTABANI YOLU DÜZELTMESİ (E3Q8 Hatası Çözümü) ---
+# Uygulamanın çalıştığı klasörü bulup veritabanını tam yol olarak tanımlıyoruz.
 basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'chat_data.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+# -----------------------------------------------------
 
 db = SQLAlchemy(app)
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet', logger=False, engineio_logger=False)
+# Render için eventlet modu zorunludur.
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
 
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
-# Veritabanı Modelleri
+# Modeller
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True, nullable=False)
@@ -42,14 +47,16 @@ def load_user(user_id):
 
 # Rotalar
 @app.route('/')
-def index(): return redirect(url_for('login'))
+def index():
+    return redirect(url_for('login'))
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        u, p = request.form.get('username'), request.form.get('password')
-        if u and p and not User.query.filter_by(username=u).first():
-            db.session.add(User(username=u, password=p))
+        uname = request.form.get('username')
+        pwd = request.form.get('password')
+        if uname and pwd and not User.query.filter_by(username=uname).first():
+            db.session.add(User(username=uname, password=pwd))
             db.session.commit()
             return redirect(url_for('login'))
     return render_template('register.html')
@@ -66,9 +73,9 @@ def login():
 @app.route('/chat')
 @login_required
 def chat():
-    msgs = Message.query.all()
+    all_messages = Message.query.all()
     history = []
-    for m in msgs:
+    for m in all_messages:
         sender = User.query.filter_by(username=m.username).first()
         history.append({
             'id': m.id, 'username': m.username, 'content': m.content,
@@ -83,48 +90,21 @@ def logout():
     return redirect(url_for('login'))
 
 # Socket Olayları
-active_users = {}
-
-@socketio.on('connect')
-def connect():
-    if current_user.is_authenticated:
-        active_users[request.sid] = {"name": current_user.username, "avatar": current_user.avatar or ''}
-        emit('user_list', list(active_users.values()), broadcast=True)
-
-@socketio.on('disconnect')
-def disconnect():
-    active_users.pop(request.sid, None)
-    emit('user_list', list(active_users.values()), broadcast=True)
-
 @socketio.on('message')
 def handle_msg(data):
     if not current_user.is_authenticated: return
     now = datetime.now().strftime("%H:%M")
     new_m = Message(username=current_user.username, content=data['msg'], type=data.get('type', 'text'), timestamp=now)
-    db.session.add(new_m); db.session.commit()
+    db.session.add(new_m)
+    db.session.commit()
     emit('message', {
         'id': new_m.id, 'user': current_user.username, 'msg': data['msg'],
         'time': now, 'type': data.get('type', 'text'), 'avatar': current_user.avatar or ''
     }, broadcast=True)
 
-@socketio.on('delete_message')
-def delete_msg(data):
-    msg = Message.query.get(data['id'])
-    if msg and msg.username == current_user.username:
-        db.session.delete(msg); db.session.commit()
-        emit('remove_message', {'id': data['id']}, broadcast=True)
-
-@socketio.on('update_avatar')
-def update_avatar(data):
-    user = User.query.get(current_user.id)
-    user.avatar = data['img']
-    db.session.commit()
-    for sid, info in active_users.items():
-        if info['name'] == user.username: info['avatar'] = data['img']
-    emit('user_list', list(active_users.values()), broadcast=True)
-
+# Başlatma
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
     port = int(os.environ.get("PORT", 5000))
-    socketio.run(app, host='0.0.0.0', port=port, debug=False, log_output=False)
+    socketio.run(app, host='0.0.0.0', port=port, debug=False)
