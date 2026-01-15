@@ -11,15 +11,15 @@ from datetime import datetime
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'sohbet-pro-2026'
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'final_pro.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'super_chat.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent', max_http_buffer_size=50 * 1024 * 1024)
+# Buffer limitini 100MB yapıyoruz (Yüksek çözünürlüklü dosyalar için)
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent', max_http_buffer_size=100 * 1024 * 1024)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
-# Çevrimiçi kullanıcıları takip etmek için sözlük
 online_users = {}
 
 class User(UserMixin, db.Model):
@@ -33,7 +33,7 @@ class Message(db.Model):
     room = db.Column(db.String(50), default='Genel')
     username = db.Column(db.String(50))
     content = db.Column(db.Text)
-    msg_type = db.Column(db.String(10), default='text') # text, image, video
+    msg_type = db.Column(db.String(10), default='text')
     timestamp = db.Column(db.String(10))
 
 with app.app_context():
@@ -76,45 +76,41 @@ def logout(): logout_user(); return redirect(url_for('login'))
 @socketio.on('join')
 def on_join(data):
     room = data.get('room', 'Genel')
-    join_room(room)
-    session['room'] = room
+    join_room(room); session['room'] = room
     online_users[current_user.username] = current_user.avatar
     emit('user_list', online_users, broadcast=True)
-    msgs = Message.query.filter_by(room=room).order_by(Message.id.desc()).limit(20).all()
+    msgs = Message.query.filter_by(room=room).order_by(Message.id.desc()).limit(30).all()
     history = [{'id': m.id, 'user': m.username, 'msg': m.content, 'type': m.msg_type, 'time': m.timestamp} for m in reversed(msgs)]
     emit('history', history)
-
-@socketio.on('disconnect')
-def on_disconnect():
-    if current_user.is_authenticated and current_user.username in online_users:
-        del online_users[current_user.username]
-        emit('user_list', online_users, broadcast=True)
 
 @socketio.on('message')
 def handle_msg(data):
     room = session.get('room', 'Genel')
     now = datetime.now().strftime("%H:%M")
-    m_type = data.get('type', 'text')
-    msg = Message(username=current_user.username, content=data['msg'], msg_type=m_type, room=room, timestamp=now)
+    msg = Message(username=current_user.username, content=data['msg'], msg_type=data.get('type', 'text'), room=room, timestamp=now)
     db.session.add(msg); db.session.commit()
-    emit('message', {'id': msg.id, 'user': current_user.username, 'msg': data['msg'], 'type': m_type, 'time': now}, to=room)
+    emit('message', {'id': msg.id, 'user': current_user.username, 'msg': data['msg'], 'type': msg.msg_type, 'time': now}, to=room)
+
+@socketio.on('delete_message')
+def delete_msg(data):
+    msg = db.session.get(Message, data['id'])
+    if msg and msg.username == current_user.username:
+        msg_id = msg.id
+        db.session.delete(msg); db.session.commit()
+        emit('remove_message', {'id': msg_id}, to=session.get('room'))
+
+@socketio.on('typing')
+def handle_typing(data):
+    emit('display_typing', {'user': current_user.username, 'is_typing': data['is_typing']}, to=session.get('room'), include_self=False)
 
 @socketio.on('update_avatar')
 def update_avatar(data):
     user = db.session.get(User, current_user.id)
-    user.avatar = data['img']
-    db.session.commit()
+    user.avatar = data['img']; db.session.commit()
     online_users[user.username] = data['img']
     emit('user_list', online_users, broadcast=True)
 
 @socketio.on('join_live')
 def handle_join_live(data):
     join_room('live_room')
-    emit('user_joined', room='live_room', include_self=False)
-
-@socketio.on('signal')
-def handle_signal(data):
-    emit('signal', data, room='live_room', include_self=False)
-
-if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=10000)
+    emit('user_joined', room='live_room', include_
