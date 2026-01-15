@@ -9,14 +9,12 @@ from flask_socketio import SocketIO, emit, join_room
 from datetime import datetime
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'süper-sohbet-final-2026'
+app.config['SECRET_KEY'] = 'whatsapp-clone-story-2026'
 basedir = os.path.abspath(os.path.dirname(__file__))
-# Temiz bir veritabanı başlangıcı için dosya ismini güncelledik
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'whatsapp_v3.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'whatsapp_final.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
-# Ses kayıtları ve HD dosyalar için 100MB limit
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent', max_http_buffer_size=100 * 1024 * 1024)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
@@ -34,18 +32,24 @@ class Message(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     room = db.Column(db.String(50), default='Genel')
     username = db.Column(db.String(50))
-    user_avatar = db.Column(db.Text) # Mesaj anındaki avatarı saklamak için
+    user_avatar = db.Column(db.Text)
     content = db.Column(db.Text)
     msg_type = db.Column(db.String(10), default='text') # text, image, video, audio
     timestamp = db.Column(db.String(10))
-    status = db.Column(db.String(10), default='sent') # sent, read
+    status = db.Column(db.String(10), default='sent')
+
+class Story(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(50))
+    user_avatar = db.Column(db.Text)
+    content = db.Column(db.Text) # Base64 Resim
+    time = db.Column(db.String(10))
 
 with app.app_context():
     db.create_all()
 
 @login_manager.user_loader
-def load_user(user_id):
-    return db.session.get(User, int(user_id))
+def load_user(user_id): return db.session.get(User, int(user_id))
 
 # --- ROUTER ---
 @app.route('/')
@@ -56,8 +60,7 @@ def login():
     if request.method == 'POST':
         user = User.query.filter_by(username=request.form.get('username')).first()
         if user and user.password == request.form.get('password'):
-            login_user(user)
-            return redirect(url_for('chat'))
+            login_user(user); return redirect(url_for('chat'))
     return render_template('login.html')
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -65,8 +68,7 @@ def register():
     if request.method == 'POST':
         u, p = request.form.get('username'), request.form.get('password')
         if u and p and not User.query.filter_by(username=u).first():
-            db.session.add(User(username=u, password=p))
-            db.session.commit()
+            db.session.add(User(username=u, password=p)); db.session.commit()
             return redirect(url_for('login'))
     return render_template('register.html')
 
@@ -82,54 +84,64 @@ def live(): return render_template('live.html', user=current_user)
 def logout():
     if current_user.is_authenticated and current_user.username in online_users:
         del online_users[current_user.username]
-    logout_user()
-    return redirect(url_for('login'))
+    logout_user(); return redirect(url_for('login'))
 
 # --- SOCKET.IO ---
-
 @socketio.on('join')
 def on_join(data):
     room = data.get('room', 'Genel')
-    join_room(room)
-    session['room'] = room
+    join_room(room); session['room'] = room
     online_users[current_user.username] = current_user.avatar
     emit('user_list', online_users, broadcast=True)
     
+    # Geçmiş Mesajlar
     msgs = Message.query.filter_by(room=room).order_by(Message.id.desc()).limit(40).all()
-    history = [{
-        'id': m.id, 
-        'user': m.username, 
-        'avatar': m.user_avatar, 
-        'msg': m.content, 
-        'type': m.msg_type, 
-        'time': m.timestamp,
-        'status': m.status
-    } for m in reversed(msgs)]
+    history = [{'id':m.id, 'user':m.username, 'avatar':m.user_avatar, 'msg':m.content, 'type':m.msg_type, 'time':m.timestamp, 'status':m.status} for m in reversed(msgs)]
     emit('history', history)
+
+    # Mevcut Hikayeler
+    stories = Story.query.all()
+    s_list = [{'username': s.username, 'avatar': s.user_avatar, 'img': s.content} for s in stories]
+    emit('story_list', s_list)
 
 @socketio.on('message')
 def handle_msg(data):
     room = session.get('room', 'Genel')
     now = datetime.now().strftime("%H:%M")
-    m_type = data.get('type', 'text')
-    
-    msg = Message(
-        username=current_user.username, 
-        user_avatar=current_user.avatar,
-        content=data['msg'], 
-        msg_type=m_type, 
-        room=room, 
-        timestamp=now,
-        status='sent'
-    )
-    db.session.add(msg)
-    db.session.commit()
-    
-    emit('message', {
-        'id': msg.id, 
-        'user': current_user.username, 
-        'avatar': current_user.avatar,
-        'msg': data['msg'], 
-        'type': m_type, 
-        'time': now,
-        'status': '
+    msg = Message(username=current_user.username, user_avatar=current_user.avatar, content=data['msg'], msg_type=data.get('type','text'), room=room, timestamp=now)
+    db.session.add(msg); db.session.commit()
+    emit('message', {'id':msg.id, 'user':current_user.username, 'avatar':current_user.avatar, 'msg':data['msg'], 'type':msg.msg_type, 'time':now, 'status':'sent'}, to=room)
+
+@socketio.on('upload_story')
+def handle_story(data):
+    now = datetime.now().strftime("%H:%M")
+    story = Story(username=current_user.username, user_avatar=current_user.avatar, content=data['img'], time=now)
+    db.session.add(story); db.session.commit()
+    emit('new_story', {'username': current_user.username, 'avatar': current_user.avatar, 'img': data['img']}, broadcast=True)
+
+@socketio.on('mark_read')
+def mark_read(data):
+    msg = db.session.get(Message, data['id'])
+    if msg:
+        msg.status = 'read'; db.session.commit()
+        emit('message_read', {'id': msg.id}, room=session.get('room'), include_self=False)
+
+@socketio.on('update_avatar')
+def update_avatar(data):
+    user = db.session.get(User, current_user.id)
+    user.avatar = data['img']; db.session.commit()
+    online_users[user.username] = data['img']
+    emit('user_list', online_users, broadcast=True)
+
+@socketio.on('join_live')
+def handle_join_live(data):
+    join_room('live_room')
+    emit('user_joined', room='live_room', include_self=False)
+
+@socketio.on('signal')
+def handle_signal(data):
+    emit('signal', data, room='live_room', include_self=False)
+
+if __name__ == '__main__':
+    port = int(os.environ.get("PORT", 10000))
+    socketio.run(app, host='0.0.0.0', port=port)
