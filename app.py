@@ -1,5 +1,6 @@
 import eventlet
-eventlet.monkey_patch()  # Render hatasını çözen kritik satır
+# all=True parametresi "blocking function" hatalarını çözer.
+eventlet.monkey_patch(all=True)
 
 import os
 from flask import Flask, render_template, request, redirect, url_for
@@ -8,17 +9,17 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from flask_socketio import SocketIO, emit
 from datetime import datetime
 
-# Uygulama ve Veritabanı Yapılandırması
+# Uygulama Yapılandırması
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'super-secret-chat-key-2026'
+app.config['SECRET_KEY'] = 'final-chat-key-2026'
 
-# Render/Linux sunucuları için veritabanı yolu düzeltmesi
+# Veritabanı Yolunu Sabitleme (Render Uyumluluğu)
 basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'chat_data.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
-# Render üzerinde stabilite için async_mode='eventlet'
+# Render için eventlet modu zorunludur
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
 
 login_manager = LoginManager(app)
@@ -42,7 +43,7 @@ class Message(db.Model):
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# Rotalar (Routes)
+# --- Rotalar ---
 @app.route('/')
 def index():
     return redirect(url_for('login'))
@@ -76,11 +77,8 @@ def chat():
     for m in all_messages:
         sender = User.query.filter_by(username=m.username).first()
         history.append({
-            'id': m.id,
-            'username': m.username,
-            'content': m.content,
-            'type': m.type,
-            'timestamp': m.timestamp,
+            'id': m.id, 'username': m.username, 'content': m.content,
+            'type': m.type, 'timestamp': m.timestamp,
             'avatar': sender.avatar if sender else ''
         })
     return render_template('chat.html', user=current_user, history=history)
@@ -90,7 +88,7 @@ def logout():
     logout_user()
     return redirect(url_for('login'))
 
-# Socket.io Olayları
+# --- Socket Olayları ---
 active_users = {}
 
 @socketio.on('connect')
@@ -113,12 +111,8 @@ def handle_msg(data):
     db.session.commit()
     
     emit('message', {
-        'id': new_m.id,
-        'user': current_user.username,
-        'msg': data['msg'],
-        'time': now,
-        'type': m_type,
-        'avatar': current_user.avatar or ''
+        'id': new_m.id, 'user': current_user.username, 'msg': data['msg'],
+        'time': now, 'type': m_type, 'avatar': current_user.avatar or ''
     }, broadcast=True)
 
 @socketio.on('delete_message')
@@ -134,17 +128,15 @@ def update_avatar(data):
     user = User.query.get(current_user.id)
     user.avatar = data['img']
     db.session.commit()
-    # Aktif kullanıcılar listesini güncelle
     for sid, info in active_users.items():
         if info['name'] == user.username:
             info['avatar'] = data['img']
     emit('user_list', list(active_users.values()), broadcast=True)
 
-# Uygulamayı Başlat
+# --- Başlatma ---
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-    
-    # Render'ın verdiği PORT'u kullan, yoksa 5000'de çalış
     port = int(os.environ.get("PORT", 5000))
+    # Render üzerinde debug mutlaka False olmalıdır
     socketio.run(app, host='0.0.0.0', port=port, debug=False)
