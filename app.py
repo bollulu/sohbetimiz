@@ -8,12 +8,11 @@ from flask_socketio import SocketIO, emit, join_room
 from datetime import datetime
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'whatsapp_ultra_2026_safe'
+app.config['SECRET_KEY'] = 'whatsapp_ultra_v8'
 basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'database.db')
-
-# --- KRİTİK: LİMİTLERİ 1GB YAPTIK ---
 app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024 * 1024 
+
 db = SQLAlchemy(app)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent', max_http_buffer_size=1024 * 1024 * 1024)
 
@@ -29,9 +28,16 @@ class Message(db.Model):
     username = db.Column(db.String(50))
     user_avatar = db.Column(db.Text)
     content = db.Column(db.Text)
-    msg_type = db.Column(db.String(20)) # text, image
+    msg_type = db.Column(db.String(20)) # text, image, audio
     timestamp = db.Column(db.String(10))
     room = db.Column(db.String(50), default='Genel')
+
+class Story(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(50))
+    user_avatar = db.Column(db.Text)
+    content = db.Column(db.Text) # Base64 Image
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
 with app.app_context():
     db.create_all()
@@ -59,7 +65,7 @@ def register():
         if not User.query.filter_by(username=u).first():
             gen = request.form.get('gender')
             ava = request.form.get('avatar_data')
-            if not ava: # Seçilmezse varsayılan
+            if not ava:
                 ava = "https://www.w3schools.com/howto/img_avatar.png" if gen == "Erkek" else "https://www.w3schools.com/howto/img_avatar2.png"
             new_u = User(username=u, password=request.form.get('password'), gender=gen, avatar=ava)
             db.session.add(new_u); db.session.commit()
@@ -80,16 +86,43 @@ def on_join(data):
     join_room('Genel')
     online_users[current_user.username] = {"avatar": current_user.avatar}
     emit('update_user_list', online_users, broadcast=True)
+    
+    # Geçmiş mesajlar
     msgs = Message.query.filter_by(room='Genel').all()
-    history = [{'user':m.username,'avatar':m.user_avatar,'msg':m.content,'type':m.msg_type,'time':m.timestamp} for m in msgs]
+    history = [{'id':m.id, 'user':m.username,'avatar':m.user_avatar,'msg':m.content,'type':m.msg_type,'time':m.timestamp} for m in msgs]
     emit('history', history)
+    
+    # Hikayeleri gönder
+    send_stories()
 
 @socketio.on('message')
 def handle_msg(data):
     now = datetime.now().strftime("%H:%M")
     msg = Message(username=current_user.username, user_avatar=current_user.avatar, content=data['msg'], msg_type=data.get('type','text'), timestamp=now)
     db.session.add(msg); db.session.commit()
-    emit('message', {'user':current_user.username,'avatar':current_user.avatar,'msg':data['msg'],'type':msg.msg_type,'time':now}, broadcast=True)
+    emit('message', {'id':msg.id, 'user':current_user.username,'avatar':current_user.avatar,'msg':data['msg'],'type':msg.msg_type,'time':now}, broadcast=True)
+
+@socketio.on('delete_message')
+def delete_msg(data):
+    msg = db.session.get(Message, data['id'])
+    if msg and msg.username == current_user.username:
+        db.session.delete(msg)
+        db.session.commit()
+        emit('message_deleted', {'id': data['id']}, broadcast=True)
+
+@socketio.on('add_story')
+def add_story(data):
+    new_story = Story(username=current_user.username, user_avatar=current_user.avatar, content=data['img'])
+    db.session.add(new_story); db.session.commit()
+    send_stories()
+
+def send_stories():
+    stories = Story.query.all()
+    data = {}
+    for s in stories:
+        if s.username not in data: data[s.username] = {'avatar': s.user_avatar, 'imgs': []}
+        data[s.username]['imgs'].append(s.content)
+    emit('story_list', data, broadcast=True)
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=10000)
