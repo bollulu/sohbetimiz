@@ -1,5 +1,7 @@
 import eventlet
-eventlet.monkey_patch(all=True) # En üstte kalmalı
+# 'all=True' parametresi bloklama hatalarını çözer. 
+# MUTLAKA diğer tüm importlardan önce gelmelidir.
+eventlet.monkey_patch(all=True)
 
 import os
 from flask import Flask, render_template, request, redirect, url_for
@@ -8,18 +10,17 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from flask_socketio import SocketIO, emit
 from datetime import datetime
 
+# Uygulama Yapılandırması
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'render-safe-key-2026'
+app.config['SECRET_KEY'] = 'fixed-chat-2026'
 
-# --- VERİTABANI HATASINI ÇÖZEN KISIM ---
-# Dosya yolunu sunucunun anlayacağı 'mutlak yol' (absolute path) haline getiriyoruz
+# Veritabanı Yolu (Render/SQLite uyumluluğu için tam yol)
 basedir = os.path.abspath(os.path.dirname(__file__))
-db_path = os.path.join(basedir, 'chat_data.db')
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + db_path
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'chat_data.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-# --------------------------------------
 
 db = SQLAlchemy(app)
+# async_mode='eventlet' internet ortamı için zorunludur
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
 
 login_manager = LoginManager(app)
@@ -87,10 +88,15 @@ def handle_msg(data):
     now = datetime.now().strftime("%H:%M")
     new_m = Message(username=current_user.username, content=data['msg'], type=data.get('type', 'text'), timestamp=now)
     db.session.add(new_m); db.session.commit()
-    emit('message', {'id': new_m.id, 'user': current_user.username, 'msg': data['msg'], 'time': now, 'type': data.get('type', 'text'), 'avatar': current_user.avatar or ''}, broadcast=True)
+    emit('message', {
+        'id': new_m.id, 'user': current_user.username, 'msg': data['msg'], 
+        'time': now, 'type': data.get('type', 'text'), 'avatar': current_user.avatar or ''
+    }, broadcast=True)
 
+# Sunucu Başlatma
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
     port = int(os.environ.get("PORT", 5000))
-    socketio.run(app, host='0.0.0.0', port=port, debug=False)
+    # 'debug=False' ve 'log_output=False' bloklamayı önlemeye yardımcı olur
+    socketio.run(app, host='0.0.0.0', port=port, debug=False, log_output=False)
