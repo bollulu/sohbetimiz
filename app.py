@@ -9,15 +9,18 @@ from flask_socketio import SocketIO, emit, join_room
 from datetime import datetime
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'sohbetimiz-ultra-2026'
+app.config['SECRET_KEY'] = 'sohbet-pro-2026'
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'database.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'final_pro.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent', max_http_buffer_size=50 * 1024 * 1024) # 50MB dosya desteği
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent', max_http_buffer_size=50 * 1024 * 1024)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
+
+# Çevrimiçi kullanıcıları takip etmek için sözlük
+online_users = {}
 
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -29,7 +32,7 @@ class Message(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     room = db.Column(db.String(50), default='Genel')
     username = db.Column(db.String(50))
-    content = db.Column(db.Text) # Base64 veri veya metin
+    content = db.Column(db.Text)
     msg_type = db.Column(db.String(10), default='text') # text, image, video
     timestamp = db.Column(db.String(10))
 
@@ -75,9 +78,17 @@ def on_join(data):
     room = data.get('room', 'Genel')
     join_room(room)
     session['room'] = room
+    online_users[current_user.username] = current_user.avatar
+    emit('user_list', online_users, broadcast=True)
     msgs = Message.query.filter_by(room=room).order_by(Message.id.desc()).limit(20).all()
     history = [{'id': m.id, 'user': m.username, 'msg': m.content, 'type': m.msg_type, 'time': m.timestamp} for m in reversed(msgs)]
     emit('history', history)
+
+@socketio.on('disconnect')
+def on_disconnect():
+    if current_user.is_authenticated and current_user.username in online_users:
+        del online_users[current_user.username]
+        emit('user_list', online_users, broadcast=True)
 
 @socketio.on('message')
 def handle_msg(data):
@@ -86,21 +97,15 @@ def handle_msg(data):
     m_type = data.get('type', 'text')
     msg = Message(username=current_user.username, content=data['msg'], msg_type=m_type, room=room, timestamp=now)
     db.session.add(msg); db.session.commit()
-    emit('message', {'id': msg.id, 'user': current_user.username, 'msg': data['msg'], 'type': m_type, 'time': now, 'avatar': current_user.avatar}, to=room)
-
-@socketio.on('delete_message')
-def delete_msg(data):
-    msg = db.session.get(Message, data['id'])
-    if msg and msg.username == current_user.username:
-        msg_id = msg.id
-        db.session.delete(msg); db.session.commit()
-        emit('remove_message', {'id': msg_id}, to=session.get('room'))
+    emit('message', {'id': msg.id, 'user': current_user.username, 'msg': data['msg'], 'type': m_type, 'time': now}, to=room)
 
 @socketio.on('update_avatar')
 def update_avatar(data):
     user = db.session.get(User, current_user.id)
     user.avatar = data['img']
     db.session.commit()
+    online_users[user.username] = data['img']
+    emit('user_list', online_users, broadcast=True)
 
 @socketio.on('join_live')
 def handle_join_live(data):
