@@ -1,5 +1,3 @@
-import eventlet
-eventlet.monkey_patch(all=True)
 import os
 from flask import Flask, render_template, request, redirect, url_for, session
 from flask_sqlalchemy import SQLAlchemy
@@ -7,15 +5,18 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from datetime import datetime
 
+# Önemli: Monkey patch bazı Render ortamlarında sorun çıkarabiliyor, 
+# bu yüzden en temel haliyle başlatıyoruz.
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'chat-ultimate-2026'
+app.config['SECRET_KEY'] = 'sohbet-fix-2026'
 basedir = os.path.abspath(os.path.dirname(__file__))
-# Yeni bir veritabanı ismi vererek temiz kurulum sağlıyoruz
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'final_chat_v12.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'chat_final_v13.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
+# async_mode'u belirtmeden Flask-SocketIO'nun en uygununu seçmesine izin veriyoruz
+socketio = SocketIO(app, cors_allowed_origins="*")
+
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
@@ -30,7 +31,7 @@ class Message(db.Model):
     room = db.Column(db.String(50), nullable=False, default='Genel')
     username = db.Column(db.String(50), nullable=False)
     content = db.Column(db.Text, nullable=False)
-    type = db.Column(db.String(10), default='text') # text, image, video
+    type = db.Column(db.String(10), default='text')
     timestamp = db.Column(db.String(10))
 
 with app.app_context():
@@ -70,23 +71,17 @@ active_users = {}
 
 @socketio.on('join')
 def on_join(data):
-    room = data['room']
+    room = data.get('room', 'Genel')
     if room == 'Özel Oda' and data.get('password') != '1234':
         emit('error', {'msg': 'Hatalı Oda Şifresi!'}); return
-    
-    old_room = session.get('room')
-    if old_room: leave_room(old_room)
-    
     join_room(room)
     session['room'] = room
-    
     msgs = Message.query.filter_by(room=room).all()
     history = []
     for m in msgs:
         u = User.query.filter_by(username=m.username).first()
         history.append({'id':m.id, 'user':m.username, 'msg':m.content, 'type':m.type, 'time':m.timestamp, 'avatar':u.avatar if u else ''})
     emit('history', history)
-    
     active_users[request.sid] = {"name": current_user.username, "room": room, "avatar": current_user.avatar or ''}
     emit('user_list', [u for u in active_users.values() if u['room'] == room], to=room)
 
@@ -102,16 +97,17 @@ def handle_msg(data):
 def delete_msg(data):
     msg = Message.query.get(data['id'])
     if msg and msg.username == current_user.username:
-        rid = msg.id; room = msg.room
         db.session.delete(msg); db.session.commit()
-        emit('remove_message', {'id': rid}, to=room)
+        emit('remove_message', {'id': data['id']}, to=msg.room)
 
-@socketio.on('update_avatar')
-def update_avatar(data):
-    user = User.query.get(current_user.id)
-    user.avatar = data['img']; db.session.commit()
-    if request.sid in active_users: active_users[request.sid]['avatar'] = data['img']
-    emit('user_list', [u for u in active_users.values() if u['room'] == session.get('room')], to=session.get('room'))
+@socketio.on('disconnect')
+def on_disconnect():
+    if request.sid in active_users:
+        room = active_users[request.sid]['room']
+        del active_users[request.sid]
+        emit('user_list', [u for u in active_users.values() if u['room'] == room], to=room)
 
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=int(os.environ.get("PORT", 5000)))
+    # Render için port ayarı
+    port = int(os.environ.get("PORT", 5000))
+    socketio.run(app, host='0.0.0.0', port=port)
