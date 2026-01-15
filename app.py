@@ -1,5 +1,6 @@
-import eventlet
-eventlet.monkey_patch(all=True) # TÜM SİSTEMİ ASENKRON YAPAR (Hata çözücü satır)
+# DİKKAT: Bu 2 satır en üstte olmalı!
+from gevent import monkey
+monkey.patch_all()
 
 import os
 from flask import Flask, render_template, request, redirect, url_for, session
@@ -8,22 +9,21 @@ from flask_login import LoginManager, UserMixin, login_user, logout_user, login_
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from datetime import datetime
 
-# Uygulama Yapılandırması
+# Uygulama ve DB Ayarları
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'sohbet-final-2026-v15'
+app.config['SECRET_KEY'] = 'ultimate-sohbet-2026-gevent'
 basedir = os.path.abspath(os.path.dirname(__file__))
-# Yeni bir veritabanı ismi vererek çakışmaları önleyelim
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'final_v15.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'gevent_chat_v1.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
-# Render üzerinde en kararlı çalışan Socket.io ayarları
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
+# async_mode='gevent' olarak güncellendi
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
-# Veritabanı Modelleri
+# Modeller
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True, nullable=False)
@@ -42,16 +42,19 @@ with app.app_context():
     db.create_all()
 
 @login_manager.user_loader
-def load_user(user_id): return User.query.get(int(user_id))
+def load_user(user_id):
+    return db.session.get(User, int(user_id))
 
-# Sayfa Yönlendirmeleri
+# --- Rotalar ---
 @app.route('/')
-def index(): return redirect(url_for('login'))
+def index():
+    return redirect(url_for('login'))
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        u, p = request.form.get('username'), request.form.get('password')
+        u = request.form.get('username')
+        p = request.form.get('password')
         if u and p and not User.query.filter_by(username=u).first():
             db.session.add(User(username=u, password=p))
             db.session.commit()
@@ -69,14 +72,15 @@ def login():
 
 @app.route('/chat')
 @login_required
-def chat(): return render_template('chat.html', user=current_user)
+def chat():
+    return render_template('chat.html', user=current_user)
 
 @app.route('/logout')
 def logout():
     logout_user()
     return redirect(url_for('login'))
 
-# Gerçek Zamanlı Socket İşlemleri
+# --- Socket İşlemleri ---
 active_users = {}
 
 @socketio.on('join')
@@ -85,7 +89,6 @@ def on_join(data):
     join_room(room)
     session['room'] = room
     
-    # Son 50 mesajı getir
     msgs = Message.query.filter_by(room=room).order_by(Message.id.desc()).limit(50).all()
     history = []
     for m in reversed(msgs):
@@ -113,7 +116,7 @@ def handle_msg(data):
 
 @socketio.on('delete_message')
 def delete_msg(data):
-    msg = Message.query.get(data['id'])
+    msg = db.session.get(Message, data['id'])
     if msg and msg.username == current_user.username:
         rid = msg.id; rname = msg.room
         db.session.delete(msg)
@@ -122,7 +125,7 @@ def delete_msg(data):
 
 @socketio.on('update_avatar')
 def update_avatar(data):
-    user = User.query.get(current_user.id)
+    user = db.session.get(User, current_user.id)
     user.avatar = data['img']
     db.session.commit()
     if request.sid in active_users: 
