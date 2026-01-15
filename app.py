@@ -8,9 +8,9 @@ from flask_socketio import SocketIO, emit, join_room, leave_room
 from datetime import datetime
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'chat-2026-v10-final'
+app.config['SECRET_KEY'] = 'chat-final-2026'
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'chat_v10.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'chat_v11.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
@@ -71,10 +71,7 @@ def on_join(data):
     join_room(room)
     session['room'] = room
     msgs = Message.query.filter_by(room=room).all()
-    history = []
-    for m in msgs:
-        u = User.query.filter_by(username=m.username).first()
-        history.append({'id':m.id,'user':m.username,'msg':m.content,'type':m.type,'time':m.timestamp,'avatar':u.avatar if u else ''})
+    history = [{'id':m.id,'user':m.username,'msg':m.content,'type':m.type,'time':m.timestamp,'avatar':(User.query.filter_by(username=m.username).first().avatar if User.query.filter_by(username=m.username).first() else '')} for m in msgs]
     emit('history', history)
     active_users[request.sid] = {"name": current_user.username, "room": room, "avatar": current_user.avatar or ''}
     emit('user_list', [u for u in active_users.values() if u['room'] == room], to=room)
@@ -91,13 +88,14 @@ def handle_msg(data):
 def delete_msg(data):
     msg = Message.query.get(data['id'])
     if msg and msg.username == current_user.username:
+        rid = msg.id; room = msg.room
         db.session.delete(msg); db.session.commit()
-        emit('remove_message', {'id': data['id']}, to=msg.room)
+        emit('remove_message', {'id': rid}, to=room)
 
 @socketio.on('update_avatar')
 def update_avatar(data):
-    current_user.avatar = data['img']
-    db.session.commit()
+    user = User.query.get(current_user.id)
+    user.avatar = data['img']; db.session.commit()
     if request.sid in active_users: active_users[request.sid]['avatar'] = data['img']
     emit('user_list', [u for u in active_users.values() if u['room'] == session.get('room')], to=session.get('room'))
 
