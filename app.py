@@ -9,8 +9,9 @@ from flask_socketio import SocketIO, emit
 from datetime import datetime
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'global-secure-chat-2026'
+app.config['SECRET_KEY'] = 'final-fix-2026'
 
+# Veritabanı Yolu
 basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'chat_data.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -21,6 +22,7 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
+# Modeller
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True, nullable=False)
@@ -38,6 +40,7 @@ class Message(db.Model):
 def load_user(user_id):
     return User.query.get(int(user_id))
 
+# Rotalar
 @app.route('/')
 def index(): return redirect(url_for('login'))
 
@@ -45,37 +48,51 @@ def index(): return redirect(url_for('login'))
 def register():
     if request.method == 'POST':
         u, p = request.form.get('username'), request.form.get('password')
-        if u and p and not User.query.filter_by(username=u).first():
-            db.session.add(User(username=u, password=p))
-            db.session.commit()
-            return redirect(url_for('login'))
+        if u and p:
+            try:
+                if not User.query.filter_by(username=u).first():
+                    db.session.add(User(username=u, password=p))
+                    db.session.commit()
+                    return redirect(url_for('login'))
+            except:
+                db.session.rollback()
+                return "Veritabanı hatası! Lütfen sayfayı yenileyip tekrar kayıt olun (Veritabanı sıfırlandı)."
     return render_template('register.html')
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        user = User.query.filter_by(username=request.form.get('username')).first()
-        if user and user.password == request.form.get('password'):
-            login_user(user); return redirect(url_for('chat'))
+        try:
+            user = User.query.filter_by(username=request.form.get('username')).first()
+            if user and user.password == request.form.get('password'):
+                login_user(user); return redirect(url_for('chat'))
+        except:
+            return "Giriş hatası! Lütfen tekrar deneyin."
     return render_template('login.html')
 
 @app.route('/chat')
 @login_required
 def chat():
-    msgs = Message.query.all()
-    history = []
-    for m in msgs:
-        sender = User.query.filter_by(username=m.username).first()
-        history.append({
-            'id': m.id, 'username': m.username, 'content': m.content,
-            'type': m.type, 'timestamp': m.timestamp,
-            'avatar': sender.avatar if sender and sender.avatar else 'https://cdn-icons-png.flaticon.com/512/149/149071.png'
-        })
-    return render_template('chat.html', user=current_user, history=history)
+    try:
+        msgs = Message.query.all()
+        history = []
+        for m in msgs:
+            sender = User.query.filter_by(username=m.username).first()
+            history.append({
+                'id': m.id, 'username': m.username, 'content': m.content,
+                'type': m.type, 'timestamp': m.timestamp,
+                'avatar': sender.avatar if sender and sender.avatar else 'https://cdn-icons-png.flaticon.com/512/149/149071.png'
+            })
+        return render_template('chat.html', user=current_user, history=history)
+    except:
+        return redirect(url_for('logout'))
 
 @app.route('/logout')
-def logout(): logout_user(); return redirect(url_for('login'))
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
 
+# Socket İşlemleri (Silme, Liste vb.)
 active_users = {}
 
 @socketio.on('connect')
@@ -99,8 +116,8 @@ def handle_msg(data):
     new_m = Message(username=current_user.username, content=data['msg'], type=data.get('type', 'text'), timestamp=now)
     db.session.add(new_m); db.session.commit()
     emit('message', {
-        'id': new_m.id, 'user': current_user.username, 'msg': data['msg'],
-        'time': now, 'type': data.get('type', 'text'),
+        'id': new_m.id, 'user': current_user.username, 'msg': data['msg'], 'time': now, 
+        'type': data.get('type', 'text'),
         'avatar': current_user.avatar if current_user.avatar else 'https://cdn-icons-png.flaticon.com/512/149/149071.png'
     }, broadcast=True)
 
@@ -111,16 +128,17 @@ def delete_msg(data):
         db.session.delete(msg); db.session.commit()
         emit('remove_message', {'id': data['id']}, broadcast=True)
 
-@socketio.on('update_avatar')
-def update_avatar(data):
-    user = User.query.get(current_user.id)
-    user.avatar = data['img']
-    db.session.commit()
-    for sid, info in active_users.items():
-        if info['name'] == user.username: info['avatar'] = data['img']
-    emit('user_list', list(active_users.values()), broadcast=True)
-
+# KRİTİK BAŞLATICI
 if __name__ == '__main__':
-    with app.app_context(): db.create_all()
+    with app.app_context():
+        try:
+            # Mevcut tabloya bak, eğer 'avatar' sütunu yoksa her şeyi sil ve yeniden kur
+            User.query.filter_by(id=1).first() 
+            db.create_all()
+        except:
+            print("Veritabanı yapısı eski. Sıfırlanıyor...")
+            db.drop_all() # Her şeyi sil
+            db.create_all() # Yeni yapıya göre kur
+            
     port = int(os.environ.get("PORT", 5000))
     socketio.run(app, host='0.0.0.0', port=port, debug=False)
