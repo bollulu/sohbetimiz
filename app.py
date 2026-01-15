@@ -8,19 +8,20 @@ from flask_socketio import SocketIO, emit, join_room
 from datetime import datetime
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'whatsapp_ultra_v5'
+app.config['SECRET_KEY'] = 'wa_ultra_vfinal'
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'whatsapp_v5.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'database.db')
 app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024 * 1024 # 1GB Limit
 
 db = SQLAlchemy(app)
+# SocketIO üzerinden giden veri limitini 1GB yaptık (Hata almamak için)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent', max_http_buffer_size=1024 * 1024 * 1024)
 
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True)
     password = db.Column(db.String(100))
-    gender = db.Column(db.String(10)) # Erkek / Kiz
+    gender = db.Column(db.String(10))
     avatar = db.Column(db.Text)
 
 class Message(db.Model):
@@ -31,6 +32,7 @@ class Message(db.Model):
     msg_type = db.Column(db.String(20)) # text, image, video, audio
     timestamp = db.Column(db.String(10))
     is_read = db.Column(db.Boolean, default=False)
+    room = db.Column(db.String(50), default='Genel')
 
 class Story(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -64,9 +66,9 @@ def register():
         u = request.form.get('username')
         if not User.query.filter_by(username=u).first():
             gen = request.form.get('gender')
-            # Varsayılan avatar cinsiyete göre
-            def_avatar = "https://www.w3schools.com/howto/img_avatar.png" if gen == "Erkek" else "https://www.w3schools.com/howto/img_avatar2.png"
-            new_u = User(username=u, password=request.form.get('password'), gender=gen, avatar=def_avatar)
+            # Cinsiyete göre varsayılan avatar
+            avatar = "https://www.w3schools.com/howto/img_avatar.png" if gen == "Erkek" else "https://www.w3schools.com/howto/img_avatar2.png"
+            new_u = User(username=u, password=request.form.get('password'), gender=gen, avatar=avatar)
             db.session.add(new_u); db.session.commit()
             return redirect(url_for('login'))
     return render_template('register.html')
@@ -86,23 +88,17 @@ def on_join(data):
     online_users[current_user.username] = {"avatar": current_user.avatar, "sid": request.sid}
     emit('update_user_list', online_users, broadcast=True)
     send_stories()
-    msgs = Message.query.all()
+    # Mesaj geçmişini yükle
+    msgs = Message.query.filter_by(room='Genel').all()
     history = [{'id':m.id,'user':m.username,'avatar':m.user_avatar,'msg':m.content,'type':m.msg_type,'time':m.timestamp,'read':m.is_read} for m in msgs]
     emit('history', history)
 
 @socketio.on('message')
 def handle_msg(data):
     now = datetime.now().strftime("%H:%M")
-    msg = Message(username=current_user.username, user_avatar=current_user.avatar, content=data['msg'], msg_type=data.get('type','text'), timestamp=now)
+    msg = Message(username=current_user.username, user_avatar=current_user.avatar, content=data['msg'], msg_type=data.get('type','text'), timestamp=now, room='Genel')
     db.session.add(msg); db.session.commit()
     emit('message', {'id':msg.id,'user':current_user.username,'avatar':current_user.avatar,'msg':data['msg'],'type':msg.msg_type,'time':now,'read':False}, broadcast=True)
-
-@socketio.on('mark_as_read')
-def mark_read(data):
-    msg = db.session.get(Message, data['id'])
-    if msg:
-        msg.is_read = True; db.session.commit()
-        emit('msg_read_status', {'id': msg.id}, broadcast=True)
 
 @socketio.on('delete_message')
 def delete_msg(data):
@@ -117,7 +113,6 @@ def update_profile(data):
     user.avatar = data['avatar']
     db.session.commit()
     online_users[current_user.username]['avatar'] = data['avatar']
-    # Hikaye ve mesajlardaki avatarları da güncellemek için yayınla
     emit('update_user_list', online_users, broadcast=True)
     send_stories()
 
@@ -132,7 +127,7 @@ def del_story(data):
     db.session.commit(); send_stories()
 
 def send_stories():
-    stories = Story.query.order_by(Story.created_at.asc()).all()
+    stories = Story.query.all()
     grouped = {}
     for s in stories:
         if s.username not in grouped: grouped[s.username] = {'avatar': s.user_avatar, 'items': []}
