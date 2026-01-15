@@ -3,24 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Chat V11</title>
+    <title>Global Chat V12 - Live</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src='https://meet.jit.si/external_api.js'></script>
     <style>
         :root { --main: #075e54; --me: #dcf8c6; }
         * { box-sizing: border-box; }
         body, html { margin: 0; padding: 0; height: 100%; width: 100%; overflow: hidden; background: #e5ddd5; position: fixed; }
         
-        /* Layout */
         .app-container { display: flex; height: 100%; width: 100%; }
-        
         .sidebar { width: 280px; background: #fff; border-right: 1px solid #ddd; display: flex; flex-direction: column; z-index: 1001; transition: 0.3s; }
         .chat-area { flex: 1; display: flex; flex-direction: column; position: relative; height: 100%; background: #efe7dd; }
         
-        /* Mesajların listelendiği alan */
-        #chat-box { flex: 1; overflow-y: auto; padding: 15px 15px 80px 15px; display: flex; flex-direction: column; background-size: cover; background-position: center; }
+        #chat-box { flex: 1; overflow-y: auto; padding: 15px 15px 80px 15px; display: flex; flex-direction: column; }
 
-        /* Mesaj Kutusu - Sabit Alt Bar */
+        /* Video Paneli */
+        #video-container { display: none; height: 40%; background: #000; position: relative; border-bottom: 2px solid var(--main); }
+        #video-frame { height: 100%; width: 100%; }
+
         .input-bar { 
             position: absolute; bottom: 0; left: 0; right: 0; 
             padding: 10px; background: #f0f2f5; 
@@ -30,22 +31,20 @@
 
         #chat-form { display: flex; flex: 1; gap: 8px; }
         #msgIn { flex: 1; padding: 12px; border-radius: 20px; border: 1px solid #ddd; font-size: 16px; outline: none; }
-        .send-btn { background: var(--main); color: white; border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+        .send-btn { background: var(--main); color: white; border: none; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; }
 
-        /* Mesaj Tasarımı */
         .msg-row { display: flex; gap: 8px; margin-bottom: 12px; max-width: 85%; }
         .msg-row.me { align-self: flex-end; flex-direction: row-reverse; }
-        .msg-bubble { padding: 8px 12px; border-radius: 12px; background: #fff; box-shadow: 0 1px 1px rgba(0,0,0,0.1); word-wrap: break-word; }
+        .msg-bubble { padding: 8px 12px; border-radius: 12px; background: #fff; box-shadow: 0 1px 1px rgba(0,0,0,0.1); }
         .me .msg-bubble { background: var(--me); }
         .avatar { width: 35px; height: 35px; border-radius: 50%; object-fit: cover; }
         
-        /* Mobil Menü */
-        .header { display: none; padding: 10px; background: var(--main); color: white; font-weight: bold; align-items: center; gap: 10px; }
-        
+        .header { display: flex; padding: 10px; background: var(--main); color: white; font-weight: bold; align-items: center; justify-content: space-between; height: 60px; }
+        .live-btn { background: #e74c3c; color: white; border: none; padding: 5px 10px; border-radius: 5px; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 5px; }
+
         @media (max-width: 768px) {
             .sidebar { position: fixed; left: -280px; height: 100%; }
             .sidebar.open { left: 0; }
-            .header { display: flex; }
         }
     </style>
 </head>
@@ -73,8 +72,16 @@
 
         <div class="chat-area">
             <div class="header">
-                <button onclick="$('#sidebar').toggleClass('open')" style="background:none; border:none; color:white; font-size:24px;">☰</button>
-                <span id="room-name">Oda: Genel</span>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <button onclick="$('#sidebar').toggleClass('open')" style="background:none; border:none; color:white; font-size:24px;">☰</button>
+                    <span id="room-name">Oda: Genel</span>
+                </div>
+                <button class="live-btn" onclick="toggleLive()">📹 CANLI YAYIN</button>
+            </div>
+
+            <div id="video-container">
+                <div id="video-frame"></div>
+                <button onclick="toggleLive()" style="position:absolute; top:5px; right:5px; background:red; color:white; border:none; border-radius:50%; width:25px; height:25px; cursor:pointer;">X</button>
             </div>
             
             <div id="chat-box"></div>
@@ -82,7 +89,6 @@
             <div class="input-bar">
                 <button onclick="$('#fileIn').click()" style="background:none; border:none; font-size:24px; cursor:pointer;">📎</button>
                 <input type="file" id="fileIn" style="display:none" accept="image/*,video/*">
-                
                 <form id="chat-form" onsubmit="sendMsg(event)">
                     <input type="text" id="msgIn" placeholder="Mesaj..." autocomplete="off">
                     <button type="submit" class="send-btn">➔</button>
@@ -94,15 +100,33 @@
     <script>
         var socket = io({transports: ['websocket', 'polling']});
         var myUser = "{{ user.username }}";
-        
-        $(document).ready(function() {
-            let bg = localStorage.getItem('chat_bg');
-            if(bg) $('#chat-box').css('background-image', `url(${bg})`);
-        });
+        var jitsiApi = null;
+
+        function toggleLive() {
+            let container = $('#video-container');
+            if(container.is(':visible')) {
+                container.hide();
+                if(jitsiApi) { jitsiApi.dispose(); jitsiApi = null; }
+            } else {
+                container.show();
+                const domain = "meet.jit.si";
+                const options = {
+                    roomName: "GlobalChat2026_" + $('#room-name').text().replace(/\s+/g, '_'),
+                    width: "100%",
+                    height: "100%",
+                    parentNode: document.querySelector('#video-frame'),
+                    userInfo: { displayName: myUser },
+                    configOverwrite: { startWithAudioMuted: true },
+                    interfaceConfigOverwrite: { TOOLBAR_BUTTONS: ['microphone', 'camera', 'hangup', 'chat', 'tileview'] }
+                };
+                jitsiApi = new JitsiMeetExternalAPI(domain, options);
+            }
+        }
 
         function changeRoom(name, priv = false) {
             let p = priv ? prompt("Şifre:") : '';
             if(priv && !p) return;
+            if(jitsiApi) toggleLive(); // Oda değişirse yayını kapat
             $('#room-name').text("Oda: " + name);
             $('#chat-box').empty();
             $('#sidebar').removeClass('open');
@@ -123,17 +147,7 @@
         function addMessage(d, hist = false) {
             let me = d.user == myUser;
             if(!me && !hist) document.getElementById('notifSound').play().catch(()=>{});
-            
-            let html = `
-            <div class="msg-row ${me?'me':''}" id="m-${d.id}">
-                <img src="${d.avatar || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}" class="avatar">
-                <div class="msg-bubble">
-                    <small style="color:var(--main); font-weight:bold;">${d.user}</small>
-                    <div style="margin:2px 0;">${d.type=='text'?d.msg : d.type=='image'?`<img src="${d.msg}" style="max-width:200px; border-radius:5px;">` : `<video src="${d.msg}" style="max-width:200px;" controls></video>`}</div>
-                    <small style="color:gray; font-size:9px;">${d.time}</small>
-                    ${me ? `<span style="color:red; font-size:9px; cursor:pointer; margin-left:10px;" onclick="socket.emit('delete_message',{id:'${d.id}'})">Sil</span>` : ''}
-                </div>
-            </div>`;
+            let html = `<div class="msg-row ${me?'me':''}" id="m-${d.id}"><img src="${d.avatar || 'https://cdn-icons-png.flaticon.com/512/149/149071.png'}" class="avatar"><div class="msg-bubble"><small style="color:var(--main); font-weight:bold;">${d.user}</small><div style="margin:2px 0;">${d.type=='text'?d.msg : d.type=='image'?`<img src="${d.msg}" style="max-width:200px; border-radius:5px;">` : `<video src="${d.msg}" style="max-width:200px;" controls></video>`}</div><small style="color:gray; font-size:9px;">${d.time}</small>${me ? `<span style="color:red; font-size:9px; cursor:pointer; margin-left:10px;" onclick="socket.emit('delete_message',{id:'${d.id}'})">Sil</span>` : ''}</div></div>`;
             $('#chat-box').append(html);
             $('#chat-box').scrollTop($('#chat-box')[0].scrollHeight);
         }
