@@ -9,23 +9,21 @@ from flask_socketio import SocketIO, emit, join_room
 from datetime import datetime
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'ultra-chat-2026-vFinal'
+app.config['SECRET_KEY'] = 'chat-ultra-v2026-final'
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'chat_final.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'chat_final_v10.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024 # 100MB Limit
 
 db = SQLAlchemy(app)
-# max_http_buffer_size ile büyük Base64 verilerini (resim/video) kabul ediyoruz
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent', max_http_buffer_size=100 * 1024 * 1024)
 
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
-# Online kullanıcıları ve SID (Socket ID) bilgilerini tutar
-online_users = {}
+online_users = {} # {username: {avatar: str, sid: str}}
 
-# --- MODELLER ---
+# --- VERİTABANI MODELLERİ ---
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True, nullable=False)
@@ -38,20 +36,13 @@ class Message(db.Model):
     username = db.Column(db.String(50))
     user_avatar = db.Column(db.Text)
     content = db.Column(db.Text)
-    msg_type = db.Column(db.String(10))
+    msg_type = db.Column(db.String(10)) # text, image, video, audio
     timestamp = db.Column(db.String(10))
-
-class Story(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(50))
-    user_avatar = db.Column(db.Text)
-    content = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 with app.app_context():
     db.create_all()
 
-# --- AUTH YOLLARI ---
+# --- AUTH ---
 @login_manager.user_loader
 def load_user(user_id): return db.session.get(User, int(user_id))
 
@@ -79,7 +70,7 @@ def register():
 @login_required
 def chat(): return render_template('chat.html', user=current_user)
 
-# --- SOCKET OLAYLARI ---
+# --- SOKET OLAYLARI ---
 @socketio.on('join')
 def on_join(data):
     room = data.get('room', 'Genel')
@@ -91,15 +82,6 @@ def on_join(data):
     msgs = Message.query.filter_by(room=room).order_by(Message.id.desc()).limit(50).all()
     history = [{'id': m.id, 'user': m.username, 'avatar': m.user_avatar, 'msg': m.content, 'type': m.msg_type, 'time': m.timestamp} for m in reversed(msgs)]
     emit('history', history)
-    send_stories()
-
-def send_stories():
-    stories = Story.query.order_by(Story.created_at.asc()).all()
-    grouped = {}
-    for s in stories:
-        if s.username not in grouped: grouped[s.username] = {'avatar': s.user_avatar, 'stories': []}
-        grouped[s.username]['stories'].append({'id': s.id, 'content': s.content})
-    emit('story_list', grouped, broadcast=True)
 
 @socketio.on('message')
 def handle_msg(data):
@@ -113,19 +95,8 @@ def handle_msg(data):
 def delete_msg(data):
     msg = db.session.get(Message, data.get('id'))
     if msg and msg.username == current_user.username:
-        room = msg.room
         db.session.delete(msg); db.session.commit()
-        emit('msg_deleted', {'id': data.get('id')}, to=room)
-
-@socketio.on('update_profile_pic')
-def update_profile_pic(data):
-    user = db.session.get(User, current_user.id)
-    user.avatar = data.get('avatar')
-    Message.query.filter_by(username=current_user.username).update({Message.user_avatar: user.avatar})
-    Story.query.filter_by(username=current_user.username).update({Story.user_avatar: user.avatar})
-    db.session.commit()
-    online_users[current_user.username]['avatar'] = user.avatar
-    emit('user_list', {u: info['avatar'] for u, info in online_users.items()}, broadcast=True)
+        emit('msg_deleted', {'id': data.get('id')}, broadcast=True)
 
 # --- WEBRTC SIGNALLING ---
 @socketio.on('call-user')
