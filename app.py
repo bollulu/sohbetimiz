@@ -9,9 +9,9 @@ from flask_socketio import SocketIO, emit, join_room
 from datetime import datetime
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'whatsapp-final-fixed-2026'
+app.config['SECRET_KEY'] = 'whatsapp-ultra-2026-v3'
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'final_storage.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'chat_data_final.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
@@ -33,7 +33,7 @@ class Message(db.Model):
     username = db.Column(db.String(50))
     user_avatar = db.Column(db.Text)
     content = db.Column(db.Text)
-    msg_type = db.Column(db.String(10))
+    msg_type = db.Column(db.String(10)) # text, image, video, audio
     timestamp = db.Column(db.String(10))
     is_read = db.Column(db.Boolean, default=False)
 
@@ -50,10 +50,8 @@ with app.app_context():
 @login_manager.user_loader
 def load_user(user_id): return db.session.get(User, int(user_id))
 
-# --- ANA SAYFA YÖNLENDİRMESİ (404 HATASINI ÖNLER) ---
 @app.route('/')
-def index():
-    return redirect(url_for('login'))
+def index(): return redirect(url_for('login'))
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -76,7 +74,6 @@ def register():
 @login_required
 def chat(): return render_template('chat.html', user=current_user)
 
-# --- SOCKET OLAYLARI ---
 @socketio.on('join')
 def on_join(data):
     room = data.get('room', 'Genel')
@@ -88,13 +85,16 @@ def on_join(data):
     msgs = Message.query.filter_by(room=room).order_by(Message.id.desc()).limit(50).all()
     history = [{'id':m.id, 'user':m.username, 'avatar':m.user_avatar, 'msg':m.content, 'type':m.msg_type, 'time':m.timestamp, 'read':m.is_read} for m in reversed(msgs)]
     emit('history', history)
-    
+    send_stories()
+
+def send_stories():
     stories = Story.query.order_by(Story.created_at.asc()).all()
     grouped = {}
     for s in stories:
-        if s.username not in grouped: grouped[s.username] = {'avatar': s.user_avatar, 'imgs': []}
-        grouped[s.username]['imgs'].append(s.content)
-    emit('story_list', grouped)
+        if s.username not in grouped: 
+            grouped[s.username] = {'avatar': s.user_avatar, 'stories': []}
+        grouped[s.username]['stories'].append({'id': s.id, 'content': s.content})
+    emit('story_list', grouped, broadcast=True)
 
 @socketio.on('message')
 def handle_msg(data):
@@ -102,7 +102,6 @@ def handle_msg(data):
     now = datetime.now().strftime("%H:%M")
     msg = Message(username=current_user.username, user_avatar=current_user.avatar, content=data['msg'], msg_type=data.get('type','text'), room=room, timestamp=now)
     db.session.add(msg); db.session.commit()
-    # Loglardaki hatanın olduğu satır aşağıda düzeltildi:
     emit('message', {'id':msg.id, 'user':current_user.username, 'avatar':current_user.avatar, 'msg':data['msg'], 'type':msg.msg_type, 'time':now, 'read':False}, to=room)
 
 @socketio.on('mark_read')
@@ -116,12 +115,22 @@ def mark_read(data):
 def handle_story(data):
     db.session.add(Story(username=current_user.username, user_avatar=current_user.avatar, content=data['img']))
     db.session.commit()
-    stories = Story.query.order_by(Story.created_at.asc()).all()
-    grouped = {}
-    for s in stories:
-        if s.username not in grouped: grouped[s.username] = {'avatar': s.user_avatar, 'imgs': []}
-        grouped[s.username]['imgs'].append(s.content)
-    emit('story_list', grouped, broadcast=True)
+    send_stories()
+
+@socketio.on('delete_story')
+def delete_story(data):
+    story = Story.query.filter_by(id=data['id'], username=current_user.username).first()
+    if story:
+        db.session.delete(story); db.session.commit()
+        send_stories()
+
+@socketio.on('update_avatar')
+def change_av(data):
+    user = db.session.get(User, current_user.id)
+    user.avatar = data['img']
+    db.session.commit()
+    online_users[user.username] = data['img']
+    emit('user_list', online_users, broadcast=True)
 
 @socketio.on('delete_msg')
 def delete_msg(data):
