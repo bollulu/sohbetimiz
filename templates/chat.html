@@ -5,38 +5,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <style>
-        :root { --wa-green: #075e54; --wa-light: #dcf8c6; --blue-tick: #34b7f1; }
+        :root { --wa-green: #075e54; --wa-light: #dcf8c6; }
         body { font-family: 'Segoe UI', sans-serif; margin: 0; display: flex; height: 100vh; background: #e5ddd5; overflow: hidden; }
-        
-        #side-panel { width: 300px; background: white; border-right: 1px solid #ddd; display: flex; flex-direction: column; z-index: 100; }
+        #side-panel { width: 300px; background: white; border-right: 1px solid #ddd; display: flex; flex-direction: column; }
         .user-row { padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; display: flex; align-items: center; gap: 10px; }
-        .user-row:hover { background: #f5f5f5; }
         .online-dot { width: 10px; height: 10px; background: #4CAF50; border-radius: 50%; margin-left: auto; }
         .me-tag { font-size: 10px; background: #e1f5fe; padding: 2px 5px; border-radius: 4px; color: #0288d1; font-weight: bold; }
-
-        #main-chat { flex: 1; display: flex; flex-direction: column; position: relative; }
+        #main-chat { flex: 1; display: flex; flex-direction: column; }
         #story-bar { display: flex; gap: 15px; padding: 10px; background: white; border-bottom: 1px solid #ddd; overflow-x: auto; min-height: 95px; }
-        .story-item { display: flex; flex-direction: column; align-items: center; min-width: 65px; cursor: pointer; }
         .story-circle { width: 55px; height: 55px; border-radius: 50%; border: 3px solid #25D366; padding: 2px; object-fit: cover; }
-        .story-name { font-size: 11px; margin-top: 4px; color: #333; font-weight: 500; }
-
         #chat-area { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 15px; }
         .msg-wrap { display: flex; align-items: flex-start; gap: 8px; max-width: 85%; }
         .sent-wrap { align-self: flex-end; flex-direction: row-reverse; }
-        
         .avatar-container { display: flex; flex-direction: column; align-items: center; min-width: 50px; }
-        .avatar-chat { width: 35px; height: 35px; border-radius: 50%; object-fit: cover; border: 1px solid #ddd; }
-        .avatar-name { font-size: 9px; color: #777; margin-top: 2px; text-align: center; max-width: 45px; overflow: hidden; text-overflow: ellipsis; }
-
-        .msg { padding: 10px 14px; border-radius: 12px; font-size: 14px; box-shadow: 0 1px 1px rgba(0,0,0,0.1); position: relative; }
+        .avatar-chat { width: 35px; height: 35px; border-radius: 50%; object-fit: cover; }
+        .avatar-name { font-size: 9px; color: #777; margin-top: 2px; text-align: center; }
+        .msg { padding: 10px 14px; border-radius: 12px; font-size: 14px; box-shadow: 0 1px 1px rgba(0,0,0,0.1); }
         .sent { background: var(--wa-light); border-top-right-radius: 2px; }
         .received { background: white; border-top-left-radius: 2px; }
-
         #input-area { background: #f0f0f0; padding: 10px; display: flex; align-items: center; gap: 10px; }
         input[type="text"] { flex: 1; padding: 12px; border-radius: 25px; border: none; outline: none; }
-
         #story-viewer { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:black; z-index:2000; flex-direction:column; align-items:center; justify-content:center; }
-        .story-header { position: absolute; top: 20px; left: 20px; display: flex; align-items: center; gap: 10px; color: white; width: 90%; justify-content: space-between; }
         #story-img { max-height: 80%; max-width: 95%; border-radius: 10px; }
     </style>
 </head>
@@ -53,18 +42,14 @@
 
 <div id="main-chat">
     <div id="story-bar">
-        <div class="story-item" onclick="document.getElementById('stIn').click()">
-            <div style="width:55px; height:55px; border:2px dashed #999; border-radius:50%; line-height:55px; font-size:24px; color:#999; text-align:center;">+</div>
-            <span class="story-name">Ekle</span>
+        <div class="story-item" style="display:flex; flex-direction:column; align-items:center; cursor:pointer;" onclick="document.getElementById('stIn').click()">
+            <div style="width:55px; height:55px; border:2px dashed #999; border-radius:50%; line-height:55px; text-align:center; font-size:24px; color:#999;">+</div>
+            <span style="font-size:11px">Ekle</span>
             <input type="file" id="stIn" style="display:none" onchange="upStory(this)">
         </div>
         <div id="stories-cont" style="display:flex; gap:12px;"></div>
     </div>
-
-    <div style="background:#eee; padding:10px; border-bottom:1px solid #ddd; font-weight:bold;"><span id="room-name">Genel Sohbet</span></div>
-    
     <div id="chat-area"></div>
-
     <div id="input-area">
         <button onclick="document.getElementById('fIn').click()" style="font-size:20px; border:none; background:none; cursor:pointer;">📁</button>
         <input type="file" id="fIn" style="display:none" onchange="upMedia(this)">
@@ -74,12 +59,9 @@
 </div>
 
 <div id="story-viewer">
-    <div class="story-header">
-        <div style="display: flex; align-items: center; gap: 10px;">
-            <img id="story-owner-av" src="" style="width:40px; height:40px; border-radius:50%; border:1px solid white; object-fit:cover;">
-            <b id="story-owner-name"></b>
-        </div>
-        <button id="del-st-btn" onclick="removeStory()" style="display:none; background:red; color:white; border:none; padding:8px 15px; border-radius:5px; cursor:pointer; font-weight:bold;">SİL</button>
+    <div style="position: absolute; top: 20px; left: 20px; display: flex; align-items: center; gap: 10px; color: white;">
+        <img id="story-owner-av" src="" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
+        <b id="story-owner-name"></b>
     </div>
     <span onclick="closeStoryViewer()" style="position:absolute; top:20px; right:30px; color:white; font-size:40px; cursor:pointer;">&times;</span>
     <img id="story-img" src="" onclick="nextStory()">
@@ -88,16 +70,38 @@
 <script>
     const socket = io();
     const myName = "{{ user.username }}";
-    let currentRoom = 'Genel', currentStorySet = [], currentStoryIndex = 0, currentStoryOwner = "";
+    let currentRoom = 'Genel', currentStorySet = [], currentStoryIndex = 0;
 
     socket.emit('join', {room: 'Genel'});
+
+    // KRİTİK SIKIŞTIRMA FONKSİYONU
+    function compressAndSend(file, callback) {
+        if(!file.type.startsWith('image')) { // Resim değilse (video/audio) sıkıştırmadan gönder
+            const r = new FileReader(); r.onload = e => callback(e.target.result); r.readAsDataURL(file);
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let w = img.width, h = img.height, max = 800; // Sohbet için 800px yeterli
+                if (w > h && w > max) { h *= max / w; w = max; }
+                else if (h > max) { w *= max / h; h = max; }
+                canvas.width = w; canvas.height = h;
+                const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, w, h);
+                callback(canvas.toDataURL('image/jpeg', 0.6)); // %60 kalite
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    }
 
     function send() {
         const i = document.getElementById('msgInput');
         if(i.value.trim()) { socket.emit('message', {msg: i.value, type:'text', room: currentRoom}); i.value=''; }
     }
 
-    // RESİM SIKIŞTIRMA (Medya Mesajları İçin)
     function upMedia(i) {
         if (!i.files[0]) return;
         compressAndSend(i.files[0], (data) => {
@@ -106,7 +110,6 @@
         });
     }
 
-    // RESİM SIKIŞTIRMA (Hikayeler İçin)
     function upStory(i) {
         if (!i.files[0]) return;
         compressAndSend(i.files[0], (data) => {
@@ -115,38 +118,11 @@
         });
     }
 
-    function compressAndSend(file, callback) {
-        if(!file.type.startsWith('image')) { // Video ise direkt gönder
-            const r = new FileReader();
-            r.onload = e => callback(e.target.result);
-            r.readAsDataURL(file);
-            return;
-        }
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const img = new Image();
-            img.onload = () => {
-                const canvas = document.createElement('canvas');
-                let w = img.width, h = img.height, max = 1200;
-                if (w > h && w > max) { h *= max / w; w = max; }
-                else if (h > max) { w *= max / h; h = max; }
-                canvas.width = w; canvas.height = h;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0, w, h);
-                callback(canvas.toDataURL('image/jpeg', 0.7)); // %70 kaliteye düşürür
-            };
-            img.src = e.target.result;
-        };
-        reader.readAsDataURL(file);
-    }
-
     function addMsg(d) {
         const area = document.getElementById('chat-area');
         const isMe = d.user === myName;
         const wrap = document.createElement('div');
-        wrap.id = 'w-' + d.id;
         wrap.className = `msg-wrap ${isMe ? 'sent-wrap' : ''}`;
-        
         let content = d.msg;
         if(d.type === 'image') content = `<img src="${d.msg}" style="max-width:200px; border-radius:8px;">`;
         if(d.type === 'video') content = `<video src="${d.msg}" style="max-width:200px; border-radius:8px;" controls></video>`;
@@ -156,31 +132,19 @@
                 <img src="${d.avatar}" class="avatar-chat">
                 <div class="avatar-name">${isMe ? 'Siz' : d.user}</div>
             </div>
-            <div class="msg ${isMe ? 'sent' : 'received'}">
-                ${content}
-                <div style="text-align:right; font-size:9px; color:#999; margin-top:4px;">
-                    ${isMe ? `<span onclick="socket.emit('delete_msg',{id:${d.id}})" style="cursor:pointer; margin-right:5px;">🗑️</span>`:''} 
-                    ${d.time} ${isMe ? `<span id="t-${d.id}" style="color:${d.read?'#34b7f1':'#999'}">✓✓</span>`:''}
-                </div>
-            </div>`;
+            <div class="msg ${isMe ? 'sent' : 'received'}">${content}<br><small style="font-size:9px; color:#999;">${d.time}</small></div>`;
         area.appendChild(wrap); area.scrollTop = area.scrollHeight;
     }
 
     socket.on('user_list', users => {
         const list = document.getElementById('user-list'); list.innerHTML = '';
-        if(users[myName]) {
-            list.innerHTML += `<div class="user-row" onclick="joinRoom('Genel')">
-                <img src="${users[myName]}" style="width:35px; height:35px; border-radius:50%; object-fit:cover;">
-                <span><b>${myName}</b> <span class="me-tag">Siz</span></span><div class="online-dot"></div>
-            </div>`;
-        }
-        for(let u in users) {
-            if(u !== myName) {
-                list.innerHTML += `<div class="user-row" onclick="joinRoom('${u}')">
-                    <img src="${users[u]}" style="width:35px; height:35px; border-radius:50%; object-fit:cover;">
-                    <span>${u}</span><div class="online-dot"></div>
-                </div>`;
-            }
+        if(users[myName]) list.innerHTML += `<div class="user-row">
+            <img src="${users[myName]}" style="width:35px; height:35px; border-radius:50%; object-fit:cover;">
+            <span><b>${myName}</b> <span class="me-tag">Siz</span></span><div class="online-dot"></div></div>`;
+        for(let u in users) if(u !== myName) {
+            list.innerHTML += `<div class="user-row" onclick="joinRoom('${u}')">
+                <img src="${users[u]}" style="width:35px; height:35px; border-radius:50%; object-fit:cover;">
+                <span>${u}</span><div class="online-dot"></div></div>`;
         }
     });
 
@@ -191,56 +155,36 @@
             item.className = 'story-item';
             item.onclick = () => { 
                 currentStorySet = JSON.parse(JSON.stringify(grouped[u].stories));
-                currentStoryIndex = 0;
-                currentStoryOwner = u;
-                showStoryViewer(grouped[u].avatar); 
+                currentStoryIndex = 0; showStoryViewer(u, grouped[u].avatar); 
             };
-            item.innerHTML = `<img src="${grouped[u].avatar}" class="story-circle"><span class="story-name">${u === myName ? 'Siz' : u}</span>`;
+            item.innerHTML = `<img src="${grouped[u].avatar}" class="story-circle"><span style="font-size:11px">${u === myName ? 'Siz' : u}</span>`;
             cont.appendChild(item);
         }
     });
 
-    function showStoryViewer(av) {
-        const story = currentStorySet[currentStoryIndex];
-        document.getElementById('story-img').src = story.content;
-        document.getElementById('story-owner-name').innerText = currentStoryOwner === myName ? "Hikayeniz" : currentStoryOwner;
+    function showStoryViewer(name, av) {
+        const s = currentStorySet[currentStoryIndex];
+        document.getElementById('story-img').src = s.content;
+        document.getElementById('story-owner-name').innerText = name;
         document.getElementById('story-owner-av').src = av;
-        document.getElementById('del-st-btn').style.display = (currentStoryOwner === myName) ? 'block' : 'none';
         document.getElementById('story-viewer').style.display = 'flex';
     }
 
     function nextStory() {
         currentStoryIndex++;
-        if(currentStoryIndex < currentStorySet.length) showStoryViewer(document.getElementById('story-owner-av').src);
+        if(currentStoryIndex < currentStorySet.length) showStoryViewer(document.getElementById('story-owner-name').innerText, document.getElementById('story-owner-av').src);
         else closeStoryViewer();
     }
 
-    function closeStoryViewer() {
-        document.getElementById('story-viewer').style.display = 'none';
-        currentStorySet = []; currentStoryIndex = 0;
-    }
-
-    function removeStory() {
-        if(confirm("Silmek istediğinize emin misiniz?")) {
-            socket.emit('delete_story', {id: currentStorySet[currentStoryIndex].id});
-            closeStoryViewer();
-        }
-    }
-
+    function closeStoryViewer() { document.getElementById('story-viewer').style.display = 'none'; }
     function joinRoom(t) {
         currentRoom = t === 'Genel' ? 'Genel' : [myName, t].sort().join('-');
-        document.getElementById('room-name').innerText = (t === myName) ? "Kendi Notlarım" : t;
         document.getElementById('chat-area').innerHTML = '';
         socket.emit('join', {room: currentRoom});
     }
 
     socket.on('message', addMsg);
     socket.on('history', h => h.forEach(addMsg));
-    socket.on('msg_deleted', d => document.getElementById('w-'+d.id)?.remove());
-    socket.on('msg_read_status', d => {
-        const t = document.getElementById('t-'+d.id);
-        if(t) t.style.color = '#34b7f1';
-    });
 </script>
 </body>
 </html>
