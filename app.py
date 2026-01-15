@@ -9,11 +9,11 @@ from flask_socketio import SocketIO, emit
 from datetime import datetime
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'render-safe-v2-2026'
+app.config['SECRET_KEY'] = 'fix-2026-v3'
 
-# VERİTABANI ADINI DEĞİŞTİRDİK (ZORUNLU GÜNCELLEME)
+# Veritabanı yolu
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'chat_v2.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'chat_v3.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
@@ -22,6 +22,7 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
+# Modeller
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True, nullable=False)
@@ -35,11 +36,16 @@ class Message(db.Model):
     type = db.Column(db.String(10), default='text')
     timestamp = db.Column(db.String(10))
 
+# --- TABLO OLUŞTURMA GARANTİSİ (KRİTİK BÖLGE) ---
+# Gunicorn bu kısmı atlayamaz, uygulama her ayağa kalktığında çalışır.
+with app.app_context():
+    db.create_all()
+# -----------------------------------------------
+
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# Rotalar
 @app.route('/')
 def index(): return redirect(url_for('login'))
 
@@ -48,14 +54,11 @@ def register():
     if request.method == 'POST':
         u, p = request.form.get('username'), request.form.get('password')
         if u and p:
-            try:
-                if not User.query.filter_by(username=u).first():
-                    db.session.add(User(username=u, password=p))
-                    db.session.commit()
-                    return redirect(url_for('login'))
-            except Exception as e:
-                db.session.rollback()
-                return f"Hata: {str(e)}", 500
+            # Kullanıcı adını kontrol et ve kaydet
+            if not User.query.filter_by(username=u).first():
+                db.session.add(User(username=u, password=p))
+                db.session.commit()
+                return redirect(url_for('login'))
     return render_template('register.html')
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -63,12 +66,14 @@ def login():
     if request.method == 'POST':
         user = User.query.filter_by(username=request.form.get('username')).first()
         if user and user.password == request.form.get('password'):
-            login_user(user); return redirect(url_for('chat'))
+            login_user(user)
+            return redirect(url_for('chat'))
     return render_template('login.html')
 
 @app.route('/chat')
 @login_required
 def chat():
+    # Geçmiş mesajları yükle
     msgs = Message.query.all()
     history = []
     for m in msgs:
@@ -81,7 +86,9 @@ def chat():
     return render_template('chat.html', user=current_user, history=history)
 
 @app.route('/logout')
-def logout(): logout_user(); return redirect(url_for('login'))
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
 
 # Socket Olayları
 active_users = {}
@@ -122,7 +129,5 @@ def update_avatar(data):
     emit('user_list', list(active_users.values()), broadcast=True)
 
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
     port = int(os.environ.get("PORT", 5000))
     socketio.run(app, host='0.0.0.0', port=port, debug=False)
