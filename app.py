@@ -9,19 +9,21 @@ from flask_socketio import SocketIO, emit, join_room
 from datetime import datetime
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'sohbet-pro-2026'
+app.config['SECRET_KEY'] = 'sohbet-pro-2026-v2'
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'super_chat.db')
+# Veritabanını yeni özelliklerle uyumlu hale getiriyoruz
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'final_chat.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
-# Buffer limitini 100MB yapıyoruz (Yüksek çözünürlüklü dosyalar için)
+# Buffer limitini ses ve yüksek çözünürlüklü arka planlar için 100MB yapıyoruz
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent', max_http_buffer_size=100 * 1024 * 1024)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
 online_users = {}
 
+# --- VERİTABANI MODELLERİ ---
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True, nullable=False)
@@ -33,24 +35,28 @@ class Message(db.Model):
     room = db.Column(db.String(50), default='Genel')
     username = db.Column(db.String(50))
     content = db.Column(db.Text)
-    msg_type = db.Column(db.String(10), default='text')
+    msg_type = db.Column(db.String(10), default='text') # text, image, video, audio
     timestamp = db.Column(db.String(10))
 
 with app.app_context():
     db.create_all()
 
 @login_manager.user_loader
-def load_user(user_id): return db.session.get(User, int(user_id))
+def load_user(user_id):
+    return db.session.get(User, int(user_id))
 
+# --- SAYFA YÖNLENDİRMELERİ ---
 @app.route('/')
-def index(): return redirect(url_for('login'))
+def index():
+    return redirect(url_for('login'))
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
         user = User.query.filter_by(username=request.form.get('username')).first()
         if user and user.password == request.form.get('password'):
-            login_user(user); return redirect(url_for('chat'))
+            login_user(user)
+            return redirect(url_for('chat'))
     return render_template('login.html')
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -58,28 +64,40 @@ def register():
     if request.method == 'POST':
         u, p = request.form.get('username'), request.form.get('password')
         if u and p and not User.query.filter_by(username=u).first():
-            db.session.add(User(username=u, password=p)); db.session.commit()
+            db.session.add(User(username=u, password=p))
+            db.session.commit()
             return redirect(url_for('login'))
     return render_template('register.html')
 
 @app.route('/chat')
 @login_required
-def chat(): return render_template('chat.html', user=current_user)
+def chat():
+    return render_template('chat.html', user=current_user)
 
 @app.route('/live')
 @login_required
-def live(): return render_template('live.html', user=current_user)
+def live():
+    return render_template('live.html', user=current_user)
 
 @app.route('/logout')
-def logout(): logout_user(); return redirect(url_for('login'))
+def logout():
+    if current_user.is_authenticated and current_user.username in online_users:
+        del online_users[current_user.username]
+    logout_user()
+    return redirect(url_for('login'))
+
+# --- SOCKET.IO İŞLEMLERİ ---
 
 @socketio.on('join')
 def on_join(data):
     room = data.get('room', 'Genel')
-    join_room(room); session['room'] = room
+    join_room(room)
+    session['room'] = room
     online_users[current_user.username] = current_user.avatar
     emit('user_list', online_users, broadcast=True)
-    msgs = Message.query.filter_by(room=room).order_by(Message.id.desc()).limit(30).all()
+    
+    # Geçmiş mesajları yükle
+    msgs = Message.query.filter_by(room=room).order_by(Message.id.desc()).limit(40).all()
     history = [{'id': m.id, 'user': m.username, 'msg': m.content, 'type': m.msg_type, 'time': m.timestamp} for m in reversed(msgs)]
     emit('history', history)
 
@@ -87,16 +105,27 @@ def on_join(data):
 def handle_msg(data):
     room = session.get('room', 'Genel')
     now = datetime.now().strftime("%H:%M")
-    msg = Message(username=current_user.username, content=data['msg'], msg_type=data.get('type', 'text'), room=room, timestamp=now)
-    db.session.add(msg); db.session.commit()
-    emit('message', {'id': msg.id, 'user': current_user.username, 'msg': data['msg'], 'type': msg.msg_type, 'time': now}, to=room)
+    m_type = data.get('type', 'text')
+    
+    msg = Message(username=current_user.username, content=data['msg'], msg_type=m_type, room=room, timestamp=now)
+    db.session.add(msg)
+    db.session.commit()
+    
+    emit('message', {
+        'id': msg.id, 
+        'user': current_user.username, 
+        'msg': data['msg'], 
+        'type': m_type, 
+        'time': now
+    }, to=room)
 
 @socketio.on('delete_message')
 def delete_msg(data):
     msg = db.session.get(Message, data['id'])
     if msg and msg.username == current_user.username:
         msg_id = msg.id
-        db.session.delete(msg); db.session.commit()
+        db.session.delete(msg)
+        db.session.commit()
         emit('remove_message', {'id': msg_id}, to=session.get('room'))
 
 @socketio.on('typing')
@@ -106,11 +135,22 @@ def handle_typing(data):
 @socketio.on('update_avatar')
 def update_avatar(data):
     user = db.session.get(User, current_user.id)
-    user.avatar = data['img']; db.session.commit()
-    online_users[user.username] = data['img']
-    emit('user_list', online_users, broadcast=True)
+    if user:
+        user.avatar = data['img']
+        db.session.commit()
+        online_users[user.username] = data['img']
+        emit('user_list', online_users, broadcast=True)
 
+# --- CANLI YAYIN SİNYALLEŞME (DÜZELTİLMİŞ KISIM) ---
 @socketio.on('join_live')
 def handle_join_live(data):
     join_room('live_room')
-    emit('user_joined', room='live_room', include_
+    emit('user_joined', room='live_room', include_self=False)
+
+@socketio.on('signal')
+def handle_signal(data):
+    emit('signal', data, room='live_room', include_self=False)
+
+if __name__ == '__main__':
+    port = int(os.environ.get("PORT", 10000))
+    socketio.run(app, host='0.0.0.0', port=port)
