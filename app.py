@@ -8,9 +8,10 @@ from flask_socketio import SocketIO, emit, join_room, leave_room
 from datetime import datetime
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'chat-final-2026'
+app.config['SECRET_KEY'] = 'chat-ultimate-2026'
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'chat_v11.db')
+# Yeni bir veritabanı ismi vererek temiz kurulum sağlıyoruz
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'final_chat_v12.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
@@ -29,7 +30,7 @@ class Message(db.Model):
     room = db.Column(db.String(50), nullable=False, default='Genel')
     username = db.Column(db.String(50), nullable=False)
     content = db.Column(db.Text, nullable=False)
-    type = db.Column(db.String(10), default='text')
+    type = db.Column(db.String(10), default='text') # text, image, video
     timestamp = db.Column(db.String(10))
 
 with app.app_context():
@@ -40,6 +41,7 @@ def load_user(user_id): return User.query.get(int(user_id))
 
 @app.route('/')
 def index(): return redirect(url_for('login'))
+
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
@@ -48,6 +50,7 @@ def register():
             db.session.add(User(username=u, password=p)); db.session.commit()
             return redirect(url_for('login'))
     return render_template('register.html')
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
@@ -55,9 +58,11 @@ def login():
         if user and user.password == request.form.get('password'):
             login_user(user); return redirect(url_for('chat'))
     return render_template('login.html')
+
 @app.route('/chat')
 @login_required
 def chat(): return render_template('chat.html', user=current_user)
+
 @app.route('/logout')
 def logout(): logout_user(); return redirect(url_for('login'))
 
@@ -68,11 +73,20 @@ def on_join(data):
     room = data['room']
     if room == 'Özel Oda' and data.get('password') != '1234':
         emit('error', {'msg': 'Hatalı Oda Şifresi!'}); return
+    
+    old_room = session.get('room')
+    if old_room: leave_room(old_room)
+    
     join_room(room)
     session['room'] = room
+    
     msgs = Message.query.filter_by(room=room).all()
-    history = [{'id':m.id,'user':m.username,'msg':m.content,'type':m.type,'time':m.timestamp,'avatar':(User.query.filter_by(username=m.username).first().avatar if User.query.filter_by(username=m.username).first() else '')} for m in msgs]
+    history = []
+    for m in msgs:
+        u = User.query.filter_by(username=m.username).first()
+        history.append({'id':m.id, 'user':m.username, 'msg':m.content, 'type':m.type, 'time':m.timestamp, 'avatar':u.avatar if u else ''})
     emit('history', history)
+    
     active_users[request.sid] = {"name": current_user.username, "room": room, "avatar": current_user.avatar or ''}
     emit('user_list', [u for u in active_users.values() if u['room'] == room], to=room)
 
@@ -82,7 +96,7 @@ def handle_msg(data):
     now = datetime.now().strftime("%H:%M")
     new_m = Message(username=current_user.username, content=data['msg'], room=room, timestamp=now, type=data.get('type', 'text'))
     db.session.add(new_m); db.session.commit()
-    emit('message', {'id':new_m.id,'user':current_user.username,'msg':data['msg'],'time':now,'type':new_m.type,'avatar':current_user.avatar or ''}, to=room)
+    emit('message', {'id':new_m.id, 'user':current_user.username, 'msg':data['msg'], 'time':now, 'type':new_m.type, 'avatar':current_user.avatar or ''}, to=room)
 
 @socketio.on('delete_message')
 def delete_msg(data):
