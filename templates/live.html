@@ -2,60 +2,56 @@
 <html>
 <head>
     <title>Canlı Görüşme - Sohbetimiz</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <style>
-        body { background: #1a1a1a; color: white; font-family: sans-serif; text-align: center; margin: 0; padding: 20px; }
-        .video-container { display: flex; flex-wrap: wrap; justify-content: center; gap: 20px; margin-top: 20px; }
-        video { width: 45%; max-width: 400px; min-width: 300px; border-radius: 15px; background: #000; border: 2px solid #444; }
-        .controls { margin-top: 30px; }
-        .btn { padding: 12px 25px; border-radius: 25px; border: none; cursor: pointer; font-weight: bold; margin: 5px; }
+        body { background: #000; color: white; font-family: sans-serif; margin: 0; text-align: center; }
+        .video-box { position: relative; width: 100%; height: 70vh; background: #111; display: flex; align-items: center; justify-content: center; }
+        #remoteVideo { width: 100%; height: 100%; object-fit: cover; }
+        #localVideo { position: absolute; right: 10px; bottom: 10px; width: 120px; height: 160px; border: 2px solid white; border-radius: 10px; object-fit: cover; z-index: 10; }
+        .controls { padding: 20px; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+        .btn { padding: 15px 25px; border-radius: 30px; border: none; font-weight: bold; cursor: pointer; }
         .btn-start { background: #2e7d32; color: white; }
-        .btn-stop { background: #c62828; color: white; }
-        #status { color: #aaa; margin-top: 10px; font-size: 0.9em; }
+        .btn-switch { background: #f39c12; color: white; }
+        .btn-stop { background: #c62828; color: white; text-decoration: none; }
     </style>
 </head>
 <body>
-    <h2>Görüntülü Sohbet</h2>
-    <p id="status">Bağlantı bekleniyor...</p>
-    
-    <div class="video-container">
-        <div>
-            <p>Sen</p>
-            <video id="localVideo" autoplay playsinline muted></video>
-        </div>
-        <div>
-            <p>Karşıdaki</p>
-            <video id="remoteVideo" autoplay playsinline></video>
-        </div>
+    <div class="video-box">
+        <video id="remoteVideo" autoplay playsinline></video>
+        <video id="localVideo" autoplay playsinline muted></video>
     </div>
+    
+    <div id="status" style="padding:10px; color:#aaa;">Görüşme başlatmak için kamerayı açın</div>
 
     <div class="controls">
-        <button class="btn btn-start" onclick="startCall()">Görüşmeyi Başlat</button>
-        <a href="/chat"><button class="btn btn-stop">Ayrıl</button></a>
+        <button class="btn btn-start" onclick="initMedia('user')">Ön Kamera</button>
+        <button class="btn btn-switch" onclick="initMedia('environment')">Arka Kamera</button>
+        <a href="/chat" class="btn btn-stop">Kapat</a>
     </div>
 
     <script>
         const socket = io();
-        const localVideo = document.getElementById('localVideo');
-        const remoteVideo = document.getElementById('remoteVideo');
-        const statusText = document.getElementById('status');
-        
-        let localStream;
-        let peerConnection;
+        let localStream, peerConnection;
         const config = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
-        async function startCall() {
-            statusText.innerText = "Kamera açılıyor...";
-            localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            localVideo.srcObject = localStream;
-
-            socket.emit('join_live', { room: 'live_room' });
-            statusText.innerText = "Bağlantı kuruluyor...";
+        async function initMedia(mode) {
+            if (localStream) localStream.getTracks().forEach(t => t.stop());
+            
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: mode }, 
+                    audio: true 
+                });
+                document.getElementById('localVideo').srcObject = localStream;
+                document.getElementById('status').innerText = "Bağlantı kuruluyor...";
+                
+                socket.emit('join_live', { room: 'live_room' });
+            } catch (e) { alert("Kamera hatası: " + e); }
         }
 
         socket.on('user_joined', async () => {
-            statusText.innerText = "Birisi bağlandı, arama başlatılıyor...";
-            createPeerConnection();
+            createPeer();
             const offer = await peerConnection.createOffer();
             await peerConnection.setLocalDescription(offer);
             socket.emit('signal', { type: 'offer', sdp: offer });
@@ -63,7 +59,7 @@
 
         socket.on('signal', async (data) => {
             if (data.type === 'offer') {
-                createPeerConnection();
+                createPeer();
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
                 const answer = await peerConnection.createAnswer();
                 await peerConnection.setLocalDescription(answer);
@@ -75,21 +71,18 @@
             }
         });
 
-        function createPeerConnection() {
+        function createPeer() {
             if (peerConnection) return;
             peerConnection = new RTCPeerConnection(config);
+            localStream.getTracks().forEach(t => peerConnection.addTrack(t, localStream));
             
-            localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-
-            peerConnection.onicecandidate = (event) => {
-                if (event.candidate) {
-                    socket.emit('signal', { type: 'candidate', candidate: event.candidate });
-                }
+            peerConnection.onicecandidate = e => {
+                if (e.candidate) socket.emit('signal', { type: 'candidate', candidate: e.candidate });
             };
-
-            peerConnection.ontrack = (event) => {
-                remoteVideo.srcObject = event.streams[0];
-                statusText.innerText = "Görüşme başladı!";
+            
+            peerConnection.ontrack = e => {
+                document.getElementById('remoteVideo').srcObject = e.streams[0];
+                document.getElementById('status').innerText = "Canlı Görüşme Başladı!";
             };
         }
     </script>
