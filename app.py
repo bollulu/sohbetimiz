@@ -5,13 +5,13 @@ import os
 from flask import Flask, render_template, request, redirect, url_for, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
-from flask_socketio import SocketIO, emit, join_room, leave_room
+from flask_socketio import SocketIO, emit, join_room
 from datetime import datetime
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'super-whatsapp-2026-vFinal'
+app.config['SECRET_KEY'] = 'whatsapp-ultra-final-2026'
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'ultimate_chat.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'final_v10.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
@@ -25,24 +25,23 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True, nullable=False)
     password = db.Column(db.String(100), nullable=False)
-    avatar = db.Column(db.Text, default='https://www.w3schools.com/howto/img_avatar.png')
+    avatar = db.Column(db.Text)
 
 class Message(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    room = db.Column(db.String(100)) # Özel odalar için "user1-user2" formatı
+    room = db.Column(db.String(100))
     username = db.Column(db.String(50))
     user_avatar = db.Column(db.Text)
     content = db.Column(db.Text)
-    msg_type = db.Column(db.String(10)) # text, image, video, audio
+    msg_type = db.Column(db.String(10))
     timestamp = db.Column(db.String(10))
-    status = db.Column(db.String(10), default='sent')
 
 class Story(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50))
     user_avatar = db.Column(db.Text)
     content = db.Column(db.Text)
-    time = db.Column(db.String(10))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 with app.app_context():
     db.create_all()
@@ -50,6 +49,7 @@ with app.app_context():
 @login_manager.user_loader
 def load_user(user_id): return db.session.get(User, int(user_id))
 
+# --- ROUTES ---
 @app.route('/')
 def index(): return redirect(url_for('login'))
 
@@ -74,6 +74,7 @@ def register():
 @login_required
 def chat(): return render_template('chat.html', user=current_user)
 
+# --- SOCKET EVENTS ---
 @socketio.on('join')
 def on_join(data):
     room = data.get('room', 'Genel')
@@ -83,11 +84,19 @@ def on_join(data):
     emit('user_list', online_users, broadcast=True)
     
     msgs = Message.query.filter_by(room=room).order_by(Message.id.desc()).limit(50).all()
-    history = [{'id':m.id, 'user':m.username, 'avatar':m.user_avatar, 'msg':m.content, 'type':m.msg_type, 'time':m.timestamp, 'status':m.status} for m in reversed(msgs)]
+    history = [{'id':m.id, 'user':m.username, 'avatar':m.user_avatar, 'msg':m.content, 'type':m.msg_type, 'time':m.timestamp} for m in reversed(msgs)]
     emit('history', history)
     
-    stories = Story.query.all()
-    emit('story_list', [{'username': s.username, 'avatar': s.user_avatar, 'img': s.content} for s in stories])
+    send_story_list()
+
+def send_story_list():
+    all_stories = Story.query.order_by(Story.created_at.asc()).all()
+    grouped = {}
+    for s in all_stories:
+        if s.username not in grouped:
+            grouped[s.username] = {'avatar': s.user_avatar, 'imgs': []}
+        grouped[s.username]['imgs'].append(s.content)
+    emit('story_list', grouped)
 
 @socketio.on('message')
 def handle_msg(data):
@@ -95,21 +104,17 @@ def handle_msg(data):
     now = datetime.now().strftime("%H:%M")
     msg = Message(username=current_user.username, user_avatar=current_user.avatar, content=data['msg'], msg_type=data.get('type','text'), room=room, timestamp=now)
     db.session.add(msg); db.session.commit()
-    emit('message', {'id':msg.id, 'user':current_user.username, 'avatar':current_user.avatar, 'msg':data['msg'], 'type':msg.msg_type, 'time':now, 'status':'sent'}, to=room)
-
-@socketio.on('delete_message')
-def delete_msg(data):
-    msg = db.session.get(Message, data['id'])
-    if msg and msg.username == current_user.username:
-        msg_id = msg.id
-        db.session.delete(msg); db.session.commit()
-        emit('remove_message', {'id': msg_id}, to=session.get('room'))
+    emit('message', {'id':msg.id, 'user':current_user.username, 'avatar':current_user.avatar, 'msg':data['msg'], 'type':msg.msg_type, 'time':now}, to=room)
 
 @socketio.on('upload_story')
 def handle_story(data):
-    story = Story(username=current_user.username, user_avatar=current_user.avatar, content=data['img'], time=datetime.now().strftime("%H:%M"))
-    db.session.add(story); db.session.commit()
-    emit('new_story', {'username': current_user.username, 'avatar': current_user.avatar, 'img': data['img']}, broadcast=True)
+    db.session.add(Story(username=current_user.username, user_avatar=current_user.avatar, content=data['img']))
+    db.session.commit()
+    send_story_list()
+
+@socketio.on('signal')
+def handle_signal(data):
+    emit('signal', data, room=data['to'], include_self=False)
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
