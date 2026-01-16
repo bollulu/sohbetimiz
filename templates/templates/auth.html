@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Giriş / Kayıt</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #0f2027, #203a43, #2c5364); display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; color:white; }
+        .card { background: rgba(255,255,255,0.1); backdrop-filter: blur(10px); padding: 40px; border-radius: 20px; width: 320px; text-align: center; box-shadow: 0 15px 25px rgba(0,0,0,0.5); }
+        input, select, button { width: 100%; padding: 12px; margin: 10px 0; border-radius: 25px; border: none; outline: none; box-sizing: border-box; }
+        input, select { background: rgba(255,255,255,0.8); color: #333; }
+        button { background: #25D366; color: white; font-weight: bold; cursor: pointer; transition: 0.3s; font-size: 16px; }
+        button:hover { transform: scale(1.05); }
+        .toggle-txt { margin-top: 15px; font-size: 13px; cursor: pointer; text-decoration: underline; color: #ddd; }
+        .hidden { display: none; }
+        #avatar-prev { width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid #25D366; margin-bottom: 10px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div id="login-form">
+            <h2>Giriş Yap</h2>
+            <form action="/login" method="POST">
+                <input type="text" name="username" placeholder="Kullanıcı Adı" required>
+                <input type="password" name="password" placeholder="Şifre" required>
+                <button type="submit">Giriş Yap</button>
+            </form>
+            <div class="toggle-txt" onclick="toggle()">Hesabın yok mu? Kayıt Ol</div>
+        </div>
+
+        <div id="register-form" class="hidden">
+            <h2>Kayıt Ol</h2>
+            <div onclick="document.getElementById('ava-in').click()">
+                <img id="avatar-prev" src="https://cdn-icons-png.flaticon.com/512/847/847969.png">
+                <div style="font-size:11px">Profil Resmi Seç (Tıkla)</div>
+            </div>
+            <form action="/register" method="POST">
+                <input type="text" name="username" placeholder="Kullanıcı Adı" required>
+                <input type="password" name="password" placeholder="Şifre" required>
+                <select name="gender">
+                    <option value="Erkek">Erkek</option>
+                    <option value="Kadın">Kadın</option>
+                </select>
+                <input type="hidden" name="avatar_data" id="avatar_data">
+                <button type="submit">Kayıt Ol</button>
+            </form>
+            <input type="file" id="ava-in" style="display:none" accept="image/*" onchange="procImg(this)">
+            <div class="toggle-txt" onclick="toggle()">Zaten üye misin? Giriş Yap</div>
+        </div>
+    </div>
+
+    <script>
+        function toggle() {
+            document.getElementById('login-form').classList.toggle('hidden');
+            document.getElementById('register-form').classList.toggle('hidden');
+        }
+        function procImg(input) {
+            if(input.files[0]) {
+                const r = new FileReader();
+                r.onload = e => {
+                    const img = new Image(); img.src = e.target.result;
+                    img.onload = () => {
+                        const c = document.createElement('canvas'); c.width=300; c.height=300;
+                        c.getContext('2d').drawImage(img,0,0,300,300);
+                        const d = c.toDataURL('image/jpeg',0.7);
+                        document.getElementById('avatar-prev').src=d;
+                        document.getElementById('avatar_data').value=d;
+                    }
+                };
+                r.readAsDataURL(input.files[0]);
+            }
+        }
+    </script>
+</body>
+</html>
