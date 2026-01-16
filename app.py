@@ -1,71 +1,72 @@
+import os
+from datetime import datetime
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
-from flask_socketio import SocketIO, emit, join_room, leave_room
+from flask_socketio import SocketIO, emit, join_room
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
-from datetime import datetime
-import os
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'cok_gizli_anahtar'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database.db'
+app.config['SECRET_KEY'] = 'sohbetimiz-gizli-anahtar-2026'
+basedir = os.path.abspath(os.path.dirname(__file__))
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'database.db')
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
 
-# Klasör yoksa oluştur
-if not os.path.exists(app.config['UPLOAD_FOLDER']):
-    os.makedirs(app.config['UPLOAD_FOLDER'])
+# Klasörleri oluştur
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 db = SQLAlchemy(app)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
-login_manager = LoginManager()
-login_manager.init_app(app)
+login_manager = LoginManager(app)
 login_manager.login_view = 'auth'
 
-# --- Veritabanı Modelleri ---
+# --- VERİTABANI MODELLERİ ---
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(150), unique=True, nullable=False)
-    password = db.Column(db.String(150), nullable=False)
-    gender = db.Column(db.String(50))
-    avatar = db.Column(db.String(300), default='default.png')
-    blocked_users = db.Column(db.String(500), default='') # Virgülle ayrılmış ID'ler
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password = db.Column(db.String(120), nullable=False)
+    gender = db.Column(db.String(20))
+    avatar = db.Column(db.String(200), default='default.png')
+    blocked_users = db.Column(db.Text, default='') # Virgülle ayrılmış ID'ler
 
 class Message(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    room = db.Column(db.String(50)) # 'general', 'group_X' veya 'private_X_Y'
-    sender_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-    sender_name = db.Column(db.String(150))
-    sender_avatar = db.Column(db.String(300))
-    content = db.Column(db.String(1000)) # Metin veya dosya yolu
-    msg_type = db.Column(db.String(50), default='text') # text, image, audio, video
+    room = db.Column(db.String(100))
+    sender_id = db.Column(db.Integer)
+    sender_name = db.Column(db.String(80))
+    sender_avatar = db.Column(db.String(200))
+    content = db.Column(db.Text)
+    m_type = db.Column(db.String(20), default='text') # text, image, video, audio
     timestamp = db.Column(db.DateTime, default=datetime.now)
-    read_status = db.Column(db.Boolean, default=False)
+    is_read = db.Column(db.Boolean, default=False)
 
 class Story(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-    content = db.Column(db.String(300)) # Medya yolu
-    story_type = db.Column(db.String(50)) # image, video
-    music = db.Column(db.String(300), nullable=True)
+    media = db.Column(db.String(200))
+    m_type = db.Column(db.String(20)) # image, video
+    music = db.Column(db.String(200), nullable=True)
     timestamp = db.Column(db.DateTime, default=datetime.now)
-    viewers = db.Column(db.String(1000), default='') # Virgülle ayrılmış ID'ler
+    views = db.Column(db.Text, default='') # İzleyenlerin ID'leri
 
 class Group(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100))
-    members = db.Column(db.String(500)) # Virgülle ayrılmış ID'ler
+    members = db.Column(db.Text) # Virgülle ayrılmış ID'ler
+
+# Tabloları oluştur (Render Hatası Çözümü)
+with app.app_context():
+    db.create_all()
 
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# --- Rotalar ---
+# --- ROTALAR ---
 @app.route('/')
 def index():
-    if current_user.is_authenticated:
-        return redirect(url_for('chat'))
-    return redirect(url_for('auth'))
+    return redirect(url_for('chat')) if current_user.is_authenticated else redirect(url_for('auth'))
 
 @app.route('/auth', methods=['GET', 'POST'])
 def auth():
@@ -75,170 +76,87 @@ def auth():
         password = request.form.get('password')
         
         if action == 'register':
-            gender = request.form.get('gender')
-            file = request.files.get('avatar')
-            avatar_path = 'default.png'
-            
             if User.query.filter_by(username=username).first():
-                flash('Bu kullanıcı adı zaten var.')
+                flash('Bu kullanıcı adı alınmış.')
                 return redirect(url_for('auth'))
+            
+            avatar_file = request.files.get('avatar')
+            avatar_name = 'default.png'
+            if avatar_file:
+                avatar_name = secure_filename(f"v_{username}_{avatar_file.filename}")
+                avatar_file.save(os.path.join(app.config['UPLOAD_FOLDER'], avatar_name))
 
-            if file and file.filename != '':
-                filename = secure_filename(file.filename)
-                file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-                avatar_path = filename
-
-            hashed_pw = generate_password_hash(password, method='scrypt')
-            new_user = User(username=username, password=hashed_pw, gender=gender, avatar=avatar_path)
+            new_user = User(
+                username=username, 
+                password=generate_password_hash(password),
+                gender=request.form.get('gender'),
+                avatar=avatar_name
+            )
             db.session.add(new_user)
             db.session.commit()
-            flash('Kayıt başarılı, giriş yapın.')
-        
+            flash('Kayıt başarılı! Giriş yapabilirsiniz.')
+            
         elif action == 'login':
             user = User.query.filter_by(username=username).first()
             if user and check_password_hash(user.password, password):
                 login_user(user)
                 return redirect(url_for('chat'))
-            else:
-                flash('Hatalı bilgiler.')
-    
+            flash('Hatalı giriş!')
     return render_template('auth.html')
 
 @app.route('/chat')
 @login_required
 def chat():
-    users = User.query.filter(User.id != current_user.id).all()
-    groups = Group.query.filter(Group.members.contains(str(current_user.id))).all()
+    users = User.query.all()
+    groups = Group.query.all()
     stories = Story.query.order_by(Story.timestamp.desc()).all()
     return render_template('chat.html', users=users, groups=groups, stories=stories)
 
 @app.route('/music')
 @login_required
-def music():
+def music_page():
     return render_template('music.html')
 
 @app.route('/logout')
-@login_required
 def logout():
     logout_user()
     return redirect(url_for('auth'))
 
-@app.route('/upload', methods=['POST'])
-@login_required
-def upload_file():
-    file = request.files.get('file')
-    if file:
-        filename = secure_filename(f"{datetime.now().timestamp()}_{file.filename}")
-        file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-        return jsonify({'filename': filename})
-    return jsonify({'error': 'No file'}), 400
-
-@app.route('/create_group', methods=['POST'])
-@login_required
-def create_group():
-    name = request.form.get('group_name')
-    # Basitlik için tüm kullanıcıları ekle veya seçim yap
-    # Burada sadece oluşturan kişiyi ekliyoruz, demo amaçlı
-    new_group = Group(name=name, members=str(current_user.id))
-    db.session.add(new_group)
-    db.session.commit()
-    return redirect(url_for('chat'))
-
-@app.route('/update_profile', methods=['POST'])
-@login_required
-def update_profile():
-    file = request.files.get('avatar')
-    if file:
-        filename = secure_filename(f"upd_{current_user.id}_{file.filename}")
-        file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-        current_user.avatar = filename
-        db.session.commit()
-    return redirect(url_for('chat'))
-
-@app.route('/add_story', methods=['POST'])
-@login_required
-def add_story():
-    file = request.files.get('story_file')
-    music = request.files.get('music_file')
-    if file:
-        f_name = secure_filename(f"story_{current_user.id}_{file.filename}")
-        file.save(os.path.join(app.config['UPLOAD_FOLDER'], f_name))
-        
-        m_name = None
-        if music:
-            m_name = secure_filename(f"music_{current_user.id}_{music.filename}")
-            music.save(os.path.join(app.config['UPLOAD_FOLDER'], m_name))
-            
-        ftype = 'video' if f_name.endswith(('mp4', 'mov')) else 'image'
-        new_story = Story(user_id=current_user.id, content=f_name, story_type=ftype, music=m_name)
-        db.session.add(new_story)
-        db.session.commit()
-    return redirect(url_for('chat'))
-
-# --- SocketIO Olayları ---
+# --- SOCKET OLAYLARI ---
 @socketio.on('join')
 def on_join(data):
     room = data['room']
     join_room(room)
-    # Eski mesajları yükle
-    messages = Message.query.filter_by(room=room).order_by(Message.timestamp).all()
-    history = []
-    for m in messages:
-        history.append({
-            'id': m.id, 'sender': m.sender_name, 'avatar': m.sender_avatar,
-            'text': m.content, 'type': m.msg_type, 'read': m.read_status,
-            'timestamp': m.timestamp.strftime('%H:%M')
-        })
+    # Geçmiş mesajlar
+    msgs = Message.query.filter_by(room=room).order_by(Message.timestamp.asc()).all()
+    history = [{
+        'id': m.id, 'sender': m.sender_name, 'avatar': m.sender_avatar, 
+        'text': m.content, 'type': m.m_type, 'read': m.is_read,
+        'time': m.timestamp.strftime('%H:%M'), 'mine': m.sender_id == current_user.id
+    } for m in msgs]
     emit('load_history', history)
 
-@socketio.on('send_message')
-def handle_message(data):
+@socketio.on('send_msg')
+def handle_msg(data):
     room = data['room']
-    msg = Message(
+    new_m = Message(
         room=room, sender_id=current_user.id, sender_name=current_user.username,
-        sender_avatar=current_user.avatar, content=data['message'], msg_type=data['type']
+        sender_avatar=current_user.avatar, content=data['text'], m_type=data['type']
     )
-    db.session.add(msg)
+    db.session.add(new_m)
     db.session.commit()
-    
-    emit('receive_message', {
-        'id': msg.id,
-        'sender': current_user.username,
-        'avatar': current_user.avatar,
-        'text': data['message'],
-        'type': data['type'],
-        'timestamp': datetime.now().strftime('%H:%M'),
-        'read': False
+    emit('receive_msg', {
+        'id': new_m.id, 'sender': current_user.username, 'avatar': current_user.avatar,
+        'text': data['text'], 'type': data['type'], 'read': False, 'time': datetime.now().strftime('%H:%M')
     }, room=room)
 
-@socketio.on('delete_message')
-def delete_message(data):
-    msg_id = data['id']
-    msg = Message.query.get(msg_id)
-    if msg and msg.sender_id == current_user.id:
-        db.session.delete(msg)
+@socketio.on('delete_msg')
+def delete_msg(data):
+    m = Message.query.get(data['id'])
+    if m and m.sender_id == current_user.id:
+        db.session.delete(m)
         db.session.commit()
-        emit('message_deleted', {'id': msg_id}, room=msg.room)
-
-@socketio.on('read_receipt')
-def mark_read(data):
-    # Basit okundu mantığı
-    emit('mark_as_read', {'room': data['room']}, room=data['room'])
-
-# WebRTC Sinyalleşme (Görüntülü Konuşma)
-@socketio.on('call_user')
-def call_user(data):
-    emit('call_made', {'offer': data['offer'], 'socket': request.sid}, room=data['to'])
-
-@socketio.on('make_answer')
-def make_answer(data):
-    emit('answer_made', {'answer': data['answer'], 'socket': request.sid}, room=data['to'])
-
-@socketio.on('ice_candidate')
-def ice_candidate(data):
-    emit('ice_candidate_received', {'candidate': data['candidate']}, room=data['to'])
+        emit('msg_deleted', {'id': data['id']}, room=m.room)
 
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
-    socketio.run(app, debug=True)
+    socketio.run(app)
