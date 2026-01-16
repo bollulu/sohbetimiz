@@ -1,187 +1,458 @@
 <!DOCTYPE html>
-<html lang="tr">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sohbetimiz</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <title>Süper Chat</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <style>
-        :root { --main: #075e54; --bg: #e5ddd5; }
-        body { font-family: 'Segoe UI', sans-serif; margin: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        :root { --bg: #e5ddd5; --header: #ededed; --green: #008069; --bubble-me: #dcf8c6; }
+        body { margin: 0; font-family: 'Helvetica Neue', sans-serif; height: 100vh; display: flex; overflow: hidden; background: #d1d7db; }
         
-        /* Header */
-        header { background: var(--main); color: white; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; }
-        .time-box { font-size: 13px; text-align: right; }
-
-        /* Stories */
-        .story-bar { background: #f0f0f0; padding: 10px; display: flex; gap: 12px; border-bottom: 1px solid #ddd; overflow-x: auto; height: 90px; align-items: center; }
-        .story { width: 60px; height: 60px; border-radius: 50%; border: 3px solid #25d366; cursor: pointer; position: relative; flex-shrink: 0; }
-        .story img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
-
-        /* Main Body */
-        .container { display: flex; flex: 1; overflow: hidden; }
-        .sidebar { width: 300px; background: white; border-right: 1px solid #ddd; overflow-y: auto; }
-        .chat-view { flex: 1; background: var(--bg); display: flex; flex-direction: column; }
+        /* Sol Menü */
+        #sidebar { width: 350px; background: white; border-right: 1px solid #ddd; display: flex; flex-direction: column; }
+        .header { background: var(--header); padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ddd; height: 60px; box-sizing: border-box; }
+        .my-ava { width: 40px; height: 40px; border-radius: 50%; cursor: pointer; object-fit: cover; }
         
-        /* Sidebar List */
-        .u-item { padding: 15px; border-bottom: 1px solid #eee; display: flex; align-items: center; gap: 10px; cursor: pointer; }
-        .u-item:hover { background: #f9f9f9; }
-        .u-avatar { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; }
-
-        /* Messages */
-        .msgs { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
-        .msg { max-width: 65%; padding: 8px 12px; border-radius: 10px; position: relative; font-size: 14px; }
-        .msg-me { align-self: flex-end; background: #dcf8c6; }
-        .msg-other { align-self: flex-start; background: white; }
-        .msg-info { font-size: 10px; color: #888; text-align: right; margin-top: 4px; }
-        .msg-avatar { width: 20px; height: 20px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
-
-        /* Input Bar */
-        .input-bar { background: #f0f0f0; padding: 10px; display: flex; gap: 10px; align-items: center; }
-        .input-bar input { flex: 1; padding: 12px; border: none; border-radius: 20px; outline: none; }
-        .icon-btn { cursor: pointer; color: #555; font-size: 18px; }
-
-        /* Modal */
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; justify-content: center; align-items: center; }
-        .modal-body { background: white; padding: 20px; border-radius: 10px; width: 300px; }
+        .tab-bar { display: flex; background: white; border-bottom: 1px solid #eee; }
+        .tab { flex: 1; padding: 15px; text-align: center; cursor: pointer; border-bottom: 3px solid transparent; font-weight: bold; color: gray; }
+        .tab.active { border-bottom: 3px solid var(--green); color: var(--green); }
+        
+        #list-area { flex: 1; overflow-y: auto; }
+        .list-item { display: flex; align-items: center; padding: 12px; cursor: pointer; border-bottom: 1px solid #f5f5f5; }
+        .list-item:hover { background: #f0f0f0; }
+        
+        /* Ana Sohbet */
+        #main { flex: 1; display: flex; flex-direction: column; position: relative; background: var(--bg); }
+        .top-info { background: var(--header); padding: 10px; display: flex; align-items: center; justify-content: space-between; height: 60px; box-sizing: border-box; border-left: 1px solid #ddd; }
+        
+        /* HİKAYE BARI (ORTA ÜST) */
+        #story-bar { background: white; padding: 10px; display: flex; gap: 15px; overflow-x: auto; border-bottom: 1px solid #ddd; height: 100px; box-sizing: border-box; }
+        .st-circle { width: 60px; height: 60px; border-radius: 50%; border: 2px solid var(--green); padding: 2px; object-fit: cover; cursor: pointer; }
+        
+        #chat-area { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); }
+        
+        .msg { max-width: 65%; display: flex; align-items: flex-end; gap: 5px; }
+        .msg.me { align-self: flex-end; flex-direction: row-reverse; }
+        .bubble { background: white; padding: 8px 12px; border-radius: 8px; box-shadow: 0 1px 1px rgba(0,0,0,0.1); position: relative; min-width: 80px; }
+        .me .bubble { background: var(--bubble-me); }
+        .tick { float: right; margin-left: 5px; font-size: 11px; color: #999; margin-top: 5px; display: flex; gap: 2px; }
+        .tick.read { color: #53bdeb; } /* Çift Mavi Tik */
+        
+        .footer { padding: 10px; background: #f0f0f0; display: flex; align-items: center; gap: 10px; }
+        input[type=text] { flex: 1; padding: 10px; border-radius: 20px; border: none; outline: none; }
+        
+        /* STORY VIEWER */
+        #st-viewer { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 1000; flex-direction: column; }
+        .st-progress { display: flex; gap: 5px; padding: 10px; width: 95%; margin: 0 auto; }
+        .st-bar { height: 3px; background: #555; flex: 1; border-radius: 2px; }
+        .st-fill { height: 100%; background: white; width: 0%; transition: width linear; }
+        #st-content { flex: 1; display: flex; justify-content: center; align-items: center; position: relative; }
+        .tap-zone { position: absolute; top:0; height:100%; width: 40%; z-index: 1001; }
+        
+        /* MÜZİK SAYFASI */
+        #music-page { display: none; position: absolute; top:0; left:0; width:100%; height:100%; background: white; z-index: 50; flex-direction: column; padding: 20px; }
+        
+        /* VİDEO ARAMA */
+        #video-modal { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.9); z-index: 2000; flex-direction: column; align-items: center; justify-content: center; }
+        video { border-radius: 10px; background: black; }
     </style>
 </head>
 <body>
 
-    <header>
-        <div>
-            <img src="/static/uploads/{{current_user.avatar}}" style="width:35px; height:35px; border-radius:50%; vertical-align:middle; cursor:pointer;" onclick="showProfile()">
-            <span style="font-weight:bold; margin-left:10px;">Sohbetimiz</span>
-        </div>
-        <div class="time-box">
-            <div id="dateNow"></div>
-            <div id="timeNow" style="font-weight:bold;"></div>
-        </div>
-    </header>
+<input type="file" id="p-img" style="display:none" accept="image/*" onchange="uploadAvatar(this)">
+<input type="file" id="msg-file" style="display:none" onchange="sendFile(this)">
+<input type="file" id="bg-in" style="display:none" accept="image/*" onchange="changeBG(this)">
+<input type="file" id="st-media" style="display:none" accept="image/*,video/*" onchange="previewStory(this)">
+<input type="file" id="st-audio" style="display:none" accept="audio/*">
+<input type="file" id="music-file" style="display:none" accept="audio/*" onchange="uploadMusic(this)">
 
-    <div class="story-bar">
-        <div class="story" style="border: 2px dashed #999; display: flex; align-items: center; justify-content: center;" onclick="document.getElementById('storyInput').click()">
-            <i class="fa fa-plus"></i>
+<div id="sidebar">
+    <div class="header">
+        <div style="display:flex; align-items:center; gap:10px;">
+            <img src="{{ user.avatar }}" class="my-ava" onclick="document.getElementById('p-img').click()">
+            <div><b>Siz</b> ({{ user.username }})</div>
         </div>
-        {% for s in stories %}
-        <div class="story" onclick="viewStory('{{s.media}}', '{{s.m_type}}')">
-            <img src="/static/uploads/{{s.media if s.m_type == 'image' else 'video_thumb.png'}}">
-        </div>
-        {% endfor %}
+        <div style="cursor:pointer" onclick="location.href='/logout'">🚪</div>
     </div>
-
-    <div class="container">
-        <div class="sidebar">
-            <div class="u-item" onclick="joinRoom('general', 'Genel Sohbet')">
-                <i class="fa fa-users" style="font-size: 24px;"></i>
-                <span>Genel Sohbet</span>
-            </div>
-            <div style="padding: 10px; background: #eee; font-size: 12px; font-weight: bold;">KİŞİLER</div>
-            {% for u in users %}
-            <div class="u-item" onclick="joinRoom('p_{{ [current_user.id, u.id]|sort|join("_") }}', '{{u.username}}')">
-                <img src="/static/uploads/{{u.avatar}}" class="u-avatar">
-                <span>{{u.username}} {% if u.id == current_user.id %}(Siz){% endif %}</span>
-                {% if u.id != current_user.id %}
-                <i class="fa fa-video" style="margin-left: auto; color: var(--main);" onclick="callUser('{{u.id}}')"></i>
-                {% endif %}
-            </div>
-            {% endfor %}
-            <div style="padding: 10px; background: #eee; font-size: 12px; font-weight: bold; display: flex; justify-content: space-between;">
-                GRUPLAR <i class="fa fa-plus-circle" onclick="createGroup()" style="cursor:pointer;"></i>
-            </div>
-            </div>
-
-        <div class="chat-view">
-            <div id="chatName" style="padding: 10px; background: white; font-weight: bold; border-bottom: 1px solid #ddd;">Bir sohbet seçin</div>
-            <div class="msgs" id="msgBox"></div>
-            <div class="input-bar">
-                <i class="fa fa-paperclip icon-btn" onclick="document.getElementById('fileInput').click()"></i>
-                <i class="fa fa-microphone icon-btn" id="micBtn"></i>
-                <input type="text" id="mInput" placeholder="Mesaj yazın...">
-                <i class="fa fa-paper-plane icon-btn" style="color:var(--main);" onclick="sendText()"></i>
-            </div>
+    
+    <div class="tab-bar">
+        <div class="tab active" onclick="switchTab('users')">Sohbet</div>
+        <div class="tab" onclick="switchTab('groups')">Grup</div>
+        <div class="tab" onclick="switchTab('music')">Müzik 🎵</div>
+    </div>
+    
+    <div id="list-area">
+        <div id="users-list"></div>
+        <div id="groups-list" style="display:none">
+            <button onclick="createGroupUI()" style="width:90%; margin:10px; padding:10px;">+ Grup Oluştur</button>
+        </div>
+        <div id="music-list-mini" style="display:none">
+            <button onclick="document.getElementById('music-file').click()" style="width:90%; margin:10px; padding:10px;">+ Şarkı Ekle</button>
+            <div id="music-cont"></div>
         </div>
     </div>
+</div>
 
-    <input type="file" id="fileInput" class="hidden" onchange="uploadMedia(this)">
-    <input type="file" id="storyInput" class="hidden" onchange="uploadStory(this)">
-
-    <div id="storyModal" class="modal" onclick="this.style.display='none'">
-        <div id="storyContent" style="max-width: 90%; max-height: 90%;"></div>
+<div id="main">
+    <div class="top-info">
+        <div id="chat-title"><b>Genel Sohbet</b></div>
+        <div style="display:flex; gap:15px; align-items:center;">
+            <span id="clock" style="font-size:14px; font-weight:bold;">12:00</span>
+            <button onclick="startVideoCall()">📹</button>
+            <button onclick="document.getElementById('bg-in').click()">🖼️ Arka Plan</button>
+            <button onclick="resetBG()">🔄 Sıfırla</button>
+            <button onclick="blockUser()" style="color:red">🚫 Engelle</button>
+        </div>
+    </div>
+    
+    <div id="story-bar">
+        <div style="text-align:center; cursor:pointer;" onclick="document.getElementById('st-media').click()">
+            <div class="st-circle" style="border:2px dashed #999; display:flex; align-items:center; justify-content:center; font-size:24px;">+</div>
+            <div style="font-size:11px;">Hikaye</div>
+        </div>
+        <div id="story-items" style="display:flex; gap:10px;"></div>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
-    <script>
-        const socket = io();
-        let curRoom = '';
-        const myName = "{{current_user.username}}";
+    <div id="chat-area"></div>
 
-        // Saat & Tarih
-        setInterval(() => {
-            const n = new Date();
-            document.getElementById('dateNow').innerText = n.toLocaleDateString();
-            document.getElementById('timeNow').innerText = n.toLocaleTimeString();
-        }, 1000);
+    <div class="footer">
+        <button onclick="document.getElementById('msg-file').click()">📎</button>
+        <input type="text" id="mIn" placeholder="Mesaj yazın..." onkeydown="if(event.key==='Enter') send()">
+        <button onclick="toggleMic()" id="mic-btn">🎤</button>
+        <button onclick="send()">➤</button>
+    </div>
+</div>
 
-        function joinRoom(room, name) {
-            curRoom = room;
-            document.getElementById('chatName').innerText = name;
-            document.getElementById('msgBox').innerHTML = '';
-            socket.emit('join', {room: room});
+<div id="st-viewer">
+    <div class="st-progress" id="st-prog-cont"></div>
+    <div style="position:absolute; top:20px; left:20px; color:white; z-index:1002; display:flex; align-items:center; gap:10px;">
+        <img id="st-v-ava" style="width:30px; height:30px; border-radius:50%">
+        <b id="st-v-name"></b>
+        <span id="st-viewers" style="font-size:11px; opacity:0.8; margin-left:10px;"></span>
+    </div>
+    <button onclick="closeStory()" style="position:absolute; top:20px; right:20px; z-index:1002; background:none; border:none; color:white; font-size:24px;">✕</button>
+    <button id="del-st-btn" onclick="deleteCurrentStory()" style="position:absolute; bottom:20px; right:20px; z-index:1002; background:red; color:white; border:none; padding:5px;">🗑️ Sil</button>
+
+    <div id="st-content">
+        <div class="tap-zone" style="left:0" onclick="prevStory()"></div>
+        <div class="tap-zone" style="right:0" onclick="nextStory()"></div>
+        <img id="st-img" style="max-width:100%; max-height:80vh; display:none;">
+        <video id="st-vid" style="max-width:100%; max-height:80vh; display:none;" autoplay></video>
+    </div>
+</div>
+
+<div id="video-modal">
+    <div style="position:relative; width:80%; height:80%;">
+        <video id="remoteVideo" autoplay playsinline style="width:100%; height:100%; object-fit:cover;"></video>
+        <video id="localVideo" autoplay playsinline muted style="position:absolute; bottom:20px; right:20px; width:150px; border:2px solid white;"></video>
+    </div>
+    <div style="margin-top:20px; display:flex; gap:20px;">
+        <button onclick="switchCamera()">📷 Kamera Değiştir</button>
+        <button onclick="endCall()" style="background:red; color:white; padding:10px 20px; border:none; border-radius:5px;">Aramayı Bitir</button>
+    </div>
+</div>
+
+<script>
+    const socket = io();
+    const myName = "{{ user.username }}";
+    let currentRoom = 'Genel';
+    let storiesData = {};
+    let currentStoryUser = null;
+    let currentStoryIdx = 0;
+    let storyTimer = null;
+    let stAudio = new Audio();
+    let peerConnection;
+    let localStream;
+
+    // --- BAŞLANGIÇ ---
+    setInterval(() => document.getElementById('clock').innerText = new Date().toLocaleTimeString().slice(0,5), 1000);
+    if(localStorage.getItem('chat_bg')) document.getElementById('chat-area').style.backgroundImage = `url(${localStorage.getItem('chat_bg')})`;
+
+    socket.on('connect', () => {
+        socket.emit('join_room', {room: 'Genel'});
+    });
+
+    // --- SOHBET ---
+    function switchTab(t) {
+        document.querySelectorAll('.tab').forEach(e => e.classList.remove('active'));
+        event.target.classList.add('active');
+        document.getElementById('users-list').style.display = t==='users'?'block':'none';
+        document.getElementById('groups-list').style.display = t==='groups'?'block':'none';
+        document.getElementById('music-list-mini').style.display = t==='music'?'block':'none';
+    }
+
+    function send() {
+        const i = document.getElementById('mIn');
+        if(i.value.trim()) {
+            socket.emit('send_message', {room:currentRoom, msg:i.value, type:'text'});
+            i.value='';
         }
+    }
 
-        function sendText() {
-            const val = document.getElementById('mInput').value;
-            if(val && curRoom) {
-                socket.emit('send_msg', {room: curRoom, text: val, type: 'text'});
-                document.getElementById('mInput').value = '';
+    socket.on('message', d => appendMsg(d));
+    socket.on('history', d => {
+        document.getElementById('chat-area').innerHTML = '';
+        d.forEach(m => appendMsg(m));
+    });
+
+    function appendMsg(d) {
+        const box = document.getElementById('chat-area');
+        const isMe = d.user === myName;
+        const div = document.createElement('div');
+        div.className = `msg ${isMe ? 'me' : ''}`;
+        div.id = `msg-${d.id}`;
+        
+        let content = d.msg;
+        if(d.type === 'image') content = `<img src="${d.msg}" style="max-width:200px; border-radius:5px;">`;
+        if(d.type === 'audio') content = `<audio controls src="${d.msg}"></audio>`;
+        if(d.type === 'video') content = `<video controls src="${d.msg}" style="max-width:200px; border-radius:5px;"></video>`;
+
+        div.innerHTML = `
+            ${!isMe ? `<img src="${d.ava}" class="my-ava" style="width:25px; height:25px;">` : ''}
+            <div class="bubble">
+                ${!isMe ? `<div style="font-size:10px; color:var(--green); font-weight:bold">${d.user}</div>` : ''}
+                <div>${content}</div>
+                <div class="tick ${d.status==='read'?'read':''}" id="tick-${d.id}">
+                    ${d.time} ${isMe ? (d.status==='read' ? '✓✓' : '✓') : ''}
+                </div>
+                ${isMe ? `<div onclick="delMsg(${d.id})" style="font-size:10px; color:red; cursor:pointer; margin-top:2px;">Sil</div>` : ''}
+            </div>
+        `;
+        box.appendChild(div);
+        box.scrollTop = box.scrollHeight;
+    }
+
+    socket.on('msg_status_update', d => {
+        const t = document.getElementById(`tick-${d.id}`);
+        if(t) { t.innerHTML = t.innerHTML.replace('✓', '✓✓'); t.classList.add('read'); }
+    });
+
+    socket.on('message_deleted', d => document.getElementById(`msg-${d.id}`)?.remove());
+
+    function delMsg(id) {
+        if(confirm('Mesaj silinsin mi?')) socket.emit('delete_message', {id:id});
+    }
+
+    function changeBG(inp) {
+        const r = new FileReader(); r.onload=e=>{
+            document.getElementById('chat-area').style.backgroundImage = `url(${e.target.result})`;
+            localStorage.setItem('chat_bg', e.target.result);
+        }; r.readAsDataURL(inp.files[0]);
+    }
+    function resetBG() {
+        localStorage.removeItem('chat_bg');
+        document.getElementById('chat-area').style.backgroundImage = "url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')";
+    }
+
+    // --- HİKAYE ---
+    function previewStory(inp) {
+        const file = inp.files[0];
+        if(!file) return;
+        const type = file.type.includes('video') ? 'video' : 'image';
+        
+        // Müzik sor
+        if(confirm("Müzik eklemek ister misiniz?")) {
+            const au = document.getElementById('st-audio');
+            au.onchange = () => {
+                const r1 = new FileReader(); r1.onload = e1 => { // Medya
+                    const r2 = new FileReader(); r2.onload = e2 => { // Ses
+                        // Video süresi için metadata lazım, basitleştirmek için 30sn varsayıyoruz
+                        socket.emit('add_story', {content:e1.target.result, music:e2.target.result, type:type});
+                    }; r2.readAsDataURL(au.files[0]);
+                }; r1.readAsDataURL(file);
+            };
+            au.click();
+        } else {
+            const r = new FileReader();
+            r.onload = e => socket.emit('add_story', {content:e.target.result, music:null, type:type});
+            r.readAsDataURL(file);
+        }
+    }
+
+    socket.on('story_list', data => {
+        storiesData = data;
+        const bar = document.getElementById('story-items');
+        bar.innerHTML = '';
+        for(let u in data) {
+            bar.innerHTML += `
+            <div onclick="openStory('${u}')" style="text-align:center; cursor:pointer;">
+                <img src="${data[u].avatar}" class="st-circle">
+                <div style="font-size:11px; margin-top:2px;">${u===myName?'Siz':u}</div>
+            </div>`;
+        }
+    });
+
+    function openStory(u) {
+        currentStoryUser = u; currentStoryIdx = 0;
+        document.getElementById('st-viewer').style.display = 'flex';
+        renderStory();
+    }
+
+    function renderStory() {
+        clearTimeout(storyTimer); stAudio.pause();
+        const items = storiesData[currentStoryUser].items;
+        if(currentStoryIdx >= items.length) { closeStory(); return; }
+        
+        const s = items[currentStoryIdx];
+        const duration = s.type === 'video' ? s.duration * 1000 : 5000; // Video ise süresi, resim ise 5sn (veya müzik süresi)
+        
+        // UI
+        document.getElementById('st-v-ava').src = storiesData[currentStoryUser].avatar;
+        document.getElementById('st-v-name').innerText = currentStoryUser;
+        document.getElementById('del-st-btn').style.display = s.can_delete ? 'block' : 'none';
+        document.getElementById('st-viewers').innerText = s.can_delete ? `👁️ ${s.viewers.length} kişi gördü` : '';
+        
+        // Medya
+        const img = document.getElementById('st-img');
+        const vid = document.getElementById('st-vid');
+        
+        if(s.type === 'video') {
+            img.style.display = 'none'; vid.style.display = 'block'; vid.src = s.content;
+            vid.onloadedmetadata = () => startBar(vid.duration*1000);
+        } else {
+            vid.style.display = 'none'; img.style.display = 'block'; img.src = s.content;
+            if(s.music) {
+                stAudio.src = s.music; stAudio.play();
+                stAudio.onloadedmetadata = () => startBar(stAudio.duration*1000);
+            } else {
+                startBar(5000);
             }
         }
-
-        socket.on('load_history', (data) => data.forEach(addMsg));
-        socket.on('receive_msg', addMsg);
-
-        function addMsg(m) {
-            const box = document.getElementById('msgBox');
-            const div = document.createElement('div');
-            div.className = `msg ${m.sender === myName ? 'msg-me' : 'msg-other'}`;
-            div.id = `m-${m.id}`;
-            
-            let html = `<div style="font-weight:bold; font-size:11px; color:#e542a3;">
-                ${m.sender !== myName ? `<img src="/static/uploads/${m.avatar}" class="msg-avatar">` : ''}${m.sender}</div>`;
-            
-            if(m.type === 'text') html += `<div>${m.text}</div>`;
-            else if(m.type === 'image') html += `<img src="/static/uploads/${m.text}" style="max-width:200px; border-radius:5px;">`;
-            
-            html += `<div class="msg-info">${m.time} ${m.sender === myName ? (m.read ? '✓✓' : '✓') : ''} 
-                    ${m.sender === myName ? `<i class="fa fa-trash" onclick="delMsg(${m.id})" style="cursor:pointer; margin-left:5px;"></i>` : ''}</div>`;
-            
-            div.innerHTML = html;
-            box.appendChild(div);
-            box.scrollTop = box.scrollHeight;
-        }
-
-        function delMsg(id) {
-            if(confirm('Mesaj silinsin mi?')) socket.emit('delete_msg', {id: id});
-        }
-
-        socket.on('msg_deleted', (d) => { document.getElementById(`m-${d.id}`).remove(); });
-
-        function viewStory(media, type) {
-            const m = document.getElementById('storyModal');
-            const c = document.getElementById('storyContent');
-            m.style.display = 'flex';
-            c.innerHTML = type === 'image' ? `<img src="/static/uploads/${media}" style="width:100%;">` : 
-                          `<video src="/static/uploads/${media}" controls autoplay style="width:100%;"></video>`;
-        }
         
-        // Video Arama (Simülasyon - WebRTC için ekstra sunucu gerekir)
-        function callUser(id) {
-            alert("Görüntülü arama başlatılıyor... (Cihaz kamerası aktif ediliyor)");
-            navigator.mediaDevices.getUserMedia({video: true, audio: true}).then(stream => {
-                // Burada stream socket üzerinden karşıya iletilir
+        if(currentStoryUser !== myName) socket.emit('view_story', {id:s.id});
+    }
+
+    function startBar(ms) {
+        const cont = document.getElementById('st-prog-cont'); cont.innerHTML = '';
+        storiesData[currentStoryUser].items.forEach((_, i) => {
+            cont.innerHTML += `<div class="st-bar"><div class="st-fill" style="width:${i < currentStoryIdx ? '100%' : (i==currentStoryIdx ? '0%' : '0%')}" id="fill-${i}"></div></div>`;
+        });
+        
+        setTimeout(() => {
+            const f = document.getElementById(`fill-${currentStoryIdx}`);
+            if(f) {
+                f.style.transition = `width ${ms}ms linear`;
+                f.style.width = '100%';
+            }
+        }, 50);
+        storyTimer = setTimeout(nextStory, ms);
+    }
+    
+    function nextStory() { currentStoryIdx++; renderStory(); }
+    function prevStory() { if(currentStoryIdx>0) currentStoryIdx--; renderStory(); }
+    function closeStory() { 
+        document.getElementById('st-viewer').style.display='none'; 
+        clearTimeout(storyTimer); stAudio.pause(); document.getElementById('st-vid').pause();
+    }
+    function deleteCurrentStory() {
+        const id = storiesData[currentStoryUser].items[currentStoryIdx].id;
+        socket.emit('delete_story', {id:id});
+        closeStory();
+    }
+
+    // --- MÜZİK ---
+    function uploadMusic(inp) {
+        const r = new FileReader();
+        r.onload = e => {
+            const name = prompt("Şarkı Adı:");
+            if(name) socket.emit('add_music', {name:name, src:e.target.result});
+        };
+        r.readAsDataURL(inp.files[0]);
+    }
+    socket.on('music_list', list => {
+        const d = document.getElementById('music-cont'); d.innerHTML = '';
+        list.forEach(m => {
+            d.innerHTML += `
+            <div style="background:#f9f9f9; padding:10px; margin:5px 0; border-radius:5px;">
+                <b>${m.title}</b><br>
+                <audio controls src="${m.src}" style="width:100%"></audio>
+            </div>`;
+        });
+    });
+    // Sekme açılınca yükle
+    socket.emit('get_music');
+
+    // --- PROFİL VE KULLANICILAR ---
+    function uploadAvatar(inp) {
+        const r = new FileReader();
+        r.onload = e => socket.emit('update_profile', {avatar:e.target.result});
+        r.readAsDataURL(inp.files[0]);
+    }
+    socket.on('update_user_list', list => {
+        const d = document.getElementById('users-list'); d.innerHTML = '';
+        list.forEach(u => {
+            if(u.username !== myName) {
+                d.innerHTML += `<div class="list-item" onclick="startChat('${u.username}')">
+                    <img src="${u.avatar}" class="my-ava">
+                    <div style="margin-left:10px">${u.username}</div>
+                </div>`;
+            }
+        });
+    });
+    function startChat(u) {
+        // Özel oda ID oluştur (alfabetik sıra ile)
+        const roomID = [myName, u].sort().join('_');
+        currentRoom = roomID;
+        document.getElementById('chat-title').innerHTML = `<b>${u}</b> ile sohbet`;
+        socket.emit('join_room', {room:roomID});
+    }
+    function blockUser() {
+        if(currentRoom === 'Genel') return alert("Genel sohbette engelleyemezsin.");
+        const other = currentRoom.replace(myName, '').replace('_','');
+        socket.emit('block_user', {username:other});
+    }
+
+    // --- VİDEO KONUŞMA (Basit WebRTC) ---
+    async function startVideoCall() {
+        document.getElementById('video-modal').style.display = 'flex';
+        localStream = await navigator.mediaDevices.getUserMedia({video:true, audio:true});
+        document.getElementById('localVideo').srcObject = localStream;
+        
+        // Sinyal gönder (Burada gerçek PeerConnection kurulumu uzundur, sadece UI mantığı)
+        socket.emit('call_signal', {room:currentRoom, type:'offer'});
+    }
+    async function switchCamera() {
+        if(localStream) {
+            localStream.getTracks().forEach(t => t.stop());
+            // Mobilde 'user' veya 'environment'
+            localStream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: { exact: "environment" } }, audio:true
             });
+            document.getElementById('localVideo').srcObject = localStream;
         }
-    </script>
+    }
+    function endCall() {
+        document.getElementById('video-modal').style.display = 'none';
+        if(localStream) localStream.getTracks().forEach(t => t.stop());
+    }
+
+    // --- EKSTRALAR ---
+    function uploadMsgFile(inp) {
+        const f = inp.files[0];
+        const type = f.type.startsWith('image') ? 'image' : (f.type.startsWith('video')?'video':'audio');
+        const r = new FileReader();
+        r.onload = e => socket.emit('send_message', {room:currentRoom, msg:e.target.result, type:type});
+        r.readAsDataURL(f);
+    }
+    let mediaRec;
+    async function toggleMic() {
+        if(!mediaRec || mediaRec.state==='inactive') {
+            const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+            mediaRec = new MediaRecorder(stream);
+            let chunks = [];
+            mediaRec.ondataavailable = e => chunks.push(e.data);
+            mediaRec.onstop = () => {
+                const b = new Blob(chunks);
+                const r = new FileReader(); r.onload=e=>socket.emit('send_message',{room:currentRoom, msg:e.target.result, type:'audio'});
+                r.readAsDataURL(b);
+            };
+            mediaRec.start();
+            document.getElementById('mic-btn').style.color = 'red';
+        } else {
+            mediaRec.stop();
+            document.getElementById('mic-btn').style.color = 'black';
+        }
+    }
+</script>
 </body>
 </html>
