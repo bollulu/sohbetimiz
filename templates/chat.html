@@ -1,458 +1,337 @@
 <!DOCTYPE html>
-<html>
+<html lang="tr">
 <head>
-    <title>Süper Chat</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sohbetimiz</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        :root { --bg: #e5ddd5; --header: #ededed; --green: #008069; --bubble-me: #dcf8c6; }
-        body { margin: 0; font-family: 'Helvetica Neue', sans-serif; height: 100vh; display: flex; overflow: hidden; background: #d1d7db; }
+        :root { --bg-color: #e5ddd5; --my-msg: #dcf8c6; }
+        body { margin: 0; font-family: 'Segoe UI', sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
         
-        /* Sol Menü */
-        #sidebar { width: 350px; background: white; border-right: 1px solid #ddd; display: flex; flex-direction: column; }
-        .header { background: var(--header); padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ddd; height: 60px; box-sizing: border-box; }
-        .my-ava { width: 40px; height: 40px; border-radius: 50%; cursor: pointer; object-fit: cover; }
+        /* Üst Bar */
+        .top-bar { background: #075e54; color: white; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; }
+        .top-bar .time { font-size: 14px; }
         
-        .tab-bar { display: flex; background: white; border-bottom: 1px solid #eee; }
-        .tab { flex: 1; padding: 15px; text-align: center; cursor: pointer; border-bottom: 3px solid transparent; font-weight: bold; color: gray; }
-        .tab.active { border-bottom: 3px solid var(--green); color: var(--green); }
+        /* Hikayeler Barı */
+        .stories-bar { background: #f0f2f5; padding: 10px; display: flex; gap: 15px; overflow-x: auto; border-bottom: 1px solid #ddd; height: 80px; }
+        .story-circle { width: 60px; height: 60px; border-radius: 50%; border: 3px solid #075e54; cursor: pointer; overflow: hidden; position: relative; }
+        .story-circle img { width: 100%; height: 100%; object-fit: cover; }
         
-        #list-area { flex: 1; overflow-y: auto; }
-        .list-item { display: flex; align-items: center; padding: 12px; cursor: pointer; border-bottom: 1px solid #f5f5f5; }
-        .list-item:hover { background: #f0f0f0; }
+        /* Ana Gövde */
+        .main-container { display: flex; flex: 1; height: calc(100vh - 140px); }
         
-        /* Ana Sohbet */
-        #main { flex: 1; display: flex; flex-direction: column; position: relative; background: var(--bg); }
-        .top-info { background: var(--header); padding: 10px; display: flex; align-items: center; justify-content: space-between; height: 60px; box-sizing: border-box; border-left: 1px solid #ddd; }
+        /* Sol Menü (Kişiler/Gruplar) */
+        .sidebar { width: 25%; background: white; border-right: 1px solid #ddd; overflow-y: auto; display: flex; flex-direction: column; }
+        .user-item { padding: 15px; border-bottom: 1px solid #f0f0f0; cursor: pointer; display: flex; align-items: center; gap: 10px; }
+        .user-item:hover { background: #f5f5f5; }
+        .user-avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
+        .you-tag { font-size: 12px; color: #075e54; font-weight: bold; }
+
+        /* Mesaj Alanı */
+        .chat-area { flex: 1; background: var(--bg-color); display: flex; flex-direction: column; position: relative; }
+        .messages { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
         
-        /* HİKAYE BARI (ORTA ÜST) */
-        #story-bar { background: white; padding: 10px; display: flex; gap: 15px; overflow-x: auto; border-bottom: 1px solid #ddd; height: 100px; box-sizing: border-box; }
-        .st-circle { width: 60px; height: 60px; border-radius: 50%; border: 2px solid var(--green); padding: 2px; object-fit: cover; cursor: pointer; }
+        .message { max-width: 60%; padding: 8px 12px; border-radius: 10px; position: relative; font-size: 15px; display: flex; flex-direction: column; }
+        .msg-sent { align-self: flex-end; background: var(--my-msg); border-top-right-radius: 0; }
+        .msg-received { align-self: flex-start; background: white; border-top-left-radius: 0; }
+        .msg-info { font-size: 10px; color: #777; align-self: flex-end; display: flex; align-items: center; gap: 3px; margin-top: 3px; }
+        .msg-sender { font-size: 12px; font-weight: bold; color: #e542a3; margin-bottom: 2px; }
         
-        #chat-area { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); }
+        /* Mesaj içi Avatar */
+        .msg-avatar { width: 20px; height: 20px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
+
+        /* Alt Input */
+        .input-area { background: #f0f0f0; padding: 10px; display: flex; align-items: center; gap: 10px; }
+        .input-area input { flex: 1; padding: 10px; border-radius: 20px; border: 1px solid #ddd; outline: none; }
+        .icon-btn { cursor: pointer; color: #555; font-size: 20px; padding: 5px; }
+
+        /* Modal (Genel Kullanım) */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); justify-content: center; align-items: center; z-index: 1000; }
+        .modal-content { background: white; padding: 20px; border-radius: 10px; width: 300px; text-align: center; }
         
-        .msg { max-width: 65%; display: flex; align-items: flex-end; gap: 5px; }
-        .msg.me { align-self: flex-end; flex-direction: row-reverse; }
-        .bubble { background: white; padding: 8px 12px; border-radius: 8px; box-shadow: 0 1px 1px rgba(0,0,0,0.1); position: relative; min-width: 80px; }
-        .me .bubble { background: var(--bubble-me); }
-        .tick { float: right; margin-left: 5px; font-size: 11px; color: #999; margin-top: 5px; display: flex; gap: 2px; }
-        .tick.read { color: #53bdeb; } /* Çift Mavi Tik */
-        
-        .footer { padding: 10px; background: #f0f0f0; display: flex; align-items: center; gap: 10px; }
-        input[type=text] { flex: 1; padding: 10px; border-radius: 20px; border: none; outline: none; }
-        
-        /* STORY VIEWER */
-        #st-viewer { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 1000; flex-direction: column; }
-        .st-progress { display: flex; gap: 5px; padding: 10px; width: 95%; margin: 0 auto; }
-        .st-bar { height: 3px; background: #555; flex: 1; border-radius: 2px; }
-        .st-fill { height: 100%; background: white; width: 0%; transition: width linear; }
-        #st-content { flex: 1; display: flex; justify-content: center; align-items: center; position: relative; }
-        .tap-zone { position: absolute; top:0; height:100%; width: 40%; z-index: 1001; }
-        
-        /* MÜZİK SAYFASI */
-        #music-page { display: none; position: absolute; top:0; left:0; width:100%; height:100%; background: white; z-index: 50; flex-direction: column; padding: 20px; }
-        
-        /* VİDEO ARAMA */
-        #video-modal { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.9); z-index: 2000; flex-direction: column; align-items: center; justify-content: center; }
-        video { border-radius: 10px; background: black; }
+        /* Video Arama Penceresi */
+        .video-call-window { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 2000; flex-direction: column; }
+        video { width: 100%; height: 45%; object-fit: cover; border: 1px solid #333; }
     </style>
 </head>
 <body>
 
-<input type="file" id="p-img" style="display:none" accept="image/*" onchange="uploadAvatar(this)">
-<input type="file" id="msg-file" style="display:none" onchange="sendFile(this)">
-<input type="file" id="bg-in" style="display:none" accept="image/*" onchange="changeBG(this)">
-<input type="file" id="st-media" style="display:none" accept="image/*,video/*" onchange="previewStory(this)">
-<input type="file" id="st-audio" style="display:none" accept="audio/*">
-<input type="file" id="music-file" style="display:none" accept="audio/*" onchange="uploadMusic(this)">
-
-<div id="sidebar">
-    <div class="header">
-        <div style="display:flex; align-items:center; gap:10px;">
-            <img src="{{ user.avatar }}" class="my-ava" onclick="document.getElementById('p-img').click()">
-            <div><b>Siz</b> ({{ user.username }})</div>
+    <div class="top-bar">
+        <div>
+            <img src="/static/uploads/{{ current_user.avatar }}" style="width:30px; height:30px; border-radius:50%; vertical-align:middle;">
+            <span style="font-weight:bold; margin-left:10px;">{{ current_user.username }} (Siz)</span>
         </div>
-        <div style="cursor:pointer" onclick="location.href='/logout'">🚪</div>
-    </div>
-    
-    <div class="tab-bar">
-        <div class="tab active" onclick="switchTab('users')">Sohbet</div>
-        <div class="tab" onclick="switchTab('groups')">Grup</div>
-        <div class="tab" onclick="switchTab('music')">Müzik 🎵</div>
-    </div>
-    
-    <div id="list-area">
-        <div id="users-list"></div>
-        <div id="groups-list" style="display:none">
-            <button onclick="createGroupUI()" style="width:90%; margin:10px; padding:10px;">+ Grup Oluştur</button>
-        </div>
-        <div id="music-list-mini" style="display:none">
-            <button onclick="document.getElementById('music-file').click()" style="width:90%; margin:10px; padding:10px;">+ Şarkı Ekle</button>
-            <div id="music-cont"></div>
+        <div class="time" id="clock">12:00</div>
+        <div>
+            <button onclick="document.getElementById('settingsModal').style.display='flex'">Ayarlar</button>
+            <a href="/music" style="color:white; margin:0 10px;">Müzik</a>
+            <a href="/logout" style="color:white;">Çıkış</a>
         </div>
     </div>
-</div>
 
-<div id="main">
-    <div class="top-info">
-        <div id="chat-title"><b>Genel Sohbet</b></div>
-        <div style="display:flex; gap:15px; align-items:center;">
-            <span id="clock" style="font-size:14px; font-weight:bold;">12:00</span>
-            <button onclick="startVideoCall()">📹</button>
-            <button onclick="document.getElementById('bg-in').click()">🖼️ Arka Plan</button>
-            <button onclick="resetBG()">🔄 Sıfırla</button>
-            <button onclick="blockUser()" style="color:red">🚫 Engelle</button>
+    <div class="stories-bar">
+        <div class="story-circle" onclick="document.getElementById('storyUploadModal').style.display='flex'" style="border-color: #ddd; display:flex; justify-content:center; align-items:center;">
+            <i class="fas fa-plus"></i>
         </div>
-    </div>
-    
-    <div id="story-bar">
-        <div style="text-align:center; cursor:pointer;" onclick="document.getElementById('st-media').click()">
-            <div class="st-circle" style="border:2px dashed #999; display:flex; align-items:center; justify-content:center; font-size:24px;">+</div>
-            <div style="font-size:11px;">Hikaye</div>
-        </div>
-        <div id="story-items" style="display:flex; gap:10px;"></div>
-    </div>
-
-    <div id="chat-area"></div>
-
-    <div class="footer">
-        <button onclick="document.getElementById('msg-file').click()">📎</button>
-        <input type="text" id="mIn" placeholder="Mesaj yazın..." onkeydown="if(event.key==='Enter') send()">
-        <button onclick="toggleMic()" id="mic-btn">🎤</button>
-        <button onclick="send()">➤</button>
-    </div>
-</div>
-
-<div id="st-viewer">
-    <div class="st-progress" id="st-prog-cont"></div>
-    <div style="position:absolute; top:20px; left:20px; color:white; z-index:1002; display:flex; align-items:center; gap:10px;">
-        <img id="st-v-ava" style="width:30px; height:30px; border-radius:50%">
-        <b id="st-v-name"></b>
-        <span id="st-viewers" style="font-size:11px; opacity:0.8; margin-left:10px;"></span>
-    </div>
-    <button onclick="closeStory()" style="position:absolute; top:20px; right:20px; z-index:1002; background:none; border:none; color:white; font-size:24px;">✕</button>
-    <button id="del-st-btn" onclick="deleteCurrentStory()" style="position:absolute; bottom:20px; right:20px; z-index:1002; background:red; color:white; border:none; padding:5px;">🗑️ Sil</button>
-
-    <div id="st-content">
-        <div class="tap-zone" style="left:0" onclick="prevStory()"></div>
-        <div class="tap-zone" style="right:0" onclick="nextStory()"></div>
-        <img id="st-img" style="max-width:100%; max-height:80vh; display:none;">
-        <video id="st-vid" style="max-width:100%; max-height:80vh; display:none;" autoplay></video>
-    </div>
-</div>
-
-<div id="video-modal">
-    <div style="position:relative; width:80%; height:80%;">
-        <video id="remoteVideo" autoplay playsinline style="width:100%; height:100%; object-fit:cover;"></video>
-        <video id="localVideo" autoplay playsinline muted style="position:absolute; bottom:20px; right:20px; width:150px; border:2px solid white;"></video>
-    </div>
-    <div style="margin-top:20px; display:flex; gap:20px;">
-        <button onclick="switchCamera()">📷 Kamera Değiştir</button>
-        <button onclick="endCall()" style="background:red; color:white; padding:10px 20px; border:none; border-radius:5px;">Aramayı Bitir</button>
-    </div>
-</div>
-
-<script>
-    const socket = io();
-    const myName = "{{ user.username }}";
-    let currentRoom = 'Genel';
-    let storiesData = {};
-    let currentStoryUser = null;
-    let currentStoryIdx = 0;
-    let storyTimer = null;
-    let stAudio = new Audio();
-    let peerConnection;
-    let localStream;
-
-    // --- BAŞLANGIÇ ---
-    setInterval(() => document.getElementById('clock').innerText = new Date().toLocaleTimeString().slice(0,5), 1000);
-    if(localStorage.getItem('chat_bg')) document.getElementById('chat-area').style.backgroundImage = `url(${localStorage.getItem('chat_bg')})`;
-
-    socket.on('connect', () => {
-        socket.emit('join_room', {room: 'Genel'});
-    });
-
-    // --- SOHBET ---
-    function switchTab(t) {
-        document.querySelectorAll('.tab').forEach(e => e.classList.remove('active'));
-        event.target.classList.add('active');
-        document.getElementById('users-list').style.display = t==='users'?'block':'none';
-        document.getElementById('groups-list').style.display = t==='groups'?'block':'none';
-        document.getElementById('music-list-mini').style.display = t==='music'?'block':'none';
-    }
-
-    function send() {
-        const i = document.getElementById('mIn');
-        if(i.value.trim()) {
-            socket.emit('send_message', {room:currentRoom, msg:i.value, type:'text'});
-            i.value='';
-        }
-    }
-
-    socket.on('message', d => appendMsg(d));
-    socket.on('history', d => {
-        document.getElementById('chat-area').innerHTML = '';
-        d.forEach(m => appendMsg(m));
-    });
-
-    function appendMsg(d) {
-        const box = document.getElementById('chat-area');
-        const isMe = d.user === myName;
-        const div = document.createElement('div');
-        div.className = `msg ${isMe ? 'me' : ''}`;
-        div.id = `msg-${d.id}`;
-        
-        let content = d.msg;
-        if(d.type === 'image') content = `<img src="${d.msg}" style="max-width:200px; border-radius:5px;">`;
-        if(d.type === 'audio') content = `<audio controls src="${d.msg}"></audio>`;
-        if(d.type === 'video') content = `<video controls src="${d.msg}" style="max-width:200px; border-radius:5px;"></video>`;
-
-        div.innerHTML = `
-            ${!isMe ? `<img src="${d.ava}" class="my-ava" style="width:25px; height:25px;">` : ''}
-            <div class="bubble">
-                ${!isMe ? `<div style="font-size:10px; color:var(--green); font-weight:bold">${d.user}</div>` : ''}
-                <div>${content}</div>
-                <div class="tick ${d.status==='read'?'read':''}" id="tick-${d.id}">
-                    ${d.time} ${isMe ? (d.status==='read' ? '✓✓' : '✓') : ''}
-                </div>
-                ${isMe ? `<div onclick="delMsg(${d.id})" style="font-size:10px; color:red; cursor:pointer; margin-top:2px;">Sil</div>` : ''}
+        {% for story in stories %}
+            <div class="story-circle" onclick="viewStory('{{ story.content }}', '{{ story.story_type }}', '{{ story.music }}')">
+                {% if story.story_type == 'image' %}
+                    <img src="/static/uploads/{{ story.content }}">
+                {% else %}
+                    <video src="/static/uploads/{{ story.content }}" style="width:100%; height:100%; object-fit:cover;"></video>
+                {% endif %}
             </div>
-        `;
-        box.appendChild(div);
-        box.scrollTop = box.scrollHeight;
-    }
+        {% endfor %}
+    </div>
 
-    socket.on('msg_status_update', d => {
-        const t = document.getElementById(`tick-${d.id}`);
-        if(t) { t.innerHTML = t.innerHTML.replace('✓', '✓✓'); t.classList.add('read'); }
-    });
+    <div class="main-container">
+        <div class="sidebar">
+            <div class="user-item" onclick="joinRoom('general', 'Genel Sohbet')">
+                <div class="user-avatar" style="background:gray; display:flex; justify-content:center; align-items:center; color:white;">#</div>
+                <span>Genel Sohbet</span>
+            </div>
+            
+            <div style="padding:10px; font-weight:bold; background:#eee;">Kişiler</div>
+            {% for user in users %}
+                <div class="user-item" onclick="joinRoom('private_{{ [current_user.id, user.id]|sort|join('_') }}', '{{ user.username }}', '{{ user.id }}')">
+                    <img src="/static/uploads/{{ user.avatar }}" class="user-avatar">
+                    <span>{{ user.username }}</span>
+                    <i class="fas fa-video" style="margin-left:auto; color:#075e54;" onclick="startVideoCall('{{ user.id }}'); event.stopPropagation();"></i>
+                </div>
+            {% endfor %}
 
-    socket.on('message_deleted', d => document.getElementById(`msg-${d.id}`)?.remove());
+            <div style="padding:10px; font-weight:bold; background:#eee; display:flex; justify-content:space-between;">
+                Gruplar <i class="fas fa-plus" onclick="document.getElementById('groupModal').style.display='flex'" style="cursor:pointer;"></i>
+            </div>
+            {% for group in groups %}
+                <div class="user-item" onclick="joinRoom('group_{{ group.id }}', '{{ group.name }}')">
+                    <span>{{ group.name }}</span>
+                </div>
+            {% endfor %}
+        </div>
 
-    function delMsg(id) {
-        if(confirm('Mesaj silinsin mi?')) socket.emit('delete_message', {id:id});
-    }
+        <div class="chat-area">
+            <div id="chatHeader" style="padding:10px; background:#f7f7f7; font-weight:bold; border-bottom:1px solid #ddd;">
+                Sohbet Seçin
+            </div>
+            
+            <div class="messages" id="messages"></div>
 
-    function changeBG(inp) {
-        const r = new FileReader(); r.onload=e=>{
-            document.getElementById('chat-area').style.backgroundImage = `url(${e.target.result})`;
-            localStorage.setItem('chat_bg', e.target.result);
-        }; r.readAsDataURL(inp.files[0]);
-    }
-    function resetBG() {
-        localStorage.removeItem('chat_bg');
-        document.getElementById('chat-area').style.backgroundImage = "url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')";
-    }
+            <div class="input-area">
+                <i class="fas fa-paperclip icon-btn" onclick="document.getElementById('fileInput').click()"></i>
+                <input type="file" id="fileInput" style="display:none;" onchange="uploadFile(this)">
+                <i class="fas fa-microphone icon-btn"></i> <input type="text" id="msgInput" placeholder="Mesaj yaz...">
+                <i class="fas fa-paper-plane icon-btn" onclick="sendMessage()"></i>
+            </div>
+        </div>
+    </div>
 
-    // --- HİKAYE ---
-    function previewStory(inp) {
-        const file = inp.files[0];
-        if(!file) return;
-        const type = file.type.includes('video') ? 'video' : 'image';
-        
-        // Müzik sor
-        if(confirm("Müzik eklemek ister misiniz?")) {
-            const au = document.getElementById('st-audio');
-            au.onchange = () => {
-                const r1 = new FileReader(); r1.onload = e1 => { // Medya
-                    const r2 = new FileReader(); r2.onload = e2 => { // Ses
-                        // Video süresi için metadata lazım, basitleştirmek için 30sn varsayıyoruz
-                        socket.emit('add_story', {content:e1.target.result, music:e2.target.result, type:type});
-                    }; r2.readAsDataURL(au.files[0]);
-                }; r1.readAsDataURL(file);
-            };
-            au.click();
-        } else {
-            const r = new FileReader();
-            r.onload = e => socket.emit('add_story', {content:e.target.result, music:null, type:type});
-            r.readAsDataURL(file);
+    <div id="settingsModal" class="modal">
+        <div class="modal-content">
+            <h3>Ayarlar</h3>
+            <p>Arka Plan Rengi Değiştir:</p>
+            <input type="color" onchange="document.documentElement.style.setProperty('--bg-color', this.value)">
+            <button onclick="document.documentElement.style.setProperty('--bg-color', '#e5ddd5')">Sıfırla</button>
+            <hr>
+            <form action="/update_profile" method="POST" enctype="multipart/form-data">
+                <p>Profil Resmini Değiştir:</p>
+                <input type="file" name="avatar">
+                <button type="submit">Güncelle</button>
+            </form>
+            <button onclick="document.getElementById('settingsModal').style.display='none'" style="margin-top:10px;">Kapat</button>
+        </div>
+    </div>
+
+    <div id="groupModal" class="modal">
+        <div class="modal-content">
+            <h3>Grup Oluştur</h3>
+            <form action="/create_group" method="POST">
+                <input type="text" name="group_name" placeholder="Grup Adı" style="width:80%; padding:5px;">
+                <button type="submit">Oluştur</button>
+            </form>
+            <button onclick="document.getElementById('groupModal').style.display='none'">İptal</button>
+        </div>
+    </div>
+
+    <div id="storyUploadModal" class="modal">
+        <div class="modal-content">
+            <h3>Hikaye Ekle</h3>
+            <form action="/add_story" method="POST" enctype="multipart/form-data">
+                <p>Görsel/Video:</p>
+                <input type="file" name="story_file" required>
+                <p>Müzik (Opsiyonel):</p>
+                <input type="file" name="music_file">
+                <button type="submit">Paylaş</button>
+            </form>
+            <button onclick="document.getElementById('storyUploadModal').style.display='none'">İptal</button>
+        </div>
+    </div>
+
+    <div id="storyViewer" class="modal" onclick="this.style.display='none'">
+        <div style="position:relative; width:100%; height:100%; display:flex; justify-content:center; align-items:center;">
+            <div id="storyContent"></div>
+            <audio id="storyAudio" style="display:none;"></audio>
+        </div>
+    </div>
+
+    <div id="videoCallInterface" class="video-call-window">
+        <video id="remoteVideo" autoplay playsinline></video>
+        <video id="localVideo" autoplay playsinline muted style="position:absolute; bottom:20px; right:20px; width:100px; height:150px; border:2px solid white;"></video>
+        <div style="position:absolute; bottom:20px; left:50%; transform:translateX(-50%);">
+            <button onclick="switchCamera()">Kamera Değiştir</button>
+            <button onclick="endCall()" style="background:red; color:white;">Kapat</button>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script>
+        const socket = io();
+        let currentRoom = '';
+        const currentUser = "{{ current_user.username }}";
+        const currentAvatar = "{{ current_user.avatar }}";
+
+        // Saat güncelleme
+        setInterval(() => {
+            const now = new Date();
+            document.getElementById('clock').innerText = now.toLocaleDateString() + ' ' + now.toLocaleTimeString();
+        }, 1000);
+
+        function joinRoom(room, name, targetUserId=null) {
+            if(currentRoom) socket.emit('leave', {room: currentRoom});
+            currentRoom = room;
+            document.getElementById('messages').innerHTML = ''; // Temizle
+            document.getElementById('chatHeader').innerText = name;
+            socket.emit('join', {room: room});
+            
+            // Eğer özel sohbetse hedef kullanıcıyı ayarla (video için)
+            window.targetUserId = targetUserId; 
         }
-    }
 
-    socket.on('story_list', data => {
-        storiesData = data;
-        const bar = document.getElementById('story-items');
-        bar.innerHTML = '';
-        for(let u in data) {
-            bar.innerHTML += `
-            <div onclick="openStory('${u}')" style="text-align:center; cursor:pointer;">
-                <img src="${data[u].avatar}" class="st-circle">
-                <div style="font-size:11px; margin-top:2px;">${u===myName?'Siz':u}</div>
-            </div>`;
-        }
-    });
-
-    function openStory(u) {
-        currentStoryUser = u; currentStoryIdx = 0;
-        document.getElementById('st-viewer').style.display = 'flex';
-        renderStory();
-    }
-
-    function renderStory() {
-        clearTimeout(storyTimer); stAudio.pause();
-        const items = storiesData[currentStoryUser].items;
-        if(currentStoryIdx >= items.length) { closeStory(); return; }
-        
-        const s = items[currentStoryIdx];
-        const duration = s.type === 'video' ? s.duration * 1000 : 5000; // Video ise süresi, resim ise 5sn (veya müzik süresi)
-        
-        // UI
-        document.getElementById('st-v-ava').src = storiesData[currentStoryUser].avatar;
-        document.getElementById('st-v-name').innerText = currentStoryUser;
-        document.getElementById('del-st-btn').style.display = s.can_delete ? 'block' : 'none';
-        document.getElementById('st-viewers').innerText = s.can_delete ? `👁️ ${s.viewers.length} kişi gördü` : '';
-        
-        // Medya
-        const img = document.getElementById('st-img');
-        const vid = document.getElementById('st-vid');
-        
-        if(s.type === 'video') {
-            img.style.display = 'none'; vid.style.display = 'block'; vid.src = s.content;
-            vid.onloadedmetadata = () => startBar(vid.duration*1000);
-        } else {
-            vid.style.display = 'none'; img.style.display = 'block'; img.src = s.content;
-            if(s.music) {
-                stAudio.src = s.music; stAudio.play();
-                stAudio.onloadedmetadata = () => startBar(stAudio.duration*1000);
-            } else {
-                startBar(5000);
+        function sendMessage() {
+            const input = document.getElementById('msgInput');
+            if(input.value.trim() && currentRoom) {
+                socket.emit('send_message', {room: currentRoom, message: input.value, type: 'text'});
+                input.value = '';
             }
         }
-        
-        if(currentStoryUser !== myName) socket.emit('view_story', {id:s.id});
-    }
 
-    function startBar(ms) {
-        const cont = document.getElementById('st-prog-cont'); cont.innerHTML = '';
-        storiesData[currentStoryUser].items.forEach((_, i) => {
-            cont.innerHTML += `<div class="st-bar"><div class="st-fill" style="width:${i < currentStoryIdx ? '100%' : (i==currentStoryIdx ? '0%' : '0%')}" id="fill-${i}"></div></div>`;
+        // Mesajları Dinle
+        socket.on('receive_message', (data) => {
+            appendMessage(data);
         });
-        
-        setTimeout(() => {
-            const f = document.getElementById(`fill-${currentStoryIdx}`);
-            if(f) {
-                f.style.transition = `width ${ms}ms linear`;
-                f.style.width = '100%';
-            }
-        }, 50);
-        storyTimer = setTimeout(nextStory, ms);
-    }
-    
-    function nextStory() { currentStoryIdx++; renderStory(); }
-    function prevStory() { if(currentStoryIdx>0) currentStoryIdx--; renderStory(); }
-    function closeStory() { 
-        document.getElementById('st-viewer').style.display='none'; 
-        clearTimeout(storyTimer); stAudio.pause(); document.getElementById('st-vid').pause();
-    }
-    function deleteCurrentStory() {
-        const id = storiesData[currentStoryUser].items[currentStoryIdx].id;
-        socket.emit('delete_story', {id:id});
-        closeStory();
-    }
 
-    // --- MÜZİK ---
-    function uploadMusic(inp) {
-        const r = new FileReader();
-        r.onload = e => {
-            const name = prompt("Şarkı Adı:");
-            if(name) socket.emit('add_music', {name:name, src:e.target.result});
-        };
-        r.readAsDataURL(inp.files[0]);
-    }
-    socket.on('music_list', list => {
-        const d = document.getElementById('music-cont'); d.innerHTML = '';
-        list.forEach(m => {
-            d.innerHTML += `
-            <div style="background:#f9f9f9; padding:10px; margin:5px 0; border-radius:5px;">
-                <b>${m.title}</b><br>
-                <audio controls src="${m.src}" style="width:100%"></audio>
-            </div>`;
+        socket.on('load_history', (history) => {
+            history.forEach(appendMessage);
         });
-    });
-    // Sekme açılınca yükle
-    socket.emit('get_music');
 
-    // --- PROFİL VE KULLANICILAR ---
-    function uploadAvatar(inp) {
-        const r = new FileReader();
-        r.onload = e => socket.emit('update_profile', {avatar:e.target.result});
-        r.readAsDataURL(inp.files[0]);
-    }
-    socket.on('update_user_list', list => {
-        const d = document.getElementById('users-list'); d.innerHTML = '';
-        list.forEach(u => {
-            if(u.username !== myName) {
-                d.innerHTML += `<div class="list-item" onclick="startChat('${u.username}')">
-                    <img src="${u.avatar}" class="my-ava">
-                    <div style="margin-left:10px">${u.username}</div>
-                </div>`;
-            }
+        function appendMessage(data) {
+            const div = document.createElement('div');
+            const isMe = data.sender === currentUser;
+            div.className = `message ${isMe ? 'msg-sent' : 'msg-received'}`;
+            div.id = `msg-${data.id}`;
+            
+            let content = data.text;
+            if(data.type === 'image') content = `<img src="/static/uploads/${data.text}" style="max-width:200px; border-radius:5px;">`;
+            if(data.type === 'audio') content = `<audio controls src="/static/uploads/${data.text}"></audio>`;
+
+            div.innerHTML = `
+                <div class="msg-sender">${!isMe ? `<img src="/static/uploads/${data.avatar}" class="msg-avatar">` + data.sender : ''}</div>
+                ${content}
+                <div class="msg-info">
+                    ${data.timestamp} 
+                    ${isMe ? `<i class="fas fa-check${data.read ? '-double' : ''}"></i>` : ''}
+                    ${isMe ? `<i class="fas fa-trash" style="cursor:pointer; margin-left:5px;" onclick="deleteMsg(${data.id})"></i>` : ''}
+                </div>
+            `;
+            document.getElementById('messages').appendChild(div);
+            document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+        }
+
+        function deleteMsg(id) {
+            if(confirm('Mesajı sil?')) socket.emit('delete_message', {'id': id});
+        }
+
+        socket.on('message_deleted', (data) => {
+            const el = document.getElementById(`msg-${data.id}`);
+            if(el) el.remove();
         });
-    });
-    function startChat(u) {
-        // Özel oda ID oluştur (alfabetik sıra ile)
-        const roomID = [myName, u].sort().join('_');
-        currentRoom = roomID;
-        document.getElementById('chat-title').innerHTML = `<b>${u}</b> ile sohbet`;
-        socket.emit('join_room', {room:roomID});
-    }
-    function blockUser() {
-        if(currentRoom === 'Genel') return alert("Genel sohbette engelleyemezsin.");
-        const other = currentRoom.replace(myName, '').replace('_','');
-        socket.emit('block_user', {username:other});
-    }
 
-    // --- VİDEO KONUŞMA (Basit WebRTC) ---
-    async function startVideoCall() {
-        document.getElementById('video-modal').style.display = 'flex';
-        localStream = await navigator.mediaDevices.getUserMedia({video:true, audio:true});
-        document.getElementById('localVideo').srcObject = localStream;
-        
-        // Sinyal gönder (Burada gerçek PeerConnection kurulumu uzundur, sadece UI mantığı)
-        socket.emit('call_signal', {room:currentRoom, type:'offer'});
-    }
-    async function switchCamera() {
-        if(localStream) {
-            localStream.getTracks().forEach(t => t.stop());
-            // Mobilde 'user' veya 'environment'
-            localStream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: { exact: "environment" } }, audio:true
+        // Dosya Yükleme (AJAX)
+        function uploadFile(input) {
+            const file = input.files[0];
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            fetch('/upload', { method: 'POST', body: formData })
+            .then(r => r.json())
+            .then(data => {
+                let type = 'text';
+                if(file.type.startsWith('image')) type = 'image';
+                if(file.type.startsWith('audio')) type = 'audio';
+                socket.emit('send_message', {room: currentRoom, message: data.filename, type: type});
             });
-            document.getElementById('localVideo').srcObject = localStream;
         }
-    }
-    function endCall() {
-        document.getElementById('video-modal').style.display = 'none';
-        if(localStream) localStream.getTracks().forEach(t => t.stop());
-    }
 
-    // --- EKSTRALAR ---
-    function uploadMsgFile(inp) {
-        const f = inp.files[0];
-        const type = f.type.startsWith('image') ? 'image' : (f.type.startsWith('video')?'video':'audio');
-        const r = new FileReader();
-        r.onload = e => socket.emit('send_message', {room:currentRoom, msg:e.target.result, type:type});
-        r.readAsDataURL(f);
-    }
-    let mediaRec;
-    async function toggleMic() {
-        if(!mediaRec || mediaRec.state==='inactive') {
-            const stream = await navigator.mediaDevices.getUserMedia({audio:true});
-            mediaRec = new MediaRecorder(stream);
-            let chunks = [];
-            mediaRec.ondataavailable = e => chunks.push(e.data);
-            mediaRec.onstop = () => {
-                const b = new Blob(chunks);
-                const r = new FileReader(); r.onload=e=>socket.emit('send_message',{room:currentRoom, msg:e.target.result, type:'audio'});
-                r.readAsDataURL(b);
-            };
-            mediaRec.start();
-            document.getElementById('mic-btn').style.color = 'red';
-        } else {
-            mediaRec.stop();
-            document.getElementById('mic-btn').style.color = 'black';
+        // Hikaye İzleme
+        function viewStory(content, type, music) {
+            const viewer = document.getElementById('storyViewer');
+            const container = document.getElementById('storyContent');
+            const audio = document.getElementById('storyAudio');
+            
+            viewer.style.display = 'flex';
+            
+            if(type === 'image') container.innerHTML = `<img src="/static/uploads/${content}" style="max-height:90vh; max-width:90vw;">`;
+            else container.innerHTML = `<video src="/static/uploads/${content}" autoplay style="max-height:90vh; max-width:90vw;"></video>`;
+            
+            if(music && music !== 'None') {
+                audio.src = `/static/uploads/${music}`;
+                audio.style.display = 'block';
+                audio.play();
+            } else {
+                audio.pause();
+            }
+
+            // 30 saniye sonra kapat (basit mantık)
+            setTimeout(() => { viewer.style.display = 'none'; audio.pause(); }, 30000);
         }
-    }
-</script>
+
+        // --- Görüntülü Konuşma (WebRTC Basit Mantık) ---
+        let localStream;
+        let peerConnection;
+        const config = { 'iceServers': [{'urls': 'stun:stun.l.google.com:19302'}] };
+
+        async function startVideoCall(userId) {
+            document.getElementById('videoCallInterface').style.display = 'flex';
+            localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            document.getElementById('localVideo').srcObject = localStream;
+
+            peerConnection = new RTCPeerConnection(config);
+            peerConnection.addStream(localStream);
+            
+            peerConnection.onaddstream = (event) => {
+                document.getElementById('remoteVideo').srcObject = event.stream;
+            };
+            
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate) socket.emit('ice_candidate', { candidate: event.candidate, to: 'private_' + [userId, {{ current_user.id }}].sort().join('_') });
+            };
+
+            const offer = await peerConnection.createOffer();
+            await peerConnection.setLocalDescription(offer);
+            socket.emit('call_user', { offer: offer, to: 'private_' + [userId, {{ current_user.id }}].sort().join('_') });
+        }
+        
+        function endCall() {
+             document.getElementById('videoCallInterface').style.display = 'none';
+             if(localStream) localStream.getTracks().forEach(track => track.stop());
+             if(peerConnection) peerConnection.close();
+        }
+
+        function switchCamera() {
+            // Mobilde ön/arka kamera değişimi (Basitleştirilmiş)
+            alert("Kamera değiştirme özelliği mobil cihazda aktif olur.");
+        }
+    </script>
 </body>
 </html>
