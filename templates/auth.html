@@ -1,60 +1,63 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Giriş / Kayıt</title>
+    <title>Giriş & Kayıt</title>
     <style>
         body { font-family: 'Segoe UI', sans-serif; background: #075e54; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .auth-container { background: white; padding: 30px; border-radius: 10px; width: 350px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
-        h2 { text-align: center; color: #075e54; }
-        input, select, button { width: 100%; padding: 12px; margin: 10px 0; border-radius: 5px; border: 1px solid #ddd; box-sizing: border-box; }
+        .card { background: white; padding: 30px; border-radius: 12px; width: 350px; box-shadow: 0 8px 20px rgba(0,0,0,0.3); text-align: center; }
+        input, select, button { width: 100%; padding: 12px; margin: 8px 0; border-radius: 6px; border: 1px solid #ddd; box-sizing: border-box; }
         button { background: #25d366; color: white; border: none; font-weight: bold; cursor: pointer; }
-        .toggle { text-align: center; font-size: 14px; cursor: pointer; color: #075e54; }
-        #avatar-preview { width: 80px; height: 80px; border-radius: 50%; display: block; margin: 0 auto; object-fit: cover; border: 2px solid #25d366; }
+        .toggle { color: #075e54; cursor: pointer; font-size: 14px; text-decoration: underline; }
+        #avatar-preview { width: 90px; height: 90px; border-radius: 50%; object-fit: cover; border: 3px solid #25d366; cursor: pointer; }
     </style>
 </head>
 <body>
-    <div class="auth-container" id="login-box">
-        <h2>Giriş Yap</h2>
-        <form action="/login" method="POST">
+    <div class="card" id="box">
+        <h2 id="title">Giriş Yap</h2>
+        <form id="auth-form" action="/login" method="POST">
+            <div id="reg-fields" style="display:none">
+                <img id="avatar-preview" src="https://cdn-icons-png.flaticon.com/512/149/149071.png" onclick="document.getElementById('ava-input').click()">
+                <input type="file" id="ava-input" style="display:none" accept="image/*" onchange="processImage(this)">
+                <input type="hidden" name="avatar_data" id="avatar_data">
+                <select name="gender"><option value="Erkek">Erkek</option><option value="Kadın">Kadın</option></select>
+            </div>
             <input type="text" name="username" placeholder="Kullanıcı Adı" required>
             <input type="password" name="password" placeholder="Şifre" required>
-            <button type="submit">Giriş</button>
+            <button type="submit" id="btn">Giriş</button>
         </form>
-        <p class="toggle" onclick="toggleAuth()">Hesabın yok mu? Kayıt Ol</p>
-    </div>
-
-    <div class="auth-container" id="register-box" style="display:none;">
-        <h2>Kayıt Ol</h2>
-        <form action="/register" method="POST">
-            <img id="avatar-preview" src="https://cdn-icons-png.flaticon.com/512/149/149071.png" onclick="document.getElementById('ava-input').click()">
-            <input type="file" id="ava-input" style="display:none" onchange="previewAva(this)">
-            <input type="hidden" name="avatar_data" id="avatar_data">
-            
-            <input type="text" name="username" placeholder="Kullanıcı Adı" required>
-            <input type="password" name="password" placeholder="Şifre" required>
-            <select name="gender">
-                <option value="Erkek">Erkek</option>
-                <option value="Kadın">Kadın</option>
-            </select>
-            <button type="submit">Kayıt Ol ve Başla</button>
-        </form>
-        <p class="toggle" onclick="toggleAuth()">Zaten üye misin? Giriş Yap</p>
+        <p class="toggle" onclick="toggle()">Hesabın yok mu? Kayıt Ol</p>
     </div>
 
     <script>
-        function toggleAuth() {
-            const l = document.getElementById('login-box');
-            const r = document.getElementById('register-box');
-            l.style.display = l.style.display === 'none' ? 'block' : 'none';
-            r.style.display = r.style.display === 'none' ? 'block' : 'none';
+        let isLogin = true;
+        function toggle() {
+            isLogin = !isLogin;
+            document.getElementById('title').innerText = isLogin ? "Giriş Yap" : "Kayıt Ol";
+            document.getElementById('btn').innerText = isLogin ? "Giriş" : "Kayıt Ol";
+            document.getElementById('auth-form').action = isLogin ? "/login" : "/register";
+            document.getElementById('reg-fields').style.display = isLogin ? "none" : "block";
         }
-        function previewAva(input) {
+
+        // RESİM KÜÇÜLTME FONKSİYONU (Hata 413 Çözümü)
+        function processImage(input) {
             if (input.files && input.files[0]) {
-                var reader = new FileReader();
-                reader.onload = function(e) {
-                    document.getElementById('avatar-preview').src = e.target.result;
-                    document.getElementById('avatar_data').value = e.target.result;
-                }
+                const reader = new FileReader();
+                reader.onload = e => {
+                    const img = new Image();
+                    img.src = e.target.result;
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        const MAX_SIZE = 300; // Profil resmini 300px'e sabitler
+                        let w = img.width, h = img.height;
+                        if (w > h) { if (w > MAX_SIZE) { h *= MAX_SIZE / w; w = MAX_SIZE; } }
+                        else { if (h > MAX_SIZE) { w *= MAX_SIZE / h; h = MAX_SIZE; } }
+                        canvas.width = w; canvas.height = h;
+                        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                        const compressed = canvas.toDataURL('image/jpeg', 0.7);
+                        document.getElementById('avatar-preview').src = compressed;
+                        document.getElementById('avatar_data').value = compressed;
+                    };
+                };
                 reader.readAsDataURL(input.files[0]);
             }
         }
