@@ -2,69 +2,63 @@
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sohbetimiz - Giriş/Kayıt</title>
+    <title>Sohbetimiz - Giriş</title>
     <style>
-        body { background: #e9ecef; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif; }
-        .container { background: white; padding: 30px; border-radius: 10px; width: 350px; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
-        .toggle-btn { display: flex; justify-content: space-around; margin-bottom: 20px; }
-        .toggle-btn button { border: none; background: none; font-size: 18px; cursor: pointer; padding-bottom: 5px; }
-        .active { border-bottom: 2px solid #007bff; color: #007bff; }
-        input, select { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ddd; border-radius: 5px; box-sizing: border-box; }
-        button.submit { width: 100%; padding: 10px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; }
+        body { background: #f0f2f5; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 340px; text-align: center; }
+        .tab-btns { display: flex; margin-bottom: 20px; }
+        .tab-btns button { flex: 1; padding: 10px; cursor: pointer; border: none; background: #eee; }
+        .tab-btns .active { background: #075e54; color: white; }
+        input, select { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
+        .btn-main { width: 100%; padding: 12px; background: #075e54; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
         .hidden { display: none; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h2 style="text-align: center;">Sohbetimiz</h2>
-        
-        <div class="toggle-btn">
-            <button id="loginBtn" class="active" onclick="toggle('login')">Giriş Yap</button>
-            <button id="registerBtn" onclick="toggle('register')">Kayıt Ol</button>
+    <div class="card">
+        <h2>Sohbetimiz</h2>
+        <div class="tab-btns">
+            <button id="lBtn" class="active" onclick="toggle('login')">Giriş</button>
+            <button id="rBtn" onclick="toggle('register')">Kayıt</button>
         </div>
-
-        {% with messages = get_flashed_messages() %}
-            {% if messages %}<p style="color:red; text-align:center;">{{ messages[0] }}</p>{% endif %}
-        {% endwith %}
-
+        {% with m = get_flashed_messages() %}{% if m %}<p style="color:red; font-size:12px;">{{m[0]}}</p>{% endif %}{% endwith %}
+        
         <form method="POST" enctype="multipart/form-data">
             <input type="text" name="username" placeholder="Kullanıcı Adı" required>
             <input type="password" name="password" placeholder="Şifre" required>
             
-            <div id="registerFields" class="hidden">
+            <div id="regExtra" class="hidden">
                 <select name="gender">
-                    <option value="male">Erkek</option>
-                    <option value="female">Kadın</option>
-                    <option value="other">Diğer</option>
+                    <option value="Erkek">Erkek</option>
+                    <option value="Kadın">Kadın</option>
                 </select>
-                <label style="font-size: 12px;">Profil Resmi:</label>
-                <input type="file" name="avatar">
+                <label style="font-size:12px; display:block; text-align:left;">Profil Resmi:</label>
+                <input type="file" name="avatar" accept="image/*">
             </div>
 
-            <button type="submit" name="action" value="login" id="submitBtn" class="submit">Giriş Yap</button>
+            <button type="submit" name="action" id="actionBtn" value="login" class="btn-main">Giriş Yap</button>
         </form>
     </div>
 
     <script>
-        function toggle(type) {
-            const regFields = document.getElementById('registerFields');
-            const submitBtn = document.getElementById('submitBtn');
-            const loginBtn = document.getElementById('loginBtn');
-            const regBtn = document.getElementById('registerBtn');
-
-            if (type === 'register') {
-                regFields.classList.remove('hidden');
-                submitBtn.value = 'register';
-                submitBtn.innerText = 'Kayıt Ol';
-                regBtn.classList.add('active');
-                loginBtn.classList.remove('active');
+        function toggle(mode) {
+            const regExtra = document.getElementById('regExtra');
+            const actionBtn = document.getElementById('actionBtn');
+            const lBtn = document.getElementById('lBtn');
+            const rBtn = document.getElementById('rBtn');
+            
+            if(mode === 'register') {
+                regExtra.classList.remove('hidden');
+                actionBtn.value = 'register';
+                actionBtn.innerText = 'Kayıt Ol';
+                rBtn.classList.add('active');
+                lBtn.classList.remove('active');
             } else {
-                regFields.classList.add('hidden');
-                submitBtn.value = 'login';
-                submitBtn.innerText = 'Giriş Yap';
-                loginBtn.classList.add('active');
-                regBtn.classList.remove('active');
+                regExtra.classList.add('hidden');
+                actionBtn.value = 'login';
+                actionBtn.innerText = 'Giriş Yap';
+                lBtn.classList.add('active');
+                rBtn.classList.remove('active');
             }
         }
     </script>
