@@ -8,11 +8,11 @@ from flask_socketio import SocketIO, emit, join_room, leave_room
 from datetime import datetime
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'sohbetimiz_ultra_v8'
-app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024 * 1024 # 1 GB Limit
+app.config['SECRET_KEY'] = 'sohbetimiz_v9_final_fix'
+app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024 * 1024 # 1 GB LİMİT
 
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'chat_final.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'database.db')
 
 db = SQLAlchemy(app)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
@@ -23,21 +23,14 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(50), unique=True, index=True)
     password = db.Column(db.String(100))
     avatar = db.Column(db.Text)
-    gender = db.Column(db.String(10))
     blocked_users = db.Column(db.Text, default='[]')
-
-class Group(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), unique=True)
-    password = db.Column(db.String(50), nullable=True)
-    admin = db.Column(db.String(50))
 
 class Message(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     room = db.Column(db.String(100), index=True)
     sender = db.Column(db.String(50))
     content = db.Column(db.Text)
-    m_type = db.Column(db.String(20), default='text') # text, image, video, audio
+    m_type = db.Column(db.String(20), default='text')
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Story(db.Model):
@@ -45,7 +38,7 @@ class Story(db.Model):
     username = db.Column(db.String(50))
     user_avatar = db.Column(db.Text)
     content = db.Column(db.Text)
-    media_type = db.Column(db.String(10)) # image/video
+    media_type = db.Column(db.String(10))
     audio_data = db.Column(db.Text, nullable=True)
     viewers = db.Column(db.Text, default='[]')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -60,40 +53,33 @@ def load_user(id): return db.session.get(User, int(id))
 # --- ROTALAR ---
 @app.route('/')
 def index():
-    return redirect(url_for('chat_page')) if current_user.is_authenticated else render_template('auth.html')
+    if current_user.is_authenticated: return redirect(url_for('chat'))
+    return render_template('auth.html')
 
 @app.route('/chat')
 @login_required
-def chat_page():
-    return render_template('chat.html', user=current_user)
+def chat(): return render_template('chat.html', user=current_user)
 
 @app.route('/register', methods=['POST'])
 def register():
-    u, p = request.form.get('username'), request.form.get('password')
-    a, g = request.form.get('avatar_data'), request.form.get('gender')
+    u, p, a = request.form.get('username'), request.form.get('password'), request.form.get('avatar_data')
     if not User.query.filter_by(username=u).first():
-        new_u = User(username=u, password=p, avatar=a, gender=g)
-        db.session.add(new_u); db.session.commit()
-        login_user(new_u)
-    return redirect(url_for('chat_page'))
-
-@app.route('/login', methods=['POST'])
-def login():
-    u, p = request.form.get('username'), request.form.get('password')
-    user = User.query.filter_by(username=u, password=p).first()
-    if user: login_user(user)
-    return redirect(url_for('chat_page'))
+        new_u = User(username=u, password=p, avatar=a or "https://cdn-icons-png.flaticon.com/512/149/149071.png")
+        db.session.add(new_u); db.session.commit(); login_user(new_u)
+    else:
+        user = User.query.filter_by(username=u, password=p).first()
+        if user: login_user(user)
+    return redirect(url_for('chat'))
 
 @app.route('/logout')
-def logout():
-    logout_user(); return redirect(url_for('index'))
+def logout(): logout_user(); return redirect(url_for('index'))
 
-# --- SOCKET ---
+# --- SOCKET OLAYLARI ---
 @socketio.on('join')
 def on_join(data):
     join_room(data['room'])
-    msgs = Message.query.filter_by(room=data['room']).all()
-    emit('load_history', [{'sender':m.sender,'content':m.content,'type':m.m_type} for m in msgs])
+    msgs = Message.query.filter_by(room=data['room']).order_by(Message.timestamp.asc()).limit(50).all()
+    emit('load_history', [{'sender':m.sender, 'content':m.content, 'type':m.m_type} for m in msgs])
 
 @socketio.on('send_message')
 def handle_msg(data):
@@ -105,9 +91,10 @@ def handle_msg(data):
 def handle_story(data):
     s = Story(username=current_user.username, user_avatar=current_user.avatar, content=data['content'], media_type=data['type'], audio_data=data.get('audio'))
     db.session.add(s); db.session.commit()
-    send_stories()
+    send_stories_to_all()
 
-def send_stories():
+@socketio.on('get_stories')
+def send_stories_to_all():
     stories = Story.query.all()
     grouped = {}
     for s in stories:
