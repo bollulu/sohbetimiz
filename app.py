@@ -1,30 +1,26 @@
 import os
-import json
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, login_user, logout_user, login_required, current_user
 from flask_sqlalchemy import SQLAlchemy
-from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
-from flask_socketio import SocketIO, emit, join_room
+from flask_login import LoginManager, UserMixin
+from flask_socketio import SocketIO, emit, join_room, leave_room
 from datetime import datetime
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'super_secret_key_2026'
-# Büyük dosya transferi için limitleri 100MB yapıyoruz
-app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024 
+app.config['SECRET_KEY'] = 'super_secret_2026'
+app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024 # 100MB Limit
 
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'superapp.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'superapp_v3.db')
 
 db = SQLAlchemy(app)
 socketio = SocketIO(app, cors_allowed_origins="*", max_http_buffer_size=100 * 1024 * 1024)
 
-# MODELLER
+# VERİTABANI MODELLERİ
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password = db.Column(db.String(80), nullable=False)
-    gender = db.Column(db.String(10))
     avatar = db.Column(db.Text)
-    blocked_users = db.Column(db.Text, default='[]')
 
 class Message(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -34,106 +30,82 @@ class Message(db.Model):
     content = db.Column(db.Text)
     type = db.Column(db.String(20)) # text, image, audio, video
     timestamp = db.Column(db.String(20))
-    status = db.Column(db.String(20), default='sent')
 
 class Story(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80))
-    content = db.Column(db.Text)
-    type = db.Column(db.String(20))
-    viewers = db.Column(db.Text, default='[]')
+    avatar = db.Column(db.Text)
+    content = db.Column(db.Text) # Base64 (Video or Image)
+    type = db.Column(db.String(10)) # image/video
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 with app.app_context():
     db.create_all()
 
 login_manager = LoginManager(app)
-login_manager.login_view = 'auth'
-
 @login_manager.user_loader
-def load_user(user_id):
-    return db.session.get(User, int(user_id))
+def load_user(id): return db.session.get(User, int(id))
 
-# YOLLAR (ROUTES)
+# ROUTES
 @app.route('/')
-def index():
-    return redirect(url_for('auth'))
-
-@app.route('/auth')
-def auth():
-    return render_template('auth.html')
+def index(): return redirect(url_for('chat')) if current_user.is_authenticated else render_template('auth.html')
 
 @app.route('/login', methods=['POST'])
 def login():
     u, p = request.form.get('username'), request.form.get('password')
     user = User.query.filter_by(username=u, password=p).first()
-    if user:
-        login_user(user, remember=True)
-        return redirect(url_for('chat'))
-    return "Hata: Kullanıcı adı veya şifre yanlış!"
+    if user: login_user(user, remember=True); return redirect(url_for('chat'))
+    return "Hata!"
 
 @app.route('/register', methods=['POST'])
 def register():
-    u, p, g = request.form.get('username'), request.form.get('password'), request.form.get('gender')
-    a = request.form.get('avatar_data') or ""
-    if User.query.filter_by(username=u).first():
-        return "Bu kullanıcı adı zaten mevcut."
-    new_user = User(username=u, password=p, gender=g, avatar=a)
-    db.session.add(new_user)
-    db.session.commit()
-    login_user(new_user)
+    u, p, a = request.form.get('username'), request.form.get('password'), request.form.get('avatar_data')
+    if User.query.filter_by(username=u).first(): return "Mevcut!"
+    new_user = User(username=u, password=p, avatar=a)
+    db.session.add(new_user); db.session.commit(); login_user(new_user)
     return redirect(url_for('chat'))
 
 @app.route('/chat')
 @login_required
 def chat():
     users = User.query.all()
-    return render_template('chat.html', user=current_user, all_users=users)
+    stories = Story.query.order_by(Story.created_at.desc()).all()
+    return render_template('chat.html', user=current_user, all_users=users, stories=stories)
 
 @app.route('/logout')
-def logout():
-    logout_user()
-    return redirect(url_for('auth'))
+def logout(): logout_user(); return redirect(url_for('index'))
 
-# SOCKETIO ISLEMLERI
+# SOCKETIO
 @socketio.on('join')
 def on_join(data):
-    room = data['room']
-    join_room(room)
-    msgs = Message.query.filter_by(room=room).all()
-    history = [{'id': m.id, 'sender': m.sender, 'content': m.content, 'type': m.type, 'avatar': m.avatar, 'time': m.timestamp, 'status': m.status} for m in msgs]
-    emit('load_history', history)
+    join_room(data['room'])
+    msgs = Message.query.filter_by(room=data['room']).all()
+    emit('load_history', [{'id':m.id,'sender':m.sender,'avatar':m.avatar,'content':m.content,'type':m.type,'time':m.timestamp} for m in msgs])
 
 @socketio.on('message')
-def handle_message(data):
-    time_now = datetime.now().strftime("%H:%M")
-    new_msg = Message(room=data['room'], sender=current_user.username, avatar=current_user.avatar, content=data['content'], type=data['type'], timestamp=time_now)
-    db.session.add(new_msg)
-    db.session.commit()
-    data.update({'id': new_msg.id, 'sender': current_user.username, 'avatar': current_user.avatar, 'time': time_now, 'status': 'sent'})
+def handle_msg(data):
+    time = datetime.now().strftime("%H:%M")
+    new_m = Message(room=data['room'], sender=current_user.username, avatar=current_user.avatar, content=data['content'], type=data['type'], timestamp=time)
+    db.session.add(new_m); db.session.commit()
+    data.update({'id':new_m.id, 'sender':current_user.username, 'avatar':current_user.avatar, 'time':time})
     emit('message', data, room=data['room'])
 
-@socketio.on('delete_msg')
-def delete_msg(data):
-    m = db.session.get(Message, data['id'])
-    if m and m.sender == current_user.username:
-        db.session.delete(m)
-        db.session.commit()
-        emit('msg_deleted', data['id'], room=m.room)
-
-@socketio.on('mark_read')
-def mark_read(data):
-    m = db.session.get(Message, data['id'])
-    if m and m.sender != current_user.username:
-        m.status = 'read'
-        db.session.commit()
-        emit('status_updated', {'id': m.id, 'status': 'read'}, room=m.room)
-
-@socketio.on('update_profile')
-def update_profile(data):
-    current_user.avatar = data['new_avatar']
+@socketio.on('delete_group')
+def delete_group(data):
+    Message.query.filter_by(room=data['room']).delete()
     db.session.commit()
-    emit('profile_synced', {'username': current_user.username, 'new_avatar': data['new_avatar']}, broadcast=True)
+    emit('group_deleted', data['room'], broadcast=True)
+
+@socketio.on('post_story')
+def post_story(data):
+    new_s = Story(username=current_user.username, avatar=current_user.avatar, content=data['content'], type=data['type'])
+    db.session.add(new_s); db.session.commit()
+    emit('new_story', {'username':current_user.username, 'avatar':current_user.avatar, 'content':data['content'], 'type':data['type']}, broadcast=True)
+
+# Video Arama Sinyalleşme
+@socketio.on('call-user')
+def call_user(data):
+    emit('incoming-call', {'from': current_user.username, 'signal': data['signal']}, room=data['to'])
 
 if __name__ == '__main__':
     socketio.run(app, debug=True)
