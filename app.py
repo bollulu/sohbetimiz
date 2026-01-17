@@ -1,16 +1,16 @@
 import os
-from flask import Flask, render_template, request, redirect, url_for, login_user, logout_user, login_required, current_user
+from flask import Flask, render_template, request, redirect, url_for
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_sqlalchemy import SQLAlchemy
-from flask_login import LoginManager, UserMixin
-from flask_socketio import SocketIO, emit, join_room, leave_room
+from flask_socketio import SocketIO, emit, join_room
 from datetime import datetime
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'super_secret_2026'
+app.config['SECRET_KEY'] = 'super_gizli_anahtar_2026'
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024 # 100MB Limit
 
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'superapp_v3.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'data.db')
 
 db = SQLAlchemy(app)
 socketio = SocketIO(app, cors_allowed_origins="*", max_http_buffer_size=100 * 1024 * 1024)
@@ -28,15 +28,15 @@ class Message(db.Model):
     sender = db.Column(db.String(80))
     avatar = db.Column(db.Text)
     content = db.Column(db.Text)
-    type = db.Column(db.String(20)) # text, image, audio, video
+    type = db.Column(db.String(20))
     timestamp = db.Column(db.String(20))
 
 class Story(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80))
     avatar = db.Column(db.Text)
-    content = db.Column(db.Text) # Base64 (Video or Image)
-    type = db.Column(db.String(10)) # image/video
+    content = db.Column(db.Text)
+    type = db.Column(db.String(10)) # image or video
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 with app.app_context():
@@ -48,19 +48,21 @@ def load_user(id): return db.session.get(User, int(id))
 
 # ROUTES
 @app.route('/')
-def index(): return redirect(url_for('chat')) if current_user.is_authenticated else render_template('auth.html')
+def index():
+    if current_user.is_authenticated: return redirect(url_for('chat'))
+    return render_template('auth.html')
 
 @app.route('/login', methods=['POST'])
 def login():
     u, p = request.form.get('username'), request.form.get('password')
     user = User.query.filter_by(username=u, password=p).first()
     if user: login_user(user, remember=True); return redirect(url_for('chat'))
-    return "Hata!"
+    return "Hata: Giriş başarısız!"
 
 @app.route('/register', methods=['POST'])
 def register():
     u, p, a = request.form.get('username'), request.form.get('password'), request.form.get('avatar_data')
-    if User.query.filter_by(username=u).first(): return "Mevcut!"
+    if User.query.filter_by(username=u).first(): return "Bu kullanıcı zaten var!"
     new_user = User(username=u, password=p, avatar=a)
     db.session.add(new_user); db.session.commit(); login_user(new_user)
     return redirect(url_for('chat'))
@@ -75,7 +77,7 @@ def chat():
 @app.route('/logout')
 def logout(): logout_user(); return redirect(url_for('index'))
 
-# SOCKETIO
+# SOCKETIO OLAYLARI
 @socketio.on('join')
 def on_join(data):
     join_room(data['room'])
@@ -92,6 +94,7 @@ def handle_msg(data):
 
 @socketio.on('delete_group')
 def delete_group(data):
+    # Gruba ait tüm mesajları siler
     Message.query.filter_by(room=data['room']).delete()
     db.session.commit()
     emit('group_deleted', data['room'], broadcast=True)
@@ -100,12 +103,7 @@ def delete_group(data):
 def post_story(data):
     new_s = Story(username=current_user.username, avatar=current_user.avatar, content=data['content'], type=data['type'])
     db.session.add(new_s); db.session.commit()
-    emit('new_story', {'username':current_user.username, 'avatar':current_user.avatar, 'content':data['content'], 'type':data['type']}, broadcast=True)
-
-# Video Arama Sinyalleşme
-@socketio.on('call-user')
-def call_user(data):
-    emit('incoming-call', {'from': current_user.username, 'signal': data['signal']}, room=data['to'])
+    emit('new_story', {'username':current_user.username, 'avatar':current_user.avatar})
 
 if __name__ == '__main__':
     socketio.run(app, debug=True)
