@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, redirect, session, jsonify
-from flask_socketio import SocketIO, emit, join_room
+from flask_socketio import SocketIO, emit, join_room, leave_room
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
@@ -23,32 +23,35 @@ class User(db.Model):
     username = db.Column(db.String(50), unique=True)
     password = db.Column(db.String(200))
     avatar = db.Column(db.String(200), default="/static/default.png")
+    online = db.Column(db.Boolean, default=False)
 
 class Group(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(50), unique=True)
+    password = db.Column(db.String(200))
+
+class GroupMember(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    group = db.Column(db.String(50))
+    username = db.Column(db.String(50))
 
 class Message(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    room = db.Column(db.String(100))
+    room = db.Column(db.String(50))
     user = db.Column(db.String(50))
+    avatar = db.Column(db.String(200))
     msg = db.Column(db.Text)
-    time = db.Column(db.DateTime, default=datetime.utcnow)
+    read_by = db.Column(db.Text, default="")
+    created = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Story(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50))
     media = db.Column(db.Text)
-    music = db.Column(db.Text)
-    type = db.Column(db.String(10))
-    viewers = db.Column(db.Text, default="")
     created = db.Column(db.DateTime, default=datetime.utcnow)
 
 with app.app_context():
     db.create_all()
-    if not Group.query.filter_by(name="genel").first():
-        db.session.add(Group(name="genel"))
-        db.session.commit()
 
 # ================= AUTH =================
 
@@ -60,6 +63,8 @@ def auth():
         user = User.query.filter_by(username=u).first()
         if user and check_password_hash(user.password, p):
             session["user"] = u
+            user.online = True
+            db.session.commit()
             return redirect("/chat")
     return render_template("auth.html")
 
@@ -74,6 +79,10 @@ def register():
 
 @app.route("/logout")
 def logout():
+    u = User.query.filter_by(username=session.get("user")).first()
+    if u:
+        u.online = False
+        db.session.commit()
     session.clear()
     return redirect("/")
 
@@ -84,8 +93,9 @@ def chat():
     if "user" not in session:
         return redirect("/")
     user = User.query.filter_by(username=session["user"]).first()
-    groups = [g.name for g in Group.query.all()]
-    return render_template("chat.html", user=user, groups=groups)
+    groups = Group.query.all()
+    users = User.query.all()
+    return render_template("chat.html", user=user, groups=groups, users=users)
 
 # ================= AVATAR =================
 
@@ -103,76 +113,59 @@ def upload_avatar():
 # ================= SOCKET =================
 
 @socketio.on("join_room")
-def join_room_event(data):
-    join_room(data["room"])
-    msgs = Message.query.filter_by(room=data["room"]).all()
-    emit("history", [
-        {"id": m.id, "user": m.user, "msg": m.msg}
-        for m in msgs
-    ])
+def join(data):
+    room = data["room"]
+    join_room(room)
+
+    msgs = Message.query.filter_by(room=room).all()
+    emit("history", [{
+        "id": m.id,
+        "user": m.user,
+        "avatar": m.avatar,
+        "msg": m.msg,
+        "read": session["user"] in m.read_by.split(",")
+    } for m in msgs])
 
 @socketio.on("send_msg")
-def send_msg(data):
+def send(data):
+    u = User.query.filter_by(username=session["user"]).first()
     m = Message(
         room=data["room"],
-        user=session["user"],
-        msg=data["msg"]
+        user=u.username,
+        avatar=u.avatar,
+        msg=data["msg"],
+        read_by=u.username
     )
     db.session.add(m)
     db.session.commit()
     emit("new_msg", {
         "id": m.id,
         "user": m.user,
+        "avatar": m.avatar,
         "msg": m.msg
     }, to=data["room"])
 
-@socketio.on("delete_msg")
-def delete_msg(data):
+@socketio.on("read_msg")
+def read(data):
+    m = Message.query.get(data["id"])
+    if m and session["user"] not in m.read_by:
+        m.read_by += session["user"] + ","
+        db.session.commit()
+        emit("read_update", {"id": m.id}, broadcast=True)
+
+@socketio.on("edit_msg")
+def edit(data):
     m = Message.query.get(data["id"])
     if m and m.user == session["user"]:
-        db.session.delete(m)
-        db.session.commit()
-        emit("msg_deleted", {"id": data["id"]}, broadcast=True)
-
-@socketio.on("create_group")
-def create_group(data):
-    if not Group.query.filter_by(name=data["name"]).first():
-        db.session.add(Group(name=data["name"]))
-        db.session.commit()
-    emit("groups", [g.name for g in Group.query.all()], broadcast=True)
-
-# ================= STORY =================
-
-@socketio.on("add_story")
-def add_story(data):
-    s = Story(
-        username=session["user"],
-        media=data["media"],
-        music=data.get("music"),
-        type=data["type"]
-    )
-    db.session.add(s)
-    db.session.commit()
-    send_stories()
-
-def send_stories():
-    now = datetime.utcnow()
-    out = {}
-    for s in Story.query.all():
-        if now - s.created > timedelta(hours=24):
-            db.session.delete(s)
+        if datetime.utcnow() - m.created < timedelta(minutes=5):
+            m.msg = data["msg"]
             db.session.commit()
-            continue
-        if s.username not in out:
-            u = User.query.filter_by(username=s.username).first()
-            out[s.username] = {
-                "avatar": u.avatar,
-                "items": []
-            }
-        out[s.username]["items"].append({
-            "id": s.id,
-            "media": s.media,
-            "music": s.music,
-            "type": s.type
-        })
-    socketio.emit("stories", out)
+            emit("edit_update", {"id": m.id, "msg": m.msg}, broadcast=True)
+
+@socketio.on("disconnect")
+def disconnect():
+    if "user" in session:
+        u = User.query.filter_by(username=session["user"]).first()
+        if u:
+            u.online = False
+            db.session.commit()
