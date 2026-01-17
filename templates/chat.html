@@ -3,93 +3,116 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chat Plus</title>
+    <title>Chat Plus Full</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         :root { --dark: #111b21; --dark-sec: #202c33; --green: #00a884; --text: #e9edef; }
-        body { margin: 0; font-family: sans-serif; background: var(--dark); color: var(--text); height: 100vh; display: flex; overflow: hidden; }
+        body { margin: 0; font-family: 'Segoe UI', sans-serif; background: var(--dark); color: var(--text); height: 100vh; display: flex; overflow: hidden; }
         
-        #sidebar { width: 300px; background: var(--dark-sec); border-right: 1px solid #333; display: flex; flex-direction: column; }
-        .header { padding: 10px; background: var(--dark-sec); display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; }
-        .user-avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; cursor: pointer; }
+        /* Sol Menü */
+        #sidebar { width: 350px; background: var(--dark-sec); border-right: 1px solid #333; display: flex; flex-direction: column; }
+        .header { padding: 15px; background: var(--dark-sec); display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; }
+        .my-ava { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; cursor: pointer; border: 2px solid #444; }
         
+        .tabs { display: flex; border-bottom: 1px solid #333; }
+        .tab { flex: 1; padding: 15px; text-align: center; cursor: pointer; transition: 0.3s; }
+        .tab.active { border-bottom: 3px solid var(--green); color: var(--green); }
+
         .list-area { flex: 1; overflow-y: auto; }
-        .list-item { padding: 12px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; border-bottom: 1px solid #2a3942; }
+        .list-item { padding: 12px 15px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; border-bottom: 1px solid #2a3942; }
         .list-item:hover { background: #2a3942; }
-        .item-info { display: flex; align-items: center; gap: 10px; }
-        .del-icon { color: #ea4335; padding: 5px; opacity: 0.6; }
-        .del-icon:hover { opacity: 1; }
+        .item-main { display: flex; align-items: center; gap: 12px; }
+        .item-ava { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; }
+        .del-btn { color: #ff5c5c; padding: 8px; font-size: 14px; opacity: 0.6; }
+        .del-btn:hover { opacity: 1; }
 
-        #main-chat { flex: 1; display: flex; flex-direction: column; position: relative; }
+        /* Sağ Alan */
+        #main-chat { flex: 1; display: flex; flex-direction: column; background: #0b141a; }
         
-        /* HİKAYE BARI GÜNCEL */
-        #story-bar { background: #111b21; padding: 10px; display: flex; gap: 15px; overflow-x: auto; border-bottom: 1px solid #333; height: 100px; align-items: center; }
-        .story-wrapper { display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 70px; cursor: pointer; }
-        .story-circle { width: 55px; height: 55px; border-radius: 50%; border: 2px solid var(--green); padding: 2px; }
+        /* Hikaye Barı */
+        #story-bar { background: #111b21; padding: 10px; display: flex; gap: 15px; overflow-x: auto; border-bottom: 1px solid #333; min-height: 110px; align-items: center; }
+        .story-wrapper { display: flex; flex-direction: column; align-items: center; gap: 5px; min-width: 75px; cursor: pointer; }
+        .story-circle { width: 60px; height: 60px; border-radius: 50%; border: 3px solid var(--green); padding: 2px; }
         .story-circle img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
-        .story-name { font-size: 11px; color: #8696a0; text-align: center; max-width: 60px; overflow: hidden; }
-        .story-add { width: 55px; height: 55px; border-radius: 50%; border: 2px dashed #555; display: flex; justify-content: center; align-items: center; font-size: 20px; }
+        .story-name { font-size: 11px; color: #8696a0; text-align: center; }
+        .add-story { width: 60px; height: 60px; border-radius: 50%; border: 2px dashed #444; display: flex; justify-content: center; align-items: center; font-size: 24px; color: #444; }
 
-        #messages-area { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; background: #0b141a; }
-        .message { max-width: 70%; padding: 8px; border-radius: 8px; position: relative; display: flex; gap: 8px; }
-        .msg-in { align-self: flex-start; background: #202c33; }
+        /* Mesajlar */
+        #messages-area { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+        .message { max-width: 70%; padding: 8px 12px; border-radius: 10px; position: relative; display: flex; gap: 10px; }
         .msg-out { align-self: flex-end; background: #005c4b; flex-direction: row-reverse; }
-        .msg-text { display: flex; flex-direction: column; }
-        .msg-sender { font-size: 12px; font-weight: bold; color: #dcf8c6; margin-bottom: 3px; }
-        .msg-del-btn { font-size: 12px; color: #ff5c5c; cursor: pointer; margin-left: 10px; visibility: hidden; }
-        .message:hover .msg-del-btn { visibility: visible; }
+        .msg-in { align-self: flex-start; background: #202c33; }
+        .msg-ava-small { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; }
+        .msg-del-icon { color: #ff5c5c; cursor: pointer; font-size: 12px; margin-left: 10px; visibility: hidden; }
+        .message:hover .msg-del-icon { visibility: visible; }
+        .media-content { max-width: 100%; border-radius: 8px; margin-top: 5px; }
 
-        #input-area { padding: 10px; background: var(--dark-sec); display: flex; gap: 10px; }
-        input[type="text"] { flex: 1; padding: 10px; border-radius: 20px; border: none; background: #2a3942; color: white; }
-        
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; justify-content: center; align-items: center; }
-        .modal-content { background: var(--dark-sec); padding: 20px; border-radius: 10px; width: 300px; text-align: center; }
+        /* Alt Alan */
+        #input-area { padding: 10px 20px; background: var(--dark-sec); display: flex; align-items: center; gap: 15px; }
+        #msg-input { flex: 1; padding: 12px 20px; border-radius: 25px; border: none; background: #2a3942; color: white; outline: none; }
+        .icon-btn { color: #8696a0; font-size: 20px; cursor: pointer; }
+        .icon-btn:hover { color: var(--green); }
+
+        /* Modal */
+        .modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 9999; justify-content: center; align-items: center; }
+        .modal-content { background: var(--dark-sec); padding: 25px; border-radius: 15px; width: 350px; text-align: center; }
     </style>
 </head>
 <body>
 
 <div id="sidebar">
     <div class="header">
-        <img src="{{ user.avatar }}" class="user-avatar" id="my-avatar-top" onclick="document.getElementById('prof-in').click()">
-        <span id="my-username-display">{{ user.username }}</span>
-        <button onclick="location.href='/logout'" style="background:none; border:none; color:white;"><i class="fas fa-sign-out-alt"></i></button>
-        <input type="file" id="prof-in" hidden accept="image/*" onchange="updateAvatar(this)">
+        <img src="{{ user.avatar }}" class="my-ava" id="top-my-avatar" onclick="document.getElementById('profile-in').click()">
+        <span style="font-weight: bold;">{{ user.username }}</span>
+        <div style="display:flex; gap:15px;">
+            <i class="fas fa-video icon-btn" onclick="startCallPrompt()"></i>
+            <i class="fas fa-sign-out-alt icon-btn" onclick="location.href='/logout'"></i>
+        </div>
+        <input type="file" id="profile-in" hidden accept="image/*" onchange="updateMyProfile(this)">
     </div>
-    <div style="display:flex; background:#111b21;">
-        <div style="flex:1; padding:10px; text-align:center; cursor:pointer;" onclick="showTab('chats')">Kişiler</div>
-        <div style="flex:1; padding:10px; text-align:center; cursor:pointer;" onclick="showTab('groups')">Gruplar</div>
+
+    <div class="tabs">
+        <div class="tab active" onclick="showList('chats', this)">Kişiler</div>
+        <div class="tab" onclick="showList('groups', this)">Gruplar</div>
     </div>
+
     <div id="list-chats" class="list-area"></div>
     <div id="list-groups" class="list-area" style="display:none;">
-        <button onclick="openGroupModal()" style="width:100%; padding:10px; background:var(--green); border:none; color:white;">Grup Kur</button>
+        <button onclick="document.getElementById('g-modal').style.display='flex'" style="width:100%; padding:12px; background:var(--green); border:none; color:white; font-weight:bold; cursor:pointer;">+ Grup Oluştur</button>
         <div id="groups-container"></div>
     </div>
 </div>
 
 <div id="main-chat">
     <div id="story-bar">
-        <div class="story-wrapper" onclick="openStoryModal()">
-            <div class="story-add">+</div>
-            <div class="story-name">Ekle</div>
+        <div class="story-wrapper" onclick="document.getElementById('story-in').click()">
+            <div class="add-story"><i class="fas fa-plus"></i></div>
+            <div class="story-name">Hikaye Ekle</div>
+            <input type="file" id="story-in" hidden accept="image/*,video/*" onchange="uploadStory(this)">
         </div>
-        <div id="story-list" style="display:flex; gap:10px;"></div>
+        <div id="story-list" style="display:flex; gap:12px;"></div>
     </div>
 
     <div id="messages-area"></div>
 
     <div id="input-area">
-        <input type="text" id="msg-input" placeholder="Mesaj yazın..." onkeypress="if(event.key==='Enter') sendMessage()">
-        <button onclick="sendMessage()" style="background:none; border:none; color:var(--green); font-size:20px;"><i class="fas fa-paper-plane"></i></button>
+        <label for="file-in" class="icon-btn"><i class="fas fa-paperclip"></i></label>
+        <input type="file" id="file-in" hidden onchange="uploadFile(this)">
+        
+        <i class="fas fa-microphone icon-btn" id="mic-btn" onclick="handleMic()"></i>
+        
+        <input type="text" id="msg-input" placeholder="Bir mesaj yazın..." onkeypress="if(event.key==='Enter') sendText()">
+        <i class="fas fa-paper-plane icon-btn" style="color:var(--green);" onclick="sendText()"></i>
     </div>
 </div>
 
-<div id="group-modal" class="modal">
+<div id="g-modal" class="modal">
     <div class="modal-content">
-        <h3>Grup Adı</h3>
-        <input type="text" id="new-group-name" style="width:100%; padding:8px; margin-bottom:10px;">
-        <button onclick="createGroup()" style="background:var(--green); color:white; padding:8px 20px; border:none;">Oluştur</button>
-        <button onclick="closeModal('group-modal')" style="background:#555; color:white; padding:8px 20px; border:none;">İptal</button>
+        <h3>Yeni Grup</h3>
+        <input type="text" id="g-name" placeholder="Grup ismi..." style="width:100%; padding:10px; margin-bottom:15px; background:#111; color:white; border:1px solid #444;">
+        <button onclick="createGroup()" style="background:var(--green); color:white; padding:10px 20px; border:none; border-radius:5px;">Oluştur</button>
+        <button onclick="document.getElementById('g-modal').style.display='none'" style="background:#555; color:white; padding:10px 20px; border:none; border-radius:5px; margin-left:10px;">İptal</button>
     </div>
 </div>
 
@@ -97,99 +120,88 @@
     const socket = io();
     const myName = "{{ user.username }}";
     let currentRoom = "Genel";
+    let mediaRec;
+    let audioChunks = [];
 
     // --- BAŞLATMA ---
-    window.onload = () => {
-        socket.emit('join', {room: 'Genel'});
-    };
+    window.onload = () => { socket.emit('join', {room: 'Genel'}); };
 
-    function showTab(tab) {
-        document.getElementById('list-chats').style.display = tab === 'chats' ? 'block' : 'none';
-        document.getElementById('list-groups').style.display = tab === 'groups' ? 'block' : 'none';
+    function showList(type, el) {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        el.classList.add('active');
+        document.getElementById('list-chats').style.display = type === 'chats' ? 'block' : 'none';
+        document.getElementById('list-groups').style.display = type === 'groups' ? 'block' : 'none';
     }
 
-    // --- AVATAR GÜNCELLEME (HER YERDE ANINDA) ---
-    function updateAvatar(input) {
+    // --- ANLIK AVATAR GÜNCELLEME ---
+    function updateMyProfile(input) {
         if(!input.files[0]) return;
         const r = new FileReader();
         r.onload = e => {
             socket.emit('update_profile', {avatar: e.target.result});
-            document.getElementById('my-avatar-top').src = e.target.result;
+            document.getElementById('top-my-avatar').src = e.target.result;
         };
         r.readAsDataURL(input.files[0]);
     }
 
-    // Avatar değiştiğinde tüm sayfayı tarayıp güncelleyen mucize fonksiyon
     socket.on('user_info_updated', data => {
-        // 1. Sidebar listesi
-        document.querySelectorAll(`.item-info[data-user="${data.username}"] img`).forEach(img => img.src = data.avatar);
-        // 2. Mesaj geçmişi
-        document.querySelectorAll(`.msg-avatar[data-user="${data.username}"]`).forEach(img => img.src = data.avatar);
-        // 3. Hikaye barı
-        document.querySelectorAll(`.story-wrapper[data-user="${data.username}"] img`).forEach(img => img.src = data.avatar);
+        // Tüm resimleri anında değiştir
+        document.querySelectorAll(`img[data-user="${data.username}"]`).forEach(img => img.src = data.avatar);
     });
 
-    // --- KİŞİ LİSTESİ ---
+    // --- LİSTELER ---
     socket.on('update_user_list', users => {
         const list = document.getElementById('list-chats');
         list.innerHTML = '';
         users.forEach(u => {
             list.innerHTML += `
                 <div class="list-item" onclick="startPrivate('${u.username}')">
-                    <div class="item-info" data-user="${u.username}">
-                        <img src="${u.avatar}" class="user-avatar">
+                    <div class="item-main" data-user="${u.username}">
+                        <img src="${u.avatar}" class="item-ava" data-user="${u.username}">
                         <span>${u.username} ${u.is_me ? '(Siz)' : ''}</span>
                     </div>
                 </div>`;
         });
     });
 
-    // --- GRUP SİSTEMİ ---
-    function openGroupModal() { document.getElementById('group-modal').style.display = 'flex'; }
-    function closeModal(id) { document.getElementById(id).style.display = 'none'; }
-    function createGroup() {
-        const name = document.getElementById('new-group-name').value;
-        if(name) { socket.emit('create_group', {name: name}); closeModal('group-modal'); }
-    }
     socket.on('update_group_list', groups => {
-        const container = document.getElementById('groups-container');
-        container.innerHTML = '';
+        const cont = document.getElementById('groups-container');
+        cont.innerHTML = '';
         groups.forEach(g => {
-            const delBtn = g.admin === myName ? `<i class="fas fa-trash del-icon" onclick="deleteGroup(event, '${g.name}')"></i>` : '';
-            container.innerHTML += `
+            const del = g.admin === myName ? `<i class="fas fa-trash del-btn" onclick="deleteGroup(event, '${g.name}')"></i>` : '';
+            cont.innerHTML += `
                 <div class="list-item" onclick="joinRoom('${g.name}')">
-                    <div class="item-info">
-                        <div class="user-avatar" style="background:#444; display:flex; justify-content:center; align-items:center;"><i class="fas fa-users"></i></div>
+                    <div class="item-main">
+                        <div class="item-ava" style="background:#333; display:flex; align-items:center; justify-content:center;"><i class="fas fa-users"></i></div>
                         <span>${g.name}</span>
                     </div>
-                    ${delBtn}
+                    ${del}
                 </div>`;
         });
     });
-    function deleteGroup(e, name) {
-        e.stopPropagation();
-        if(confirm(name + " grubunu silmek istediğine emin misin?")) socket.emit('delete_group', {name: name});
-    }
 
-    // --- SOHBET ---
-    function joinRoom(room) {
-        currentRoom = room;
-        document.getElementById('messages-area').innerHTML = '';
-        socket.emit('join', {room: room});
-    }
-    function startPrivate(user) {
-        const room = [myName, user].sort().join('_');
-        joinRoom(room);
-    }
-    function sendMessage() {
-        const msg = document.getElementById('msg-input').value;
-        if(msg) {
-            socket.emit('send_message', {room: currentRoom, msg: msg, type: 'text'});
-            document.getElementById('msg-input').value = '';
+    // --- MESAJ SİSTEMİ ---
+    function sendText() {
+        const inp = document.getElementById('msg-input');
+        if(inp.value.trim()) {
+            socket.emit('send_message', {room: currentRoom, msg: inp.value, type: 'text'});
+            inp.value = '';
         }
     }
-    socket.on('load_history', msgs => msgs.forEach(m => displayMsg(m)));
-    socket.on('new_message', m => { displayMsg(m); scrollToBottom(); });
+
+    function uploadFile(inp) {
+        const f = inp.files[0];
+        const type = f.type.startsWith('image') ? 'image' : (f.type.startsWith('video') ? 'video' : 'audio');
+        const r = new FileReader();
+        r.onload = e => socket.emit('send_message', {room: currentRoom, msg: e.target.result, type: type});
+        r.readAsDataURL(f);
+    }
+
+    socket.on('new_message', m => { displayMsg(m); document.getElementById('messages-area').scrollTop = 999999; });
+    socket.on('load_history', msgs => { 
+        document.getElementById('messages-area').innerHTML = '';
+        msgs.forEach(m => displayMsg(m)); 
+    });
 
     function displayMsg(m) {
         const isMe = m.sender === myName;
@@ -198,54 +210,83 @@
         div.className = `message ${isMe ? 'msg-out' : 'msg-in'}`;
         div.id = `msg-${m.id}`;
         
-        const delBtn = isMe ? `<span class="msg-del-btn" onclick="deleteMsg(${m.id})"><i class="fas fa-trash"></i></span>` : '';
+        const del = isMe ? `<i class="fas fa-trash msg-del-icon" onclick="deleteMsg(${m.id})"></i>` : '';
+        
+        let content = m.content;
+        if(m.type === 'image') content = `<img src="${m.content}" class="media-content">`;
+        if(m.type === 'video') content = `<video src="${m.content}" controls class="media-content"></video>`;
+        if(m.type === 'audio') content = `<audio src="${m.content}" controls></audio>`;
 
         div.innerHTML = `
-            <img src="${m.avatar}" class="user-avatar msg-avatar" data-user="${m.sender}">
-            <div class="msg-text">
-                <div class="msg-sender">${m.sender} ${delBtn}</div>
-                <div>${m.content}</div>
-                <div style="font-size:10px; color:#888; text-align:right;">${m.time}</div>
+            <img src="${m.avatar}" class="msg-ava-small" data-user="${m.sender}">
+            <div style="display:flex; flex-direction:column;">
+                <div style="font-size:12px; font-weight:bold; color:var(--green); display:flex; justify-content:space-between;">
+                    ${m.sender} ${del}
+                </div>
+                <div>${content}</div>
+                <div style="font-size:10px; color:#aaa; text-align:right;">${m.time}</div>
             </div>`;
         area.appendChild(div);
     }
-    function deleteMsg(id) {
-        if(confirm("Mesajı sil?")) socket.emit('delete_message', {id: id});
-    }
-    socket.on('message_deleted', data => {
-        const el = document.getElementById(`msg-${data.id}`);
-        if(el) el.remove();
-    });
-    function scrollToBottom() { const area = document.getElementById('messages-area'); area.scrollTop = area.scrollHeight; }
 
-    // --- HİKAYELER (GÜNCELLENMİŞ) ---
-    function openStoryModal() {
-        const input = document.createElement('input');
-        input.type = 'file'; input.accept = 'image/*';
-        input.onchange = e => {
-            const r = new FileReader();
-            r.onload = ev => socket.emit('post_story', {content: ev.target.result, type: 'image'});
-            r.readAsDataURL(e.target.files[0]);
-        };
-        input.click();
+    function deleteMsg(id) { if(confirm("Silinsin mi?")) socket.emit('delete_message', {id: id}); }
+    socket.on('message_deleted', d => { document.getElementById(`msg-${d.id}`)?.remove(); });
+
+    function deleteGroup(e, name) {
+        e.stopPropagation();
+        if(confirm("Grubu sil?")) socket.emit('delete_group', {name: name});
     }
+
+    function createGroup() {
+        const n = document.getElementById('g-name').value;
+        if(n) { socket.emit('create_group', {name: n}); document.getElementById('g-modal').style.display='none'; }
+    }
+
+    function startPrivate(u) { joinRoom([myName, u].sort().join('_')); }
+    function joinRoom(r) { currentRoom = r; socket.emit('join', {room: r}); }
+
+    // --- HİKAYELER ---
+    function uploadStory(inp) {
+        const f = inp.files[0];
+        const r = new FileReader();
+        r.onload = e => socket.emit('post_story', {content: e.target.result, type: f.type.startsWith('image') ? 'image' : 'video'});
+        r.readAsDataURL(f);
+    }
+
     socket.on('stories_update', grouped => {
-        const list = document.getElementById('story-list');
-        list.innerHTML = '';
+        const bar = document.getElementById('story-list');
+        bar.innerHTML = '';
         for(let user in grouped) {
             const data = grouped[user];
-            list.innerHTML += `
-                <div class="story-wrapper" data-user="${user}" onclick="viewUserStories('${user}')">
+            bar.innerHTML += `
+                <div class="story-wrapper" data-user="${user}" onclick="alert('${user} hikayesi izleniyor...')">
                     <div class="story-circle">
-                        <img src="${data.avatar}">
+                        <img src="${data.avatar}" data-user="${user}">
                     </div>
                     <div class="story-name">${user === myName ? 'Siz' : user}</div>
                 </div>`;
         }
     });
 
-    function viewUserStories(user) {
-        alert(user + " kullanıcısının hikayeleri yakında tam ekran modunda açılacak!");
+    // --- SES KAYDI ---
+    async function handleMic() {
+        if(!mediaRec || mediaRec.state === 'inactive') {
+            const stream = await navigator.mediaDevices.getUserMedia({audio: true});
+            mediaRec = new MediaRecorder(stream);
+            audioChunks = [];
+            mediaRec.ondataavailable = e => audioChunks.push(e.data);
+            mediaRec.onstop = () => {
+                const blob = new Blob(audioChunks);
+                const r = new FileReader();
+                r.onload = e => socket.emit('send_message', {room: currentRoom, msg: e.target.result, type: 'audio'});
+                r.readAsDataURL(blob);
+            };
+            mediaRec.start();
+            document.getElementById('mic-btn').style.color = 'red';
+        } else {
+            mediaRec.stop();
+            document.getElementById('mic-btn').style.color = '#8696a0';
+        }
     }
 </script>
 </body>
