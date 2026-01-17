@@ -2,30 +2,32 @@
 <html>
 <head>
     <title>Sohbetimiz - Giriş</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-        body { margin: 0; font-family: sans-serif; background: #075e54; display: flex; justify-content: center; align-items: center; height: 100vh; }
-        .card { background: white; padding: 30px; border-radius: 15px; width: 320px; text-align: center; }
-        input, button { width: 100%; padding: 12px; margin: 8px 0; border-radius: 20px; border: 1px solid #ddd; box-sizing: border-box; }
-        button { background: #25D366; color: white; font-weight: bold; cursor: pointer; border: none; }
+        body { background: #075e54; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .card { background: white; padding: 30px; border-radius: 20px; width: 320px; text-align: center; }
+        input, select, button { width: 100%; padding: 12px; margin: 8px 0; border-radius: 20px; border: 1px solid #ddd; }
+        button { background: #25D366; color: white; font-weight: bold; border: none; cursor: pointer; }
+        .hidden { display: none; }
         #avatar-prev { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 2px solid #25D366; cursor: pointer; }
     </style>
 </head>
 <body>
     <div class="card">
-        <h2>Sohbetimiz</h2>
-        <img id="avatar-prev" src="https://cdn-icons-png.flaticon.com/512/149/149071.png" onclick="document.getElementById('ava-in').click()">
-        <form action="/register" method="post">
-            <input type="text" name="username" placeholder="Kullanıcı Adı" required>
-            <input type="password" name="password" placeholder="Şifre" required>
-            <input type="hidden" id="avatar_data" name="avatar_data">
-            <button type="submit">Kayıt Ol / Giriş</button>
-        </form>
+        <div id="box">
+            <img id="avatar-prev" src="https://cdn-icons-png.flaticon.com/512/149/149071.png" onclick="document.getElementById('ava-in').click()">
+            <form action="/register" method="post" id="reg-form">
+                <input type="text" name="username" placeholder="Kullanıcı Adı" required>
+                <input type="password" name="password" placeholder="Şifre" required>
+                <select name="gender"><option value="Erkek">Erkek</option><option value="Kadın">Kadın</option></select>
+                <input type="hidden" id="avatar_data" name="avatar_data">
+                <button type="submit">Kayıt Ol / Giriş Yap</button>
+            </form>
+        </div>
     </div>
-    <input type="file" id="ava-in" style="display:none" accept="image/*" onchange="procImg(this)">
+    <input type="file" id="ava-in" style="display:none" accept="image/*" onchange="proc(this)">
     <script>
-        function procImg(input) {
-            if(input.files[0]) {
+        function proc(i) {
+            if(i.files[0]) {
                 const r = new FileReader();
                 r.onload = e => {
                     const img = new Image(); img.src = e.target.result;
@@ -36,8 +38,8 @@
                         document.getElementById('avatar-prev').src = data;
                         document.getElementById('avatar_data').value = data;
                     }
-                };
-                r.readAsDataURL(input.files[0]);
+                }
+                r.readAsDataURL(i.files[0]);
             }
         }
     </script>
