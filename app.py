@@ -2,20 +2,19 @@ from gevent import monkey
 monkey.patch_all()
 import os
 import json
-import base64
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
-from flask_socketio import SocketIO, emit, join_room, leave_room
+from flask_socketio import SocketIO, emit, join_room
 from datetime import datetime
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'gizli_anahtar_v2024'
-app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024 # 500 MB Dosya limiti
+app.config['SECRET_KEY'] = 'gizli_anahtar_v3_final'
+app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024 # 500 MB Limit
 
-# Veritabanı Ayarı (Kalıcı olması için dosya yolu belirtiyoruz)
+# Veritabanı Yolu
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'chat_database.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'chat_database_v3.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
@@ -27,15 +26,15 @@ class User(UserMixin, db.Model):
     username = db.Column(db.String(50), unique=True)
     password = db.Column(db.String(100))
     gender = db.Column(db.String(10))
-    avatar = db.Column(db.Text) # Base64 resim verisi
-    bg_image = db.Column(db.Text, default="") # Arka plan resmi
-    blocked_users = db.Column(db.Text, default='[]') # Engellenenler listesi (JSON)
+    avatar = db.Column(db.Text)
+    bg_image = db.Column(db.Text, default="") 
+    blocked_users = db.Column(db.Text, default='[]') 
 
 class Group(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), unique=True)
     password = db.Column(db.String(50), nullable=True)
-    admin = db.Column(db.String(50)) # Grubu kuran
+    admin = db.Column(db.String(50))
 
 class Message(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -43,19 +42,19 @@ class Message(db.Model):
     sender = db.Column(db.String(50))
     sender_avatar = db.Column(db.Text)
     content = db.Column(db.Text)
-    m_type = db.Column(db.String(20)) # text, image, video, audio
+    m_type = db.Column(db.String(20)) 
     timestamp = db.Column(db.DateTime, default=datetime.now)
-    status = db.Column(db.String(20), default='sent') # sent, read
+    status = db.Column(db.String(20), default='sent')
 
 class Story(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50))
     user_avatar = db.Column(db.Text)
-    content = db.Column(db.Text) # Medya verisi
-    media_type = db.Column(db.String(20)) # image, video
-    music_data = db.Column(db.Text, nullable=True) # Arka plan müziği
+    content = db.Column(db.Text)
+    media_type = db.Column(db.String(20))
+    music_data = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.now)
-    viewers = db.Column(db.Text, default='[]') # Görenler
+    viewers = db.Column(db.Text, default='[]')
 
 class Music(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -63,7 +62,7 @@ class Music(db.Model):
     data = db.Column(db.Text)
     uploader = db.Column(db.String(50))
 
-# Veritabanını oluştur
+# Veritabanı oluştur
 with app.app_context():
     db.create_all()
 
@@ -89,7 +88,7 @@ def login():
     if user:
         login_user(user)
         return redirect(url_for('chat'))
-    return "Kullanıcı adı veya şifre yanlış. <a href='/'>Geri Dön</a>"
+    return "Hatalı giriş. <a href='/'>Geri dön</a>"
 
 @app.route('/register', methods=['POST'])
 def register():
@@ -99,10 +98,9 @@ def register():
     avatar_data = request.form.get('avatar_data')
 
     if User.query.filter_by(username=username).first():
-        return "Bu kullanıcı adı zaten alınmış. <a href='/'>Geri Dön</a>"
+        return "Bu isimde kullanıcı var. <a href='/'>Geri dön</a>"
 
     if not avatar_data:
-        # Varsayılan avatar
         avatar_data = "https://cdn-icons-png.flaticon.com/512/149/149071.png"
 
     new_user = User(username=username, password=password, gender=gender, avatar=avatar_data)
@@ -122,38 +120,55 @@ def logout():
     logout_user()
     return redirect(url_for('index'))
 
-@app.route('/delete_account')
-@login_required
-def delete_account():
-    user = current_user
-    db.session.delete(user)
-    db.session.commit()
-    logout_user()
-    return redirect(url_for('index'))
+# --- SOCKET OLAYLARI ---
 
-# --- SOCKET EVENTS ---
+@socketio.on('connect')
+def on_connect():
+    # Bağlanınca grupları gönder
+    groups = Group.query.all()
+    group_list = [{'name': g.name, 'protected': bool(g.password)} for g in groups]
+    emit('update_group_list', group_list)
+
+@socketio.on('delete_account_confirm')
+def delete_account_confirm(data):
+    password = data.get('password')
+    if current_user.password == password:
+        username = current_user.username
+        # 1. Kullanıcının attığı mesajları sil
+        Message.query.filter_by(sender=username).delete()
+        # 2. Hikayelerini sil
+        Story.query.filter_by(username=username).delete()
+        # 3. Müziklerini sil
+        Music.query.filter_by(uploader=username).delete()
+        # 4. Kullanıcıyı sil
+        db.session.delete(current_user)
+        db.session.commit()
+        logout_user()
+        emit('account_deleted_success', {'url': url_for('index')})
+    else:
+        emit('account_deleted_error', {'msg': 'Şifre Yanlış!'})
 
 @socketio.on('join')
 def on_join(data):
     room = data['room']
     join_room(room)
-    # Geçmiş mesajları yükle
+    
+    # Mesajları yükle
     messages = Message.query.filter_by(room=room).order_by(Message.timestamp).all()
     history = []
     blocked = json.loads(current_user.blocked_users)
     
     for m in messages:
-        # Engellenen kişinin mesajlarını gösterme
         if m.sender not in blocked:
             history.append({
                 'id': m.id, 'sender': m.sender, 'avatar': m.sender_avatar,
                 'content': m.content, 'type': m.m_type, 
                 'time': m.timestamp.strftime('%H:%M'),
-                'status': 'read' # Geçmiş mesaj olduğu için okundu varsayıyoruz
+                'status': 'read'
             })
     emit('load_history', history)
     
-    # Kullanıcı listesini güncelle
+    # Kişi listesi güncelle
     users = User.query.all()
     user_list = []
     for u in users:
@@ -166,12 +181,10 @@ def handle_message(data):
     content = data['msg']
     m_type = data['type']
     
-    # Mesajı kaydet
     msg = Message(room=room, sender=current_user.username, sender_avatar=current_user.avatar, content=content, m_type=m_type)
     db.session.add(msg)
     db.session.commit()
     
-    # Herkese gönder (Alıcı tarafta engelleme kontrolü yapılacak)
     emit('new_message', {
         'id': msg.id, 'sender': current_user.username, 'avatar': current_user.avatar,
         'content': content, 'type': m_type, 
@@ -181,6 +194,7 @@ def handle_message(data):
 @socketio.on('delete_message')
 def delete_msg(data):
     msg = db.session.get(Message, data['id'])
+    # Sadece gönderen silebilir
     if msg and msg.sender == current_user.username:
         db.session.delete(msg)
         db.session.commit()
@@ -192,8 +206,10 @@ def update_profile(data):
         current_user.avatar = data['avatar']
     if 'bg' in data:
         current_user.bg_image = data['bg']
+    if 'reset_bg' in data:
+        current_user.bg_image = ""
+        
     db.session.commit()
-    # Avatar değiştiyse tüm sohbetlerde güncelle
     emit('profile_updated', {'username': current_user.username, 'avatar': current_user.avatar}, broadcast=True)
 
 @socketio.on('block_user')
@@ -203,7 +219,7 @@ def block_user(data):
     if target not in blocked:
         blocked.append(target)
     else:
-        blocked.remove(target) # Varsa kaldır (Unblock)
+        blocked.remove(target)
     current_user.blocked_users = json.dumps(blocked)
     db.session.commit()
     emit('block_updated', {'blocked_list': blocked})
@@ -216,7 +232,11 @@ def create_group(data):
         g = Group(name=name, password=password, admin=current_user.username)
         db.session.add(g)
         db.session.commit()
-        emit('group_created', {'name': name}, broadcast=True)
+        
+        # Tüm kullanıcılara yeni grup listesini yolla
+        groups = Group.query.all()
+        group_list = [{'name': grp.name, 'protected': bool(grp.password)} for grp in groups]
+        emit('update_group_list', group_list, broadcast=True)
 
 @socketio.on('post_story')
 def post_story(data):
@@ -237,7 +257,6 @@ def get_stories():
 
 def broadcast_stories():
     stories = Story.query.all()
-    # Hikayeleri kullanıcıya göre grupla
     grouped = {}
     for s in stories:
         if s.username not in grouped:
@@ -293,7 +312,7 @@ def del_music(data):
         db.session.commit()
         send_music_list()
 
-# WebRTC Sinyalleşme
+# WebRTC
 @socketio.on('video_signal')
 def video_signal(data):
     emit('video_signal', data, room=data['room'], include_self=False)
