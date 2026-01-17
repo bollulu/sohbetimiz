@@ -5,25 +5,26 @@ import json
 from flask import Flask, render_template, request, redirect, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
-from flask_socketio import SocketIO, emit, join_room
+from flask_socketio import SocketIO, emit, join_room, leave_room
 from datetime import datetime
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'full_system_2026'
+app.config['SECRET_KEY'] = 'ultimate_2026_fixed'
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'final_chat.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'final_v3.db')
 app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024 
 
 db = SQLAlchemy(app)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 
+# --- MODELLER ---
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True)
     password = db.Column(db.String(100))
-    gender = db.Column(db.String(10))
     avatar = db.Column(db.Text)
-    blocked_users = db.Column(db.Text, default='[]')
+    bg_image = db.Column(db.Text, default="")
+    blocked_users = db.Column(db.Text, default='[]') # JSON Liste
 
 class Group(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -37,7 +38,8 @@ class Message(db.Model):
     sender = db.Column(db.String(50))
     sender_avatar = db.Column(db.Text)
     content = db.Column(db.Text)
-    m_type = db.Column(db.String(20)) # text, image, video, audio
+    m_type = db.Column(db.String(20)) 
+    status = db.Column(db.String(20), default='sent') # sent / read
     timestamp = db.Column(db.DateTime, default=datetime.now)
 
 class Story(db.Model):
@@ -58,6 +60,7 @@ login_manager.login_view = 'index'
 def load_user(user_id):
     return db.session.get(User, int(user_id))
 
+# --- ROTALAR ---
 @app.route('/')
 def index():
     if current_user.is_authenticated: return redirect(url_for('chat'))
@@ -68,13 +71,13 @@ def login():
     u, p = request.form.get('username'), request.form.get('password')
     user = User.query.filter_by(username=u, password=p).first()
     if user: login_user(user); return redirect(url_for('chat'))
-    return "Hata! <a href='/'>Geri dön</a>"
+    return redirect(url_for('index'))
 
 @app.route('/register', methods=['POST'])
 def register():
-    u, p, g, a = request.form.get('username'), request.form.get('password'), request.form.get('gender'), request.form.get('avatar_data')
-    if User.query.filter_by(username=u).first(): return "Kullanıcı mevcut."
-    new_user = User(username=u, password=p, gender=g, avatar=a or "")
+    u, p, a = request.form.get('username'), request.form.get('password'), request.form.get('avatar_data')
+    if User.query.filter_by(username=u).first(): return "Mevcut!"
+    new_user = User(username=u, password=p, avatar=a or "")
     db.session.add(new_user); db.session.commit(); login_user(new_user)
     return redirect(url_for('chat'))
 
@@ -85,26 +88,43 @@ def chat(): return render_template('chat.html', user=current_user)
 @app.route('/logout')
 def logout(): logout_user(); return redirect(url_for('index'))
 
-# --- SOCKET EVENTS ---
-
+# --- SOCKET OLAYLARI ---
 @socketio.on('join')
 def on_join(data):
     room = data['room']
     join_room(room)
+    # Mesajları okundu yap (Çift Tık)
+    Message.query.filter_by(room=room).filter(Message.sender != current_user.username).update({Message.status: 'read'})
+    db.session.commit()
+    
     msgs = Message.query.filter_by(room=room).order_by(Message.timestamp).all()
-    history = [{'id': m.id, 'sender': m.sender, 'avatar': m.sender_avatar, 'content': m.content, 'type': m.m_type, 'time': m.timestamp.strftime('%H:%M')} for m in msgs]
+    history = [{
+        'id': m.id, 'sender': m.sender, 'avatar': m.sender_avatar, 
+        'content': m.content, 'type': m.m_type, 'status': m.status,
+        'time': m.timestamp.strftime('%d/%m %H:%M')
+    } for m in msgs]
     emit('load_history', history)
     
-    users = User.query.all()
-    emit('update_user_list', [{'username': u.username, 'avatar': u.avatar, 'is_me': (u.username == current_user.username)} for u in users], broadcast=True)
-    emit('update_group_list', [{'name': g.name, 'admin': g.admin} for g in Group.query.all()])
+    # Kullanıcı ve Grup Listesi
+    emit('update_user_list', [{'username': u.username, 'avatar': u.avatar, 'is_me': (u.username == current_user.username)} for u in User.query.all()], broadcast=True)
+    emit('update_group_list', [{'name': g.name, 'admin': g.admin, 'has_pass': bool(g.password)} for g in Group.query.all()])
     send_stories()
 
 @socketio.on('send_message')
 def handle_msg(data):
+    # Engelleme kontrolü
+    target_user = User.query.filter_by(username=data['room']).first()
+    if target_user:
+        blocked = json.loads(target_user.blocked_users)
+        if current_user.username in blocked: return # Mesaj gitmez
+        
     msg = Message(room=data['room'], sender=current_user.username, sender_avatar=current_user.avatar, content=data['msg'], m_type=data['type'])
     db.session.add(msg); db.session.commit()
-    emit('new_message', {'id': msg.id, 'sender': current_user.username, 'avatar': current_user.avatar, 'content': data['msg'], 'type': data['type'], 'time': datetime.now().strftime('%H:%M')}, room=data['room'])
+    emit('new_message', {
+        'id': msg.id, 'sender': current_user.username, 'avatar': current_user.avatar, 
+        'content': data['msg'], 'type': data['type'], 'status': 'sent',
+        'time': datetime.now().strftime('%d/%m %H:%M')
+    }, room=data['room'])
 
 @socketio.on('delete_message')
 def delete_msg(data):
@@ -113,30 +133,14 @@ def delete_msg(data):
         db.session.delete(m); db.session.commit()
         emit('message_deleted', {'id': data['id']}, room=m.room)
 
-@socketio.on('delete_group')
-def delete_group(data):
-    g = Group.query.filter_by(name=data['name']).first()
-    if g and g.admin == current_user.username:
-        Message.query.filter_by(room=g.name).delete()
-        db.session.delete(g); db.session.commit()
-        emit('update_group_list', [{'name': gr.name, 'admin': gr.admin} for gr in Group.query.all()], broadcast=True)
-
-@socketio.on('create_group')
-def create_group(data):
-    if not Group.query.filter_by(name=data['name']).first():
-        g = Group(name=data['name'], admin=current_user.username)
-        db.session.add(g); db.session.commit()
-        emit('update_group_list', [{'name': gr.name, 'admin': gr.admin} for gr in Group.query.all()], broadcast=True)
-
-@socketio.on('update_profile')
-def update_prof(data):
-    if 'avatar' in data:
-        current_user.avatar = data['avatar']
-        # Tüm eski mesajlardaki ve hikayelerdeki resimleri güncelle
-        Message.query.filter_by(sender=current_user.username).update({Message.sender_avatar: data['avatar']})
-        Story.query.filter_by(username=current_user.username).update({Story.user_avatar: data['avatar']})
+@socketio.on('block_user')
+def block_user(data):
+    blocked = json.loads(current_user.blocked_users)
+    if data['username'] not in blocked:
+        blocked.append(data['username'])
+        current_user.blocked_users = json.dumps(blocked)
         db.session.commit()
-        emit('user_info_updated', {'username': current_user.username, 'avatar': data['avatar']}, broadcast=True)
+        emit('user_blocked_success', {'username': data['username']})
 
 @socketio.on('post_story')
 def post_story(data):
@@ -151,6 +155,29 @@ def send_stories():
         if s.username not in grouped: grouped[s.username] = {'username': s.username, 'avatar': s.user_avatar, 'items': []}
         grouped[s.username]['items'].append({'id': s.id, 'content': s.content, 'type': s.media_type})
     emit('stories_update', grouped, broadcast=True)
+
+@socketio.on('update_profile')
+def update_prof(data):
+    if 'avatar' in data:
+        current_user.avatar = data['avatar']
+        Message.query.filter_by(sender=current_user.username).update({Message.sender_avatar: data['avatar']})
+        Story.query.filter_by(username=current_user.username).update({Story.user_avatar: data['avatar']})
+    if 'bg' in data: current_user.bg_image = data['bg']
+    db.session.commit()
+    emit('user_info_updated', {'username': current_user.username, 'avatar': current_user.avatar, 'bg': current_user.bg_image}, broadcast=True)
+
+@socketio.on('create_group')
+def create_group(data):
+    if not Group.query.filter_by(name=data['name']).first():
+        g = Group(name=data['name'], admin=current_user.username, password=data.get('password'))
+        db.session.add(g); db.session.commit()
+        emit('update_group_list', [{'name': gr.name, 'admin': gr.admin, 'has_pass': bool(gr.password)} for gr in Group.query.all()], broadcast=True)
+
+@socketio.on('factory_reset')
+def factory_reset():
+    Message.query.filter_by(sender=current_user.username).delete()
+    db.session.commit()
+    emit('reload_page')
 
 # WebRTC (Görüntülü Arama)
 @socketio.on('call_user')
