@@ -1,55 +1,28 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Giriş / Kayıt</title>
+    <title>Sohbetimiz - Giriş</title>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #075e54; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .card { background: white; padding: 30px; border-radius: 12px; width: 320px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
-        input, button { width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #ddd; box-sizing: border-box; }
-        button { background: #25d366; color: white; border: none; font-weight: bold; cursor: pointer; }
-        #preview { width: 90px; height: 90px; border-radius: 50%; object-fit: cover; border: 3px solid #25d366; cursor: pointer; margin-bottom: 10px; }
+        body { font-family: sans-serif; background: #075e54; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .card { background: white; padding: 30px; border-radius: 10px; width: 300px; text-align: center; }
+        input { width: 100%; padding: 10px; margin: 10px 0; box-sizing: border-box; }
+        button { width: 100%; padding: 10px; background: #25d366; color: white; border: none; cursor: pointer; }
     </style>
 </head>
 <body>
     <div class="card">
-        <h2 id="title">Giriş Yap</h2>
-        <form id="auth-form" action="/login" method="POST">
-            <div id="reg-area" style="display:none">
-                <img id="preview" src="https://cdn-icons-png.flaticon.com/512/149/149071.png" onclick="document.getElementById('file-in').click()">
-                <input type="file" id="file-in" style="display:none" accept="image/*" onchange="compress(this)">
-                <input type="hidden" name="avatar_data" id="avatar_data">
-            </div>
+        <h2>Sohbetimiz</h2>
+        <form action="/login" method="post">
             <input type="text" name="username" placeholder="Kullanıcı Adı" required>
             <input type="password" name="password" placeholder="Şifre" required>
-            <button type="submit" id="submit-btn">Giriş</button>
+            <button type="submit">Giriş Yap</button>
         </form>
-        <p onclick="toggle()" style="cursor:pointer; color:#075e54; font-size: 14px; text-decoration: underline;">Hesap Oluştur</p>
+        <hr>
+        <form action="/register" method="post">
+            <input type="text" name="username" placeholder="Yeni Kullanıcı Adı" required>
+            <input type="password" name="password" placeholder="Yeni Şifre" required>
+            <button type="submit" style="background:#34b7f1">Kayıt Ol</button>
+        </form>
     </div>
-    <script>
-        let isLogin = true;
-        function toggle() {
-            isLogin = !isLogin;
-            document.getElementById('title').innerText = isLogin ? "Giriş Yap" : "Kayıt Ol";
-            document.getElementById('submit-btn').innerText = isLogin ? "Giriş" : "Kayıt Ol";
-            document.getElementById('auth-form').action = isLogin ? "/login" : "/register";
-            document.getElementById('reg-area').style.display = isLogin ? "none" : "block";
-        }
-        function compress(input) {
-            const reader = new FileReader();
-            reader.onload = e => {
-                const img = new Image();
-                img.src = e.target.result;
-                img.onload = () => {
-                    const canvas = document.createElement('canvas');
-                    canvas.width = 300; canvas.height = 300;
-                    canvas.getContext('2d').drawImage(img, 0, 0, 300, 300);
-                    const base64 = canvas.toDataURL('image/jpeg', 0.8);
-                    document.getElementById('preview').src = base64;
-                    document.getElementById('avatar_data').value = base64;
-                };
-            };
-            reader.readAsDataURL(input.files[0]);
-        }
-    </script>
 </body>
 </html>
