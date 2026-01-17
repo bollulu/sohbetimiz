@@ -1,89 +1,298 @@
 <!DOCTYPE html>
-<html>
+<html lang="tr">
 <head>
 <meta charset="UTF-8">
 <title>Sohbet</title>
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
 
 <style>
-body{margin:0;font-family:Arial;background:#e5ddd5}
-#chat{height:80vh;overflow:auto;padding:10px}
-.msg{background:white;padding:8px;margin:5px;border-radius:8px;max-width:70%}
-.me{background:#dcf8c6;margin-left:auto}
-#bar{display:flex;padding:10px;background:#f0f0f0}
-#bar input{flex:1;padding:10px;border-radius:20px;border:none}
-#bar button{margin-left:10px;background:#25d366;color:white;border:none;padding:10px}
-#story{display:flex;gap:10px;padding:10px;background:white}
-.story img{width:60px;height:60px;border-radius:50%;border:2px solid #25d366}
+:root{
+    --green:#25d366;
+    --bg:#e5ddd5;
+    --me:#dcf8c6;
+}
+*{box-sizing:border-box}
+body{
+    margin:0;
+    font-family:Arial,Helvetica,sans-serif;
+    height:100vh;
+    display:flex;
+    flex-direction:column;
+    background:var(--bg);
+}
+
+/* HEADER */
+#header{
+    background:#075e54;
+    color:white;
+    padding:10px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+}
+#header img{
+    width:40px;
+    height:40px;
+    border-radius:50%;
+}
+#header a{
+    margin-left:auto;
+    color:white;
+    text-decoration:none;
+    font-size:20px;
+}
+
+/* STORY BAR */
+#story-bar{
+    display:flex;
+    gap:15px;
+    padding:10px;
+    background:white;
+    overflow-x:auto;
+}
+.story{
+    text-align:center;
+    cursor:pointer;
+    font-size:12px;
+}
+.story img{
+    width:60px;
+    height:60px;
+    border-radius:50%;
+    border:2px solid var(--green);
+}
+
+/* CHAT */
+#chat{
+    flex:1;
+    overflow:auto;
+    padding:10px;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    background-image:url("https://i.imgur.com/1bX5QH6.png");
+}
+.msg{
+    max-width:70%;
+    padding:8px 12px;
+    border-radius:8px;
+    background:white;
+    word-wrap:break-word;
+}
+.me{
+    align-self:flex-end;
+    background:var(--me);
+}
+
+/* FOOTER */
+#footer{
+    display:flex;
+    gap:10px;
+    padding:10px;
+    background:#f0f0f0;
+}
+#footer input{
+    flex:1;
+    padding:10px;
+    border-radius:20px;
+    border:none;
+}
+#footer button{
+    border:none;
+    background:var(--green);
+    color:white;
+    padding:10px 15px;
+    border-radius:20px;
+    cursor:pointer;
+}
+
+/* STORY VIEW */
+#story-view{
+    display:none;
+    position:fixed;
+    inset:0;
+    background:black;
+    z-index:999;
+    justify-content:center;
+    align-items:center;
+    flex-direction:column;
+}
+#story-view img,
+#story-view video{
+    max-width:100%;
+    max-height:85%;
+}
+#story-top{
+    width:100%;
+    padding:10px;
+    color:white;
+    display:flex;
+    align-items:center;
+    gap:10px;
+}
+#story-top img{
+    width:35px;
+    height:35px;
+    border-radius:50%;
+}
+#close{
+    position:absolute;
+    top:15px;
+    right:20px;
+    font-size:30px;
+    color:white;
+    cursor:pointer;
+}
+
+@media(max-width:600px){
+    .msg{max-width:85%}
+}
 </style>
 </head>
+
 <body>
 
-<div id="story">
-    <div onclick="uploadStory()">
-        <img src="{{ user.avatar }}">
+<!-- HEADER -->
+<div id="header">
+    <img src="{{ user.avatar }}">
+    <b>{{ user.username }}</b>
+    <a href="/logout">🚪</a>
+</div>
+
+<!-- STORIES -->
+<div id="story-bar">
+    <div class="story" onclick="addStory()">
+        <img src="{{ user.avatar }}" style="border-style:dashed">
         <div>Hikaye+</div>
     </div>
     <div id="stories"></div>
 </div>
 
+<!-- CHAT -->
 <div id="chat"></div>
 
-<div id="bar">
-<input id="msg" placeholder="Mesaj yaz">
-<button onclick="send()">Gönder</button>
+<!-- FOOTER -->
+<div id="footer">
+    <input id="msg" placeholder="Mesaj yaz..." onkeydown="if(event.key==='Enter')sendMsg()">
+    <button onclick="sendMsg()">➤</button>
 </div>
 
 <input type="file" id="storyfile" accept="image/*,video/*" hidden>
 
+<!-- STORY VIEW -->
+<div id="story-view">
+    <div id="story-top">
+        <img id="sv-ava">
+        <b id="sv-user"></b>
+        <span id="sv-viewers" style="margin-left:auto;font-size:12px"></span>
+    </div>
+    <div id="close" onclick="closeStory()">✕</div>
+    <img id="sv-img">
+    <video id="sv-video" autoplay></video>
+</div>
+
 <script>
 const socket = io();
-let room="genel";
+const myName = "{{ user.username }}";
+let room = "genel";
+let stories = {};
+let sUser = null;
+let sIndex = 0;
+let timer = null;
 
 socket.emit("join_room",{room});
 
-socket.on("history",d=>{
-    d.forEach(add);
-});
-socket.on("message",add);
-
-function send(){
-    let i=document.getElementById("msg");
-    if(i.value){
-        socket.emit("send_message",{room,msg:i.value});
+/* CHAT */
+function sendMsg(){
+    const i=document.getElementById("msg");
+    if(i.value.trim()){
+        socket.emit("send_message",{room:room,msg:i.value});
         i.value="";
     }
 }
+socket.on("history",msgs=>{
+    chat.innerHTML="";
+    msgs.forEach(addMsg);
+});
+socket.on("message",addMsg);
 
-function add(d){
-    let div=document.createElement("div");
-    div.className="msg "+(d.user=="{{ user.username }}"?"me":"");
-    div.innerText=d.user+": "+d.msg;
-    chat.appendChild(div);
-    chat.scrollTop=99999;
+function addMsg(d){
+    const m=document.createElement("div");
+    m.className="msg "+(d.user===myName?"me":"");
+    m.innerText=d.user+": "+d.msg;
+    chat.appendChild(m);
+    chat.scrollTop=999999;
 }
 
-function uploadStory(){
+/* STORY */
+function addStory(){
     document.getElementById("storyfile").click();
 }
-
 document.getElementById("storyfile").onchange=e=>{
-    let f=e.target.files[0];
-    let r=new FileReader();
+    const f=e.target.files[0];
+    if(!f) return;
+    const r=new FileReader();
     r.onload=x=>{
-        socket.emit("add_story",{content:x.target.result,type:f.type.includes("video")?"video":"image"});
+        socket.emit("add_story",{
+            content:x.target.result,
+            type:f.type.includes("video")?"video":"image"
+        });
     }
     r.readAsDataURL(f);
-}
+};
 
 socket.on("story_list",data=>{
-    let s=document.getElementById("stories");
+    stories=data;
+    const s=document.getElementById("stories");
     s.innerHTML="";
     for(let u in data){
-        s.innerHTML+=`<div class="story"><img src="${data[u].avatar}"><div>${u}</div></div>`;
+        s.innerHTML+=`
+        <div class="story" onclick="openStory('${u}')">
+            <img src="${data[u].avatar}">
+            <div>${u}</div>
+        </div>`;
     }
 });
+
+function openStory(u){
+    sUser=u; sIndex=0;
+    document.getElementById("story-view").style.display="flex";
+    showStory();
+}
+function showStory(){
+    clearTimeout(timer);
+    const st=stories[sUser].items[sIndex];
+    document.getElementById("sv-user").innerText=sUser;
+    document.getElementById("sv-ava").src=stories[sUser].avatar;
+    document.getElementById("sv-viewers").innerText="👁️ "+st.viewers.length;
+
+    const img=document.getElementById("sv-img");
+    const vid=document.getElementById("sv-video");
+    img.style.display="none";
+    vid.style.display="none";
+
+    if(st.type==="video"){
+        vid.src=st.content;
+        vid.style.display="block";
+    }else{
+        img.src=st.content;
+        img.style.display="block";
+    }
+
+    socket.emit("view_story",{id:st.id});
+    timer=setTimeout(nextStory,5000);
+}
+function nextStory(){
+    sIndex++;
+    if(sIndex>=stories[sUser].items.length) closeStory();
+    else showStory();
+}
+function closeStory(){
+    clearTimeout(timer);
+    document.getElementById("story-view").style.display="none";
+}
 </script>
 
 </body>
