@@ -4,158 +4,180 @@
     <title>Sohbetimiz</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <style>
-        :root { --main: #075e54; --light: #25d366; --bg: #e5ddd5; }
-        body { margin: 0; font-family: sans-serif; display: flex; height: 100vh; background: #f0f2f5; }
-        #sidebar { width: 350px; background: #fff; border-right: 1px solid #ddd; display: flex; flex-direction: column; }
-        #chat-area { flex: 1; display: flex; flex-direction: column; background: var(--bg); position: relative; }
+        body { font-family: sans-serif; margin: 0; display: flex; height: 100vh; background: #e5ddd5; }
+        #sidebar { width: 300px; background: #fff; border-right: 1px solid #ddd; display: flex; flex-direction: column; }
+        #main { flex: 1; display: flex; flex-direction: column; position: relative; }
         
         /* Story Bar */
-        #story-bar { height: 100px; background: white; border-bottom: 1px solid #ddd; display: flex; align-items: center; padding: 0 15px; gap: 15px; overflow-x: auto; }
-        .story-circle { width: 60px; height: 60px; border-radius: 50%; border: 3px solid var(--light); padding: 2px; cursor: pointer; object-fit: cover; }
-        .add-story { border: 2px dashed #ccc; display: flex; align-items: center; justify-content: center; font-size: 24px; color: #aaa; }
-
-        /* Mesajlar */
+        #story-bar { height: 100px; background: #f0f2f5; display: flex; align-items: center; padding: 0 10px; gap: 15px; overflow-x: auto; border-bottom: 1px solid #ddd; }
+        .story-circle { width: 60px; height: 60px; border-radius: 50%; border: 3px solid #25D366; padding: 2px; cursor: pointer; object-fit: cover; }
+        
+        /* Modal */
+        #story-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 1000; justify-content: center; align-items: center; flex-direction: column; }
+        .st-content { max-width: 400px; max-height: 80vh; border-radius: 10px; }
+        .viewer-list { color: white; margin-top: 15px; font-size: 14px; background: rgba(255,255,255,0.1); padding: 10px; border-radius: 5px; width: 300px; }
+        
         #messages { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
-        .bubble { max-width: 60%; padding: 8px 12px; border-radius: 8px; font-size: 14px; position: relative; }
+        .msg { padding: 8px 12px; border-radius: 8px; max-width: 70%; font-size: 14px; }
         .me { align-self: flex-end; background: #dcf8c6; }
-        .other { align-self: flex-start; background: #fff; }
-
-        /* Story Player */
-        #story-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.95); z-index:9999; flex-direction:column; align-items:center; justify-content:center; }
-        .st-frame { width: 90%; max-width: 400px; height: 80vh; background: #000; position: relative; border-radius: 10px; overflow: hidden; }
-        .viewer-list { position: absolute; bottom: 0; width: 100%; background: rgba(0,0,0,0.7); color: white; padding: 10px; font-size: 12px; }
+        .ot { align-self: flex-start; background: #fff; }
     </style>
 </head>
 <body>
 
 <div id="sidebar">
-    <div style="padding:15px; background:#ededed; display:flex; justify-content:space-between; align-items:center;">
-        <img src="{{ user.avatar }}" style="width:40px; height:40px; border-radius:50%; cursor:pointer;" onclick="document.getElementById('ava-in').click()">
-        <b>{{ user.username }}</b>
-        <a href="/logout">Çıkış</a>
-    </div>
-    <div style="overflow-y:auto; flex:1;">
-        <div style="padding:10px; background:#f0f2f5; font-size:12px; font-weight:bold;">KİŞİLER</div>
+    <div style="padding: 15px; background: #ededed; font-weight: bold;">Sohbetimiz</div>
+    <div style="flex: 1; overflow-y: auto;">
         {% for u in all_users if u.username != user.username %}
-        <div style="padding:10px; display:flex; align-items:center; gap:10px; cursor:pointer;" onclick="setPrivate('{{u.username}}')">
-            <img src="{{u.avatar}}" style="width:40px; height:40px; border-radius:50%">
-            <span>{{u.username}}</span>
+        <div style="padding: 10px; border-bottom: 1px solid #eee; cursor: pointer;" onclick="joinRoom('{{u.username}}')">
+            {{ u.username }}
         </div>
         {% endfor %}
     </div>
 </div>
 
-<div id="chat-area">
+<div id="main">
     <div id="story-bar">
-        <div class="story-circle add-story" onclick="document.getElementById('st-in').click()">+</div>
-        {% for owner, items in stories.items() %}
-        <div onclick='openStories({{ items | tojson }}, "{{ owner }}")'>
-            <img src="{{ items[0].avatar }}" class="story-circle">
-            <center><small>{{ owner }}</small></center>
+        <div onclick="document.getElementById('st-in').click()" style="text-align: center; cursor: pointer;">
+            <div class="story-circle" style="border: 3px dashed #ccc; display: flex; align-items: center; justify-content: center;">+</div>
+            <small>Ekle</small>
         </div>
-        {% endfor %}
+        <div id="stories-area" style="display: flex; gap: 15px;"></div>
     </div>
+    
     <div id="messages"></div>
-    <div style="padding:15px; background:#f0f0f0; display:flex; gap:10px;">
-        <input type="text" id="m-in" style="flex:1; padding:10px; border-radius:20px; border:none;" placeholder="Mesaj yazın..." onkeypress="if(event.key==='Enter') send()">
-        <button onclick="send()" style="background:var(--main); color:white; border:none; padding:10px 20px; border-radius:20px;">Gönder</button>
+    
+    <div style="padding: 15px; background: #f0f2f5; display: flex; gap: 10px;">
+        <input type="text" id="msg-in" style="flex: 1; padding: 10px; border-radius: 20px; border: 1px solid #ccc;">
+        <button onclick="send()" style="background: #25D366; color: white; border: none; padding: 10px 20px; border-radius: 20px;">Gönder</button>
     </div>
 </div>
 
 <div id="story-modal">
-    <button onclick="closeStory()" style="position:absolute; top:20px; right:20px; color:white; font-size:30px; background:none; border:none;">✕</button>
-    <div class="st-frame">
-        <div id="st-media-box" style="height:100%;" onclick="nextStory()"></div>
-        <div id="st-viewers" class="viewer-list"></div>
-    </div>
-    <div id="st-music" style="color:var(--light); margin-top:10px;"></div>
-    <button id="st-del" style="display:none; color:red; margin-top:10px;" onclick="delStory()">Bu Hikayeyi Sil</button>
+    <div id="st-media-container" style="position: relative;"></div>
+    <div id="viewers-area" class="viewer-list"></div>
+    <button onclick="closeStory()" style="margin-top: 20px; color: white; background: none; border: 1px solid white; padding: 5px 20px; border-radius: 20px;">Kapat</button>
 </div>
 
-<input type="file" id="st-in" style="display:none" onchange="uploadStory(this)">
-<input type="file" id="ava-in" style="display:none" onchange="updateAva(this)">
-
-
+<input type="file" id="st-in" style="display: none;" accept="image/*,video/*" onchange="uploadStory(this)">
+<input type="file" id="music-in" style="display: none;" accept="audio/*">
 
 <script>
     const socket = io();
     const me = "{{ user.username }}";
-    let currentRoom = 'Genel';
-    let activeStories = [];
-    let storyIdx = 0;
+    let currentRoom = "";
+    let activeStorySet = [];
+    let currentStoryIdx = 0;
 
-    function setPrivate(other) {
+    socket.emit('get_stories');
+
+    function joinRoom(other) {
         currentRoom = [me, other].sort().join('_');
-        document.getElementById('messages').innerHTML = '';
+        document.getElementById('messages').innerHTML = "";
         socket.emit('join', {room: currentRoom});
     }
 
     function send() {
-        const i = document.getElementById('m-in');
-        if(i.value) {
-            socket.emit('message', {room: currentRoom, content: i.value, type: 'text'});
-            i.value = '';
+        const val = document.getElementById('msg-in').value;
+        if(val) {
+            socket.emit('send_message', {room: currentRoom, msg: val, sender: me});
+            document.getElementById('msg-in').value = "";
         }
     }
 
-    socket.on('message', data => { if(data.room === currentRoom) append(data); });
-    socket.on('load_history', h => h.forEach(append));
-    socket.on('refresh_all', () => location.reload());
+    socket.on('new_message', d => {
+        if(d.room === currentRoom) appendMsg(d);
+    });
 
-    function append(d) {
-        const box = document.getElementById('messages');
+    socket.on('load_history', msgs => msgs.forEach(appendMsg));
+
+    function appendMsg(d) {
         const div = document.createElement('div');
-        div.className = `bubble ${d.sender === me ? 'me' : 'other'}`;
-        div.innerHTML = `<b>${d.sender}</b><br>${d.content}<br><small style="font-size:9px">${d.time}</small>`;
-        box.appendChild(div);
-        box.scrollTop = box.scrollHeight;
+        div.className = `msg ${d.sender === me ? 'me' : 'ot'}`;
+        div.innerText = d.content;
+        document.getElementById('messages').appendChild(div);
     }
 
-    // STORY LOGIC
+    // STORY FUNCTIONS
     function uploadStory(input) {
-        const r = new FileReader();
-        r.onload = e => {
-            const music = prompt("Müzik adı (İstemiyorsanız boş bırakın):");
-            const type = input.files[0].type.startsWith('video') ? 'video' : 'image';
-            socket.emit('post_story', {content: e.target.result, type: type, music: music});
+        const file = input.files[0];
+        const reader = new FileReader();
+        reader.onload = e => {
+            const hasMusic = confirm("Müzik eklemek ister misiniz?");
+            if(hasMusic) {
+                const mIn = document.getElementById('music-in');
+                mIn.onchange = me => {
+                    const mReader = new FileReader();
+                    mReader.onload = ev => {
+                        socket.emit('post_story', {
+                            content: e.target.result, 
+                            type: file.type.split('/')[0], 
+                            audio: ev.target.result
+                        });
+                    }
+                    mReader.readAsDataURL(me.target.files[0]);
+                };
+                mIn.click();
+            } else {
+                socket.emit('post_story', {content: e.target.result, type: file.type.split('/')[0]});
+            }
         };
-        r.readAsDataURL(input.files[0]);
+        reader.readAsDataURL(file);
     }
 
-    function openStories(list, owner) {
-        activeStories = list; storyIdx = 0;
+    socket.on('stories_list', data => {
+        const area = document.getElementById('stories-area');
+        area.innerHTML = "";
+        for(let user in data) {
+            const div = document.createElement('div');
+            div.innerHTML = `<img src="${data[user].avatar}" class="story-circle">`;
+            div.onclick = () => openStory(data[user].items);
+            area.appendChild(div);
+        }
+    });
+
+    function openStory(items) {
+        activeStorySet = items;
+        currentStoryIdx = 0;
         document.getElementById('story-modal').style.display = 'flex';
-        showStory();
+        renderStoryItem();
     }
 
-    function showStory() {
-        const s = activeStories[storyIdx];
-        const box = document.getElementById('st-media-box');
-        const vBox = document.getElementById('st-viewers');
+    function renderStoryItem() {
+        const item = activeStorySet[currentStoryIdx];
+        const container = document.getElementById('st-media-container');
+        const vArea = document.getElementById('viewers-area');
         
-        box.innerHTML = s.type === 'image' ? `<img src="${s.content}" style="width:100%; height:100%; object-fit:contain">` : `<video src="${s.content}" autoplay style="width:100%; height:100%;"></video>`;
-        document.getElementById('st-music').innerText = s.music ? "🎵 Müzik: " + s.music : "";
-        document.getElementById('st-del').style.display = (activeStories[0].username === me || s.username === me) ? "block" : "none";
-        
-        // İzleyenleri Göster
-        vBox.innerHTML = "👁️ İzleyenler: " + (s.viewers.length > 0 ? s.viewers.join(', ') : "Henüz kimse görmedi");
-        
-        // İzledi olarak işaretle
-        socket.emit('mark_story_watched', {story_id: s.id});
+        // Media Render
+        if(item.type === 'image') {
+            container.innerHTML = `<img src="${item.content}" class="st-content">`;
+        } else {
+            container.innerHTML = `<video src="${item.content}" autoplay class="st-content"></video>`;
+        }
+
+        // Audio Render
+        if(item.audio) {
+            const au = new Audio(item.audio);
+            au.play();
+            document.getElementById('story-modal').onclick = () => au.pause(); 
+        }
+
+        // Viewers list (Sadece hikaye sahibi görebilir)
+        if(item.owner === me) {
+            vArea.innerHTML = "👁️ İzleyenler: " + (item.viewers.join(', ') || "Henüz kimse görmedi.");
+            const delBtn = document.createElement('button');
+            delBtn.innerText = "Sil";
+            delBtn.onclick = () => socket.emit('delete_story', {id: item.id});
+            vArea.appendChild(delBtn);
+        } else {
+            vArea.innerHTML = "";
+            socket.emit('view_story', {story_id: item.id});
+        }
     }
 
-    function nextStory() {
-        storyIdx++;
-        if(storyIdx < activeStories.length) showStory();
-        else closeStory();
-    }
-
-    function closeStory() { document.getElementById('story-modal').style.display = 'none'; }
-    function delStory() { socket.emit('delete_story', {id: activeStories[storyIdx].id}); }
-    function updateAva(i) {
-        const r = new FileReader();
-        r.onload = e => socket.emit('update_avatar', {avatar: e.target.result});
-        r.readAsDataURL(i.files[0]);
+    function closeStory() {
+        document.getElementById('story-modal').style.display = 'none';
+        document.getElementById('st-media-container').innerHTML = "";
     }
 </script>
 </body>
