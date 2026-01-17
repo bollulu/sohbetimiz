@@ -7,338 +7,98 @@
 <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
 
 <style>
-:root{
-    --green:#25d366;
-    --dark:#075e54;
-    --bg:#e5ddd5;
-    --me:#dcf8c6;
-}
-*{box-sizing:border-box}
-body{
-    margin:0;
-    font-family:Arial,Helvetica,sans-serif;
-    background:var(--bg);
-    height:100vh;
-    display:flex;
-    flex-direction:column;
-}
-
-/* TOP BAR */
-#top{
-    background:var(--dark);
-    color:white;
-    padding:10px;
-    display:flex;
-    align-items:center;
-    gap:10px;
-}
-#top img{
-    width:40px;
-    height:40px;
-    border-radius:50%;
-    cursor:pointer;
-}
-#top button{
-    margin-left:auto;
-    background:var(--green);
-    color:white;
-    border:none;
-    padding:6px 12px;
-    border-radius:15px;
-    cursor:pointer;
-}
-
-/* STORY BAR */
-#story-bar{
-    display:flex;
-    gap:12px;
-    padding:10px;
-    background:white;
-    overflow-x:auto;
-}
-.story{
-    text-align:center;
-    font-size:12px;
-    cursor:pointer;
-}
-.story img{
-    width:60px;
-    height:60px;
-    border-radius:50%;
-    border:2px solid var(--green);
-}
-
-/* CHAT */
-#chat{
-    flex:1;
-    overflow:auto;
-    padding:10px;
-    display:flex;
-    flex-direction:column;
-    gap:8px;
-    background-image:url("https://i.imgur.com/1bX5QH6.png");
-}
-.msg{
-    max-width:70%;
-    padding:8px 12px;
-    border-radius:8px;
-    background:white;
-    word-wrap:break-word;
-}
-.me{
-    align-self:flex-end;
-    background:var(--me);
-}
-
-/* INPUT */
-#bar{
-    display:flex;
-    gap:10px;
-    padding:10px;
-    background:#f0f0f0;
-}
-#bar input{
-    flex:1;
-    padding:10px;
-    border-radius:20px;
-    border:none;
-}
-#bar button{
-    background:var(--green);
-    color:white;
-    border:none;
-    padding:10px 16px;
-    border-radius:20px;
-    cursor:pointer;
-}
-
-/* STORY VIEW */
-#story-view{
-    display:none;
-    position:fixed;
-    inset:0;
-    background:black;
-    z-index:999;
-    justify-content:center;
-    align-items:center;
-    flex-direction:column;
-}
-#story-view img,
-#story-view video{
-    max-width:100%;
-    max-height:85%;
-}
-#story-top{
-    width:100%;
-    padding:10px;
-    color:white;
-    display:flex;
-    align-items:center;
-    gap:10px;
-}
-#story-top img{
-    width:35px;
-    height:35px;
-    border-radius:50%;
-}
-#close{
-    position:absolute;
-    top:15px;
-    right:20px;
-    font-size:30px;
-    color:white;
-    cursor:pointer;
-}
-
-@media(max-width:600px){
-    .msg{max-width:85%}
-}
+body{margin:0;font-family:Arial;background:#e5ddd5;height:100vh;display:flex}
+#groups{width:220px;background:white;border-right:1px solid #ccc}
+#groups h3{margin:10px}
+.group{padding:10px;cursor:pointer}
+.group:hover{background:#f0f0f0}
+#main{flex:1;display:flex;flex-direction:column}
+#top{background:#075e54;color:white;padding:10px;display:flex;align-items:center;gap:10px}
+#chat{flex:1;overflow:auto;padding:10px}
+.msg{background:white;padding:6px 10px;margin:5px;border-radius:8px;max-width:70%;position:relative}
+.me{background:#dcf8c6;margin-left:auto}
+.del{position:absolute;right:5px;top:2px;cursor:pointer;font-size:12px;color:red}
+#bar{display:flex;padding:10px;background:#f0f0f0}
+#bar input{flex:1;padding:10px;border-radius:20px;border:none}
 </style>
 </head>
 
 <body>
 
-<!-- TOP -->
+<div id="groups">
+<h3>Gruplar</h3>
+{% for g in groups %}
+<div class="group" onclick="switchRoom('{{ g }}')">{{ g }}</div>
+{% endfor %}
+<button onclick="newGroup()" style="margin:10px">+ Grup</button>
+</div>
+
+<div id="main">
 <div id="top">
-    <img id="avatar" src="{{ user.avatar }}" title="Profil resmi değiştir">
-    <b>{{ user.username }}</b>
-    <button onclick="createGroup()">+ Grup</button>
+<img src="{{ user.avatar }}" width="35" style="border-radius:50%">
+<b id="roomName">genel</b>
 </div>
 
-<!-- STORIES -->
-<div id="story-bar">
-    <div class="story" onclick="addStory()">
-        <img src="{{ user.avatar }}" style="border-style:dashed">
-        <div>Hikaye+</div>
-    </div>
-    <div id="stories"></div>
-</div>
-
-<!-- CHAT -->
 <div id="chat"></div>
 
-<!-- INPUT -->
 <div id="bar">
-    <input id="msg" placeholder="Mesaj yaz..." onkeydown="if(event.key==='Enter')sendMsg()">
-    <button onclick="sendMsg()">➤</button>
+<input id="msg" placeholder="Mesaj yaz" onkeydown="if(event.key==='Enter')sendMsg()">
+<button onclick="sendMsg()">➤</button>
 </div>
-
-<!-- FILE INPUTS -->
-<input type="file" id="avatarFile" hidden>
-<input type="file" id="storyFile" accept="image/*,video/*" hidden>
-<input type="file" id="musicFile" accept="audio/*" hidden>
-
-<!-- STORY VIEW -->
-<div id="story-view">
-    <div id="story-top">
-        <img id="sv-ava">
-        <b id="sv-user"></b>
-        <span id="sv-viewers" style="margin-left:auto;font-size:12px"></span>
-    </div>
-    <div id="close" onclick="closeStory()">✕</div>
-    <img id="sv-img">
-    <video id="sv-video" autoplay></video>
 </div>
 
 <script>
 const socket = io();
-const myName = "{{ user.username }}";
-let room = "genel";
-let storyData = {};
-let currentUser = null;
-let index = 0;
-let timer = null;
+let room="genel";
+const myName="{{ user.username }}";
 
-socket.emit("join", { room });
+socket.emit("join_room",{room});
 
-/* BROWSER NOTIFICATION */
-if ("Notification" in window) {
-    Notification.requestPermission();
+function switchRoom(r){
+    room=r;
+    roomName.innerText=r;
+    chat.innerHTML="";
+    socket.emit("join_room",{room});
 }
 
-/* CHAT */
-socket.on("history", msgs => msgs.forEach(addMsg));
-socket.on("msg", d => {
-    addMsg(d);
-    if (Notification.permission === "granted") {
-        new Notification("Yeni Mesaj", { body: d.user + ": " + d.msg });
-    }
-});
-
 function sendMsg(){
-    if(msg.value.trim()){
-        socket.emit("send",{ room, msg: msg.value });
+    if(msg.value){
+        socket.emit("send_msg",{room,msg:msg.value});
         msg.value="";
     }
 }
-function addMsg(d){
-    const m=document.createElement("div");
-    m.className="msg "+(d.user===myName?"me":"");
-    m.innerText=d.user+": "+d.msg;
-    chat.appendChild(m);
-    chat.scrollTop=999999;
-}
 
-/* GROUP */
-function createGroup(){
-    const name = prompt("Grup adı");
-    if(name) socket.emit("create_group",{ name });
-}
-
-/* AVATAR */
-avatar.onclick = () => avatarFile.click();
-avatarFile.onchange = e => {
-    const fd = new FormData();
-    fd.append("file", e.target.files[0]);
-    fetch("/upload_avatar", { method:"POST", body:fd })
-        .then(r=>r.json())
-        .then(d=>avatar.src=d.avatar);
-};
-
-/* STORY ADD */
-function addStory(){ storyFile.click(); }
-storyFile.onchange = e => {
-    const f = e.target.files[0];
-    if(!f) return;
-    if(confirm("Hikayeye müzik eklensin mi?")){
-        musicFile.onchange = m => sendStory(f, m.target.files[0]);
-        musicFile.click();
-    }else sendStory(f, null);
-};
-
-function sendStory(f, music){
-    const r = new FileReader();
-    r.onload = x => {
-        if(music){
-            const rm = new FileReader();
-            rm.onload = y => {
-                socket.emit("add_story",{
-                    media:x.target.result,
-                    music:y.target.result,
-                    type:f.type.includes("video")?"video":"image"
-                });
-            };
-            rm.readAsDataURL(music);
-        }else{
-            socket.emit("add_story",{
-                media:x.target.result,
-                type:f.type.includes("video")?"video":"image"
-            });
-        }
-    };
-    r.readAsDataURL(f);
-}
-
-/* STORY LIST */
-socket.on("stories", data => {
-    storyData = data;
-    stories.innerHTML="";
-    for(let u in data){
-        stories.innerHTML+=`
-        <div class="story" onclick="openStory('${u}')">
-            <img src="${data[u].avatar}">
-            <div>${u}</div>
-        </div>`;
-    }
+socket.on("history",msgs=>msgs.forEach(add));
+socket.on("new_msg",add);
+socket.on("msg_deleted",d=>{
+    const el=document.getElementById("m"+d.id);
+    if(el) el.remove();
 });
 
-/* STORY VIEW */
-function openStory(u){
-    currentUser = u;
-    index = 0;
-    storyView.style.display="flex";
-    showStory();
-}
-function showStory(){
-    clearTimeout(timer);
-    const st = storyData[currentUser].items[index];
-    sv-user.innerText = currentUser;
-    sv-ava.src = storyData[currentUser].avatar;
-    sv-viewers.innerText = "👁️ " + st.viewers.length;
-
-    sv-img.style.display="none";
-    sv-video.style.display="none";
-
-    if(st.type==="video"){
-        sv-video.src = st.media;
-        sv-video.style.display="block";
-    }else{
-        sv-img.src = st.media;
-        sv-img.style.display="block";
+function add(d){
+    const m=document.createElement("div");
+    m.className="msg "+(d.user===myName?"me":"");
+    m.id="m"+d.id;
+    m.innerHTML=d.user+": "+d.msg;
+    if(d.user===myName){
+        const x=document.createElement("span");
+        x.innerText="🗑";
+        x.className="del";
+        x.onclick=()=>socket.emit("delete_msg",{id:d.id});
+        m.appendChild(x);
     }
+    chat.appendChild(m);
+    chat.scrollTop=99999;
+}
 
-    socket.emit("view_story",{ id: st.id });
-    timer = setTimeout(nextStory, 5000);
+function newGroup(){
+    const n=prompt("Grup adı");
+    if(n) socket.emit("create_group",{name:n});
 }
-function nextStory(){
-    index++;
-    if(index >= storyData[currentUser].items.length) closeStory();
-    else showStory();
-}
-function closeStory(){
-    clearTimeout(timer);
-    storyView.style.display="none";
-}
+
+socket.on("groups",list=>{
+    location.reload();
+});
 </script>
 
 </body>
