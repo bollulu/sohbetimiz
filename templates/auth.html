@@ -1,47 +1,84 @@
 <!DOCTYPE html>
-<html>
+<html lang="tr">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sohbetimiz - Giriş</title>
     <style>
-        body { background: #075e54; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .card { background: white; padding: 30px; border-radius: 20px; width: 320px; text-align: center; }
-        input, select, button { width: 100%; padding: 12px; margin: 8px 0; border-radius: 20px; border: 1px solid #ddd; }
-        button { background: #25D366; color: white; font-weight: bold; border: none; cursor: pointer; }
+        body { margin: 0; font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #111b21, #0b141a); color: white; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        .container { background: rgba(32, 44, 51, 0.9); padding: 40px; border-radius: 20px; width: 350px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        h2 { color: #00a884; margin-bottom: 20px; }
+        input, select, button { width: 100%; padding: 12px; margin: 8px 0; border-radius: 25px; border: none; outline: none; box-sizing: border-box; }
+        input, select { background: #2a3942; color: white; padding-left: 20px; }
+        button { background: #00a884; color: white; font-weight: bold; cursor: pointer; transition: 0.3s; }
+        button:hover { background: #008f6f; }
+        .toggle-text { margin-top: 15px; font-size: 14px; color: #8696a0; cursor: pointer; }
+        .toggle-text:hover { color: #00a884; text-decoration: underline; }
         .hidden { display: none; }
-        #avatar-prev { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 2px solid #25D366; cursor: pointer; }
+        
+        /* Avatar Önizleme */
+        #avatar-preview { width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid #00a884; margin-bottom: 10px; cursor: pointer; }
     </style>
 </head>
 <body>
-    <div class="card">
-        <div id="box">
-            <img id="avatar-prev" src="https://cdn-icons-png.flaticon.com/512/149/149071.png" onclick="document.getElementById('ava-in').click()">
-            <form action="/register" method="post" id="reg-form">
-                <input type="text" name="username" placeholder="Kullanıcı Adı" required>
-                <input type="password" name="password" placeholder="Şifre" required>
-                <select name="gender"><option value="Erkek">Erkek</option><option value="Kadın">Kadın</option></select>
-                <input type="hidden" id="avatar_data" name="avatar_data">
-                <button type="submit">Kayıt Ol / Giriş Yap</button>
-            </form>
-        </div>
+
+<div class="container">
+    <div id="login-form">
+        <h2>Giriş Yap</h2>
+        <form action="/login" method="POST">
+            <input type="text" name="username" placeholder="Kullanıcı Adı" required>
+            <input type="password" name="password" placeholder="Şifre" required>
+            <button type="submit">Giriş Yap</button>
+        </form>
+        <div class="toggle-text" onclick="toggleAuth()">Hesabın yok mu? Kayıt Ol</div>
     </div>
-    <input type="file" id="ava-in" style="display:none" accept="image/*" onchange="proc(this)">
-    <script>
-        function proc(i) {
-            if(i.files[0]) {
-                const r = new FileReader();
-                r.onload = e => {
-                    const img = new Image(); img.src = e.target.result;
-                    img.onload = () => {
-                        const c = document.createElement('canvas'); c.width=200; c.height=200;
-                        c.getContext('2d').drawImage(img,0,0,200,200);
-                        const data = c.toDataURL('image/jpeg', 0.6);
-                        document.getElementById('avatar-prev').src = data;
-                        document.getElementById('avatar_data').value = data;
-                    }
+
+    <div id="register-form" class="hidden">
+        <h2>Kayıt Ol</h2>
+        <img id="avatar-preview" src="https://cdn-icons-png.flaticon.com/512/149/149071.png" onclick="document.getElementById('file-input').click()" title="Resim değiştirmek için tıkla">
+        <form action="/register" method="POST">
+            <input type="text" name="username" placeholder="Kullanıcı Adı" required>
+            <input type="password" name="password" placeholder="Şifre" required>
+            <select name="gender">
+                <option value="male">Erkek</option>
+                <option value="female">Kadın</option>
+            </select>
+            <input type="hidden" name="avatar_data" id="avatar-data">
+            <button type="submit">Kayıt Ol</button>
+        </form>
+        <input type="file" id="file-input" style="display:none" accept="image/*" onchange="processAvatar(this)">
+        <div class="toggle-text" onclick="toggleAuth()">Zaten üyen var mı? Giriş Yap</div>
+    </div>
+</div>
+
+<script>
+    function toggleAuth() {
+        document.getElementById('login-form').classList.toggle('hidden');
+        document.getElementById('register-form').classList.toggle('hidden');
+    }
+
+    function processAvatar(input) {
+        if (input.files && input.files[0]) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.src = e.target.result;
+                img.onload = function() {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    // Resmi 200x200 boyutuna küçült
+                    canvas.width = 200;
+                    canvas.height = 200;
+                    ctx.drawImage(img, 0, 0, 200, 200);
+                    const dataURL = canvas.toDataURL('image/jpeg', 0.8); // Kalite %80
+                    document.getElementById('avatar-preview').src = dataURL;
+                    document.getElementById('avatar-data').value = dataURL;
                 }
-                r.readAsDataURL(i.files[0]);
             }
+            reader.readAsDataURL(input.files[0]);
         }
-    </script>
+    }
+</script>
+
 </body>
 </html>
