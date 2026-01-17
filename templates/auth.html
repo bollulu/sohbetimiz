@@ -1,82 +1,45 @@
-from gevent import monkey
-monkey.patch_all()
-import os, json
-from flask import Flask, render_template, request, redirect, url_for, flash
-from flask_sqlalchemy import SQLAlchemy
-from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
-from flask_socketio import SocketIO, emit, join_room
-from datetime import datetime
-
-app = Flask(__name__)
-app.config['SECRET_KEY'] = 'sohbetimiz_v5_full'
-basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'database.db')
-
-# --- KRİTİK AYAR: 1 GB LİMİT ---
-app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024 * 1024 
-
-db = SQLAlchemy(app)
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
-
-# --- STABİLİZE EDİLMİŞ MODELLER ---
-class User(UserMixin, db.Model):
-    __tablename__ = 'users'
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(50), unique=True, nullable=False, index=True)
-    password = db.Column(db.String(100), nullable=False)
-    avatar = db.Column(db.Text)
-    blocked_users = db.Column(db.Text, default='[]')
-    # İlişkiler: Kullanıcı silinirse her şeyi silinir (Cascade)
-    stories = db.relationship('Story', backref='owner', lazy=True, cascade="all, delete-orphan")
-
-class Group(db.Model):
-    __tablename__ = 'groups'
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), unique=True, nullable=False)
-    password = db.Column(db.String(50), nullable=True)
-    admin = db.Column(db.String(50))
-
-class Story(db.Model):
-    __tablename__ = 'stories'
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
-    username = db.Column(db.String(50))
-    user_avatar = db.Column(db.Text)
-    content = db.Column(db.Text, nullable=False)
-    media_type = db.Column(db.String(10)) # image/video
-    audio_data = db.Column(db.Text, nullable=True)
-    viewers = db.Column(db.Text, default='[]')
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
-
-with app.app_context():
-    db.create_all()
-
-login_manager = LoginManager(app)
-@login_manager.user_loader
-def load_user(id): return db.session.get(User, int(id))
-
-# --- ROUTES ---
-@app.route('/register', methods=['POST'])
-def register():
-    u, p, a = request.form.get('username'), request.form.get('password'), request.form.get('avatar_data')
-    if User.query.filter_by(username=u).first():
-        return "Bu kullanıcı adı zaten var", 400
-    
-    # Avatar boşsa varsayılan ata
-    if not a: a = "https://cdn-icons-png.flaticon.com/512/149/149071.png"
-    
-    new_user = User(username=u, password=p, avatar=a)
-    db.session.add(new_user)
-    db.session.commit()
-    login_user(new_user)
-    return redirect(url_for('chat'))
-
-@app.route('/delete_account', methods=['POST'])
-@login_required
-def delete_account():
-    db.session.delete(current_user)
-    db.session.commit()
-    logout_user()
-    return redirect(url_for('index'))
-
-# Chat ve diğer socket fonksiyonları önceki stabil sürümle aynı kalacak...
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Sohbetimiz - Giriş</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { margin: 0; font-family: sans-serif; background: #075e54; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        .card { background: white; padding: 30px; border-radius: 15px; width: 320px; text-align: center; }
+        input, button { width: 100%; padding: 12px; margin: 8px 0; border-radius: 20px; border: 1px solid #ddd; box-sizing: border-box; }
+        button { background: #25D366; color: white; font-weight: bold; cursor: pointer; border: none; }
+        #avatar-prev { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; border: 2px solid #25D366; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>Sohbetimiz</h2>
+        <img id="avatar-prev" src="https://cdn-icons-png.flaticon.com/512/149/149071.png" onclick="document.getElementById('ava-in').click()">
+        <form action="/register" method="post">
+            <input type="text" name="username" placeholder="Kullanıcı Adı" required>
+            <input type="password" name="password" placeholder="Şifre" required>
+            <input type="hidden" id="avatar_data" name="avatar_data">
+            <button type="submit">Kayıt Ol / Giriş</button>
+        </form>
+    </div>
+    <input type="file" id="ava-in" style="display:none" accept="image/*" onchange="procImg(this)">
+    <script>
+        function procImg(input) {
+            if(input.files[0]) {
+                const r = new FileReader();
+                r.onload = e => {
+                    const img = new Image(); img.src = e.target.result;
+                    img.onload = () => {
+                        const c = document.createElement('canvas'); c.width=200; c.height=200;
+                        c.getContext('2d').drawImage(img,0,0,200,200);
+                        const data = c.toDataURL('image/jpeg', 0.6);
+                        document.getElementById('avatar-prev').src = data;
+                        document.getElementById('avatar_data').value = data;
+                    }
+                };
+                r.readAsDataURL(input.files[0]);
+            }
+        }
+    </script>
+</body>
+</html>
