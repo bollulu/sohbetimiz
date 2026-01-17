@@ -1,268 +1,62 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Sohbetimiz</title>
+    <title>Sohbetimiz - Giriş</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <style>
-        :root { --bg: #e5ddd5; --green: #075e54; --light-green: #25d366; }
-        body { margin: 0; font-family: sans-serif; display: flex; height: 100vh; background: #d1d7db; overflow: hidden; }
-        
-        #sidebar { width: 350px; background: white; border-right: 1px solid #ddd; display: flex; flex-direction: column; }
-        #main { flex: 1; display: flex; flex-direction: column; background: var(--bg); position: relative; }
-        
-        .header { background: #ededed; padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ddd; height: 60px; }
-        .avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; cursor: pointer; }
-        
-        #story-bar { height: 100px; background: #f0f2f5; display: flex; align-items: center; padding: 0 10px; gap: 15px; overflow-x: auto; border-bottom: 1px solid #ddd; }
-        .story-thumb { width: 60px; height: 60px; border-radius: 50%; border: 3px solid var(--light-green); padding: 2px; cursor: pointer; }
-        
-        #messages { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
-        .msg-row { display: flex; gap: 10px; align-items: flex-end; }
-        .msg-bubble { padding: 10px; border-radius: 10px; max-width: 60%; font-size: 14px; position: relative; }
-        .me { flex-direction: row-reverse; }
-        .me .msg-bubble { background: #dcf8c6; }
-        .ot .msg-bubble { background: #fff; }
-        .msg-ava { width: 30px; height: 30px; border-radius: 50%; }
-
-        #story-viewer { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:#000; z-index:999; flex-direction:column; align-items:center; justify-content:center; }
-        .st-media { max-width: 100%; max-height: 80vh; }
-        .st-progress { position:absolute; top:10px; width:90%; height:3px; background:rgba(255,255,255,0.3); }
-        .st-bar { height:100%; background:#fff; width:0%; transition: linear; }
-
-        .modal { display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:white; padding:20px; border-radius:10px; box-shadow:0 0 20px rgba(0,0,0,0.5); z-index:1001; }
+        body { margin: 0; font-family: sans-serif; background: #075e54; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        .card { background: white; padding: 30px; border-radius: 15px; width: 320px; text-align: center; }
+        input, button { width: 100%; padding: 12px; margin: 8px 0; border-radius: 20px; border: 1px solid #ddd; box-sizing: border-box; }
+        button { background: #25D366; color: white; font-weight: bold; cursor: pointer; border: none; }
+        .hidden { display: none; }
+        #avatar-prev { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; margin-bottom: 10px; border: 2px solid #25D366; }
     </style>
 </head>
 <body>
-
-<div id="sidebar">
-    <div class="header">
-        <img src="{{ user.avatar }}" class="avatar" onclick="document.getElementById('ava-up').click()">
-        <b>{{ user.username }} (Siz)</b>
-        <button onclick="document.getElementById('group-modal').style.display='block'">+</button>
-    </div>
-    <div id="story-bar">
-        <div onclick="document.getElementById('st-in').click()" style="text-align:center; cursor:pointer">
-            <div class="story-thumb" style="border:3px dashed #ccc; display:flex; align-items:center; justify-content:center">+</div>
-            <small>Ekle</small>
-        </div>
-        <div id="stories-list" style="display:flex; gap:10px"></div>
-    </div>
-    <div style="flex:1; overflow-y:auto">
-        <div style="padding:10px; background:#f0f2f5; font-size:12px; font-weight:bold">ÇEVRİMİÇİ KULLANICILAR</div>
-        <div id="online-list"></div>
-        <div style="padding:10px; background:#f0f2f5; font-size:12px; font-weight:bold">GRUPLAR</div>
-        <div id="groups-list"></div>
-    </div>
-    <div style="padding:10px">
-        <button onclick="window.location.href='/logout'" style="width:100%">Çıkış</button>
-        <form action="/delete_account" method="post" onsubmit="return confirm('Hesabı silmek istediğine emin misin?')">
-            <button type="submit" style="width:100%; background:red; color:white; margin-top:5px">Hesabı Sil</button>
-        </form>
-    </div>
-</div>
-
-<div id="main">
-    <div class="header" id="chat-header">
-        <span id="target-name">Sohbet seçin</span>
-        <div id="chat-tools" style="display:none">
-            <button onclick="startCall()">📹</button>
-            <button id="block-btn" onclick="toggleBlock()">Engelle</button>
+    <div class="card">
+        <h2>Sohbetimiz</h2>
+        <div id="register-box">
+            <img id="avatar-prev" src="https://cdn-icons-png.flaticon.com/512/149/149071.png">
+            <form action="/register" method="post" id="reg-form">
+                <input type="text" name="username" placeholder="Kullanıcı Adı" required>
+                <input type="password" name="password" placeholder="Şifre" required>
+                <input type="hidden" id="avatar_data" name="avatar_data">
+                <button type="button" onclick="document.getElementById('ava-in').click()" style="background:#34b7f1">Fotoğraf Seç</button>
+                <button type="submit">Kayıt Ol</button>
+            </form>
         </div>
     </div>
-    <div id="messages"></div>
-    <div style="padding:10px; background:#f0f0f0; display:flex; gap:10px; align-items:center">
-        <button onclick="document.getElementById('file-in').click()">📎</button>
-        <button id="mic-btn" onmousedown="startRec()" onmouseup="stopRec()">🎤</button>
-        <input type="text" id="msg-in" style="flex:1; padding:10px; border-radius:20px; border:none" placeholder="Bir mesaj yazın...">
-        <button onclick="send()" style="background:var(--green); color:white; border:none; padding:10px 20px; border-radius:20px">Send</button>
-    </div>
-</div>
 
-<div id="group-modal" class="modal">
-    <h3>Grup Oluştur</h3>
-    <input type="text" id="gr-name" placeholder="Grup Adı"><br>
-    <input type="password" id="gr-pass" placeholder="Şifre (Opsiyonel)"><br><br>
-    <button onclick="createGroup()">Oluştur</button>
-    <button onclick="this.parentElement.style.display='none'">İptal</button>
-</div>
+    <input type="file" id="ava-in" style="display:none" accept="image/*" onchange="processImage(this)">
 
-<div id="story-viewer">
-    <div class="st-progress"><div class="st-bar" id="st-bar"></div></div>
-    <div id="st-media-box" style="width:100%; height:80%; display:flex; justify-content:center; align-items:center" onclick="nextStory()"></div>
-    <div id="st-info" style="color:white; text-align:center"></div>
-    <div id="st-viewers" style="color:#aaa; font-size:12px; margin-top:10px"></div>
-    <button id="st-del-btn" style="display:none; background:red; color:white; border:none; padding:10px; margin-top:10px" onclick="deleteStory()">SİL</button>
-    <button onclick="closeStory()" style="position:absolute; top:20px; right:20px; color:white; background:none; border:none; font-size:30px">X</button>
-</div>
-
-<input type="file" id="st-in" style="display:none" onchange="uploadStory(this)">
-<input type="file" id="music-st-in" style="display:none" accept="audio/*">
-<input type="file" id="ava-up" style="display:none" onchange="updateAvatar(this)">
-<input type="file" id="file-in" style="display:none" onchange="uploadFile(this)">
-
-<script>
-    const socket = io();
-    const me = "{{ user.username }}";
-    let currentRoom = "";
-    let targetUser = "";
-    let activeStories = [];
-    let storyIdx = 0;
-    let storyTimer;
-    let isBlocked = false;
-
-    // --- GRUP & CHAT ---
-    function joinRoom(name, type, hasPass) {
-        if(hasPass) {
-            const p = prompt("Grup Şifresi:");
-            socket.emit('check_group_pass', {name, p});
-        }
-        currentRoom = type === 'group' ? name : [me, name].sort().join('_');
-        targetUser = type === 'user' ? name : "";
-        document.getElementById('target-name').innerText = name;
-        document.getElementById('chat-tools').style.display = type === 'user' ? 'flex' : 'none';
-        document.getElementById('messages').innerHTML = "";
-        socket.emit('join', {room: currentRoom});
-    }
-
-    function send() {
-        const val = document.getElementById('msg-in').value;
-        if(val) {
-            socket.emit('send_message', {room: currentRoom, msg: val, target: targetUser});
-            document.getElementById('msg-in').value = "";
-        }
-    }
-
-    socket.on('new_message', d => { if(d.room === currentRoom) appendMsg(d); });
-    socket.on('load_history', h => h.forEach(appendMsg));
-
-    function appendMsg(d) {
-        const div = document.createElement('div');
-        div.className = `msg-row ${d.sender === me ? 'me' : 'ot'}`;
-        div.innerHTML = `
-            <img src="${d.ava}" class="msg-ava">
-            <div class="msg-bubble">
-                <b style="font-size:10px">${d.sender}</b><br>
-                ${d.type === 'text' ? d.content : (d.type==='image' ? `<img src="${d.content}" style="max-width:200px">` : `<audio src="${d.content}" controls></audio>`)}
-            </div>
-        `;
-        const box = document.getElementById('messages');
-        box.appendChild(div);
-        box.scrollTop = box.scrollHeight;
-    }
-
-    // --- HİKAYE SİSTEMİ ---
-    function uploadStory(input) {
-        const file = input.files[0];
-        const r = new FileReader();
-        r.onload = e => {
-            const hasMusic = confirm("Müzik eklemek ister misiniz?");
-            if(hasMusic) {
-                const mIn = document.getElementById('music-st-in');
-                mIn.onchange = me => {
-                    const mr = new FileReader();
-                    mr.onload = ev => socket.emit('post_story', {content: e.target.result, type: file.type.split('/')[0], audio: ev.target.result});
-                    mr.readAsDataURL(me.target.files[0]);
+    <script>
+        function processImage(input) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const img = new Image();
+                    img.src = e.target.result;
+                    img.onload = function() {
+                        // KÜÇÜLTME İŞLEMİ (CANVAS)
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d');
+                        
+                        // Fotoğrafı 200x200 kareye zorla (Boyutu çok düşürür)
+                        canvas.width = 200;
+                        canvas.height = 200;
+                        ctx.drawImage(img, 0, 0, 200, 200);
+                        
+                        // %70 kalite ile JPEG formatına çevir
+                        const compressedData = canvas.toDataURL('image/jpeg', 0.7);
+                        
+                        document.getElementById('avatar-prev').src = compressedData;
+                        document.getElementById('avatar_data').value = compressedData;
+                        console.log("Fotoğraf optimize edildi.");
+                    };
                 };
-                mIn.click();
-            } else {
-                socket.emit('post_story', {content: e.target.result, type: file.type.split('/')[0]});
+                reader.readAsDataURL(input.files[0]);
             }
-        };
-        r.readAsDataURL(file);
-    }
-
-    socket.on('refresh_stories', () => socket.emit('get_stories')); // Backend'de stories_list tetikler
-
-    function openStory(items) {
-        activeStories = items; storyIdx = 0;
-        document.getElementById('story-viewer').style.display = 'flex';
-        showStory();
-    }
-
-    function showStory() {
-        clearTimeout(storyTimer);
-        const s = activeStories[storyIdx];
-        const box = document.getElementById('st-media-box');
-        box.innerHTML = s.type === 'image' ? `<img src="${s.content}" class="st-media">` : `<video src="${s.content}" autoplay class="st-media"></video>`;
-        
-        if(s.music) { const a = new Audio(s.music); a.play(); }
-        
-        document.getElementById('st-info').innerText = s.username;
-        document.getElementById('st-viewers').innerText = s.username === me ? "Görenler: " + s.viewers.join(', ') : "";
-        document.getElementById('st-del-btn').style.display = s.username === me ? "block" : "none";
-        
-        socket.emit('view_story', {id: s.id});
-
-        const bar = document.getElementById('st-bar');
-        bar.style.transition = 'none'; bar.style.width = '0%';
-        setTimeout(() => { bar.style.transition = 'width 5s linear'; bar.style.width = '100%'; }, 50);
-        
-        storyTimer = setTimeout(nextStory, 5000);
-    }
-
-    function nextStory() {
-        storyIdx++;
-        if(storyIdx < activeStories.length) showStory();
-        else closeStory();
-    }
-
-    function closeStory() { document.getElementById('story-viewer').style.display='none'; clearTimeout(storyTimer); }
-    function deleteStory() { socket.emit('delete_story', {id: activeStories[storyIdx].id}); closeStory(); }
-
-    // --- DİĞER FONKSİYONLAR ---
-    let mediaRec, chunks = [];
-    function startRec() {
-        navigator.mediaDevices.getUserMedia({audio:true}).then(s => {
-            mediaRec = new MediaRecorder(s);
-            mediaRec.ondataavailable = e => chunks.push(e.data);
-            mediaRec.onstop = () => {
-                const b = new Blob(chunks, {type: 'audio/ogg'});
-                const r = new FileReader(); r.onload = e => socket.emit('send_message', {room:currentRoom, msg:e.target.result, type:'audio', target:targetUser});
-                r.readAsDataURL(b); chunks = [];
-            };
-            mediaRec.start();
-        });
-    }
-    function stopRec() { if(mediaRec) mediaRec.stop(); }
-
-    function updateAvatar(i) {
-        const r = new FileReader();
-        r.onload = e => socket.emit('update_avatar', {avatar: e.target.result});
-        r.readAsDataURL(i.files[0]);
-    }
-
-    function toggleBlock() {
-        socket.emit(isBlocked ? 'unblock_user' : 'block_user', {target: targetUser});
-    }
-    socket.on('block_status', d => {
-        isBlocked = d.blocked;
-        document.getElementById('block-btn').innerText = isBlocked ? "Engeli Kaldır" : "Engelle";
-    });
-
-    // --- GÖRÜNTÜLÜ ARAMA ---
-    function startCall() {
-        const isMobile = /iPhone|Android/i.test(navigator.userAgent);
-        const constraints = { 
-            video: isMobile ? { facingMode: "user" } : true, 
-            audio: true 
-        };
-        navigator.mediaDevices.getUserMedia(constraints).then(s => {
-            // WebRTC Logic Here (Simplified for UI)
-            alert("Kamera açıldı (WebRTC altyapısı için PeerJS veya Mediasoup gereklidir)");
-        });
-    }
-
-    socket.on('online_list', users => {
-        const div = document.getElementById('online-list'); div.innerHTML = "";
-        for(let u in users) {
-            div.innerHTML += `
-                <div style="padding:10px; display:flex; align-items:center; gap:10px; cursor:pointer" onclick="joinRoom('${u}', 'user')">
-                    <img src="${users[u]}" style="width:30px; height:30px; border-radius:50%">
-                    <span>${u === me ? 'Siz' : u}</span>
-                </div>`;
         }
-    });
-</script>
+    </script>
 </body>
 </html>
