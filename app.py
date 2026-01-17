@@ -12,7 +12,8 @@ app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024  # 10 MB
 
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
-socketio = SocketIO(app)
+socketio = SocketIO(app, cors_allowed_origins="*")
+
 
 ### MODELS ###
 
@@ -139,3 +140,8 @@ def on_connect():
 
 if __name__ == "__main__":
     socketio.run(app, debug=True)
+
+if __name__ == "__main__":
+    socketio.run(app, host="0.0.0.0", port=5000)
+
+
