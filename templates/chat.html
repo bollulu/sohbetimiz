@@ -1,371 +1,89 @@
 <!DOCTYPE html>
-<html lang="tr">
+<html>
 <head>
 <meta charset="UTF-8">
 <title>Sohbet</title>
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
 
 <style>
-:root{
-    --green:#25d366;
-    --bg:#e5ddd5;
-    --me:#dcf8c6;
-}
-*{box-sizing:border-box}
-body{
-    margin:0;
-    font-family:Arial,Helvetica,sans-serif;
-    height:100vh;
-    display:flex;
-    background:#d1d7db;
-}
-
-/* SIDEBAR */
-#sidebar{
-    width:320px;
-    background:white;
-    display:flex;
-    flex-direction:column;
-    border-right:1px solid #ccc;
-}
-.header{
-    padding:10px;
-    background:#ededed;
-    display:flex;
-    align-items:center;
-    gap:10px;
-}
-.my-ava{
-    width:40px;
-    height:40px;
-    border-radius:50%;
-    object-fit:cover;
-}
-#tabs{
-    display:flex;
-}
-.tab{
-    flex:1;
-    text-align:center;
-    padding:10px;
-    cursor:pointer;
-    font-weight:bold;
-    color:#777;
-}
-.tab.active{
-    color:var(--green);
-    border-bottom:3px solid var(--green);
-}
-#lists{
-    flex:1;
-    overflow:auto;
-}
-.list-item{
-    display:flex;
-    align-items:center;
-    gap:10px;
-    padding:12px;
-    cursor:pointer;
-}
-.list-item:hover{background:#f0f0f0}
-
-/* MAIN */
-#main{
-    flex:1;
-    display:flex;
-    flex-direction:column;
-    background:var(--bg);
-}
-#story-bar{
-    display:flex;
-    gap:15px;
-    padding:10px;
-    background:white;
-    border-bottom:1px solid #ccc;
-    overflow-x:auto;
-}
-.story{
-    text-align:center;
-    cursor:pointer;
-}
-.story img{
-    width:60px;
-    height:60px;
-    border-radius:50%;
-    border:2px solid var(--green);
-}
-#chat{
-    flex:1;
-    padding:15px;
-    overflow:auto;
-    display:flex;
-    flex-direction:column;
-    gap:8px;
-    background-image:url("https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png");
-}
-.msg{
-    max-width:70%;
-    padding:8px 12px;
-    border-radius:8px;
-    background:white;
-    word-wrap:break-word;
-}
-.me{
-    align-self:flex-end;
-    background:var(--me);
-}
-.footer{
-    display:flex;
-    gap:10px;
-    padding:10px;
-    background:#f0f0f0;
-}
-.footer input{
-    flex:1;
-    padding:10px;
-    border-radius:20px;
-    border:none;
-}
-.footer button{
-    border:none;
-    background:var(--green);
-    color:white;
-    padding:10px 15px;
-    border-radius:20px;
-}
-
-/* STORY VIEW */
-#story-view{
-    display:none;
-    position:fixed;
-    inset:0;
-    background:black;
-    z-index:999;
-    justify-content:center;
-    align-items:center;
-    flex-direction:column;
-}
-#story-view img, #story-view video{
-    max-width:100%;
-    max-height:85%;
-}
-#story-top{
-    color:white;
-    width:100%;
-    padding:10px;
-    display:flex;
-    align-items:center;
-    gap:10px;
-}
-#story-viewers{
-    font-size:12px;
-    opacity:.8;
-}
-#close{
-    position:absolute;
-    top:15px;
-    right:20px;
-    font-size:30px;
-    color:white;
-    cursor:pointer;
-}
-
-@media(max-width:768px){
-    #sidebar{width:100px}
-    .tab{font-size:12px}
-    .list-item span{display:none}
-}
+body{margin:0;font-family:Arial;background:#e5ddd5}
+#chat{height:80vh;overflow:auto;padding:10px}
+.msg{background:white;padding:8px;margin:5px;border-radius:8px;max-width:70%}
+.me{background:#dcf8c6;margin-left:auto}
+#bar{display:flex;padding:10px;background:#f0f0f0}
+#bar input{flex:1;padding:10px;border-radius:20px;border:none}
+#bar button{margin-left:10px;background:#25d366;color:white;border:none;padding:10px}
+#story{display:flex;gap:10px;padding:10px;background:white}
+.story img{width:60px;height:60px;border-radius:50%;border:2px solid #25d366}
 </style>
 </head>
-
 <body>
 
-<!-- SIDEBAR -->
-<div id="sidebar">
-    <div class="header">
-        <img src="{{ user.avatar }}" class="my-ava">
-        <b>{{ user.username }}</b>
-        <span style="margin-left:auto;cursor:pointer" onclick="location.href='/logout'">🚪</span>
+<div id="story">
+    <div onclick="uploadStory()">
+        <img src="{{ user.avatar }}">
+        <div>Hikaye+</div>
     </div>
-
-    <div id="tabs">
-        <div class="tab active" onclick="switchTab('users')">Sohbet</div>
-        <div class="tab" onclick="switchTab('groups')">Gruplar</div>
-    </div>
-
-    <div id="lists">
-        <div id="users-list"></div>
-        <div id="groups-list" style="display:none">
-            <button onclick="createGroup()" style="margin:10px;width:90%">+ Grup Oluştur</button>
-        </div>
-    </div>
+    <div id="stories"></div>
 </div>
 
-<!-- MAIN -->
-<div id="main">
+<div id="chat"></div>
 
-    <div id="story-bar">
-        <div class="story" onclick="document.getElementById('story-file').click()">
-            <img src="{{ user.avatar }}" style="border-style:dashed">
-            <div>Hikaye+</div>
-        </div>
-        <div id="story-items"></div>
-    </div>
-
-    <div id="chat"></div>
-
-    <div class="footer">
-        <input id="msg" placeholder="Mesaj yaz..." onkeydown="if(event.key==='Enter')sendMsg()">
-        <button onclick="sendMsg()">➤</button>
-    </div>
+<div id="bar">
+<input id="msg" placeholder="Mesaj yaz">
+<button onclick="send()">Gönder</button>
 </div>
 
-<input type="file" id="story-file" accept="image/*,video/*" style="display:none">
-<input type="file" id="music-file" accept="audio/*" style="display:none">
-
-<!-- STORY VIEW -->
-<div id="story-view">
-    <div id="story-top">
-        <img id="st-ava" class="my-ava">
-        <b id="st-name"></b>
-        <span id="story-viewers"></span>
-    </div>
-    <div id="close" onclick="closeStory()">✕</div>
-    <img id="st-img">
-    <video id="st-vid" autoplay></video>
-</div>
+<input type="file" id="storyfile" accept="image/*,video/*" hidden>
 
 <script>
 const socket = io();
-const myName = "{{ user.username }}";
-let currentRoom = "Genel";
-let stories = {};
-let sUser = null;
-let sIdx = 0;
-let timer = null;
-let audio = new Audio();
+let room="genel";
 
-/* USERS */
-socket.on("users", list=>{
-    const u = document.getElementById("users-list");
-    u.innerHTML="";
-    list.forEach(x=>{
-        if(x.u!==myName){
-            u.innerHTML+=`
-            <div class="list-item" onclick="openChat('${x.u}')">
-                <img src="${x.a}" class="my-ava">
-                <span>${x.u}</span>
-            </div>`;
-        }
-    });
+socket.emit("join_room",{room});
+
+socket.on("history",d=>{
+    d.forEach(add);
 });
+socket.on("message",add);
 
-/* CHAT */
-function openChat(u){
-    currentRoom=[myName,u].sort().join("_");
-    socket.emit("join_room",{room:currentRoom});
-    document.getElementById("chat").innerHTML="";
-}
-function sendMsg(){
-    const i=document.getElementById("msg");
-    if(i.value.trim()){
-        socket.emit("send_message",{room:currentRoom,msg:i.value,type:"text"});
+function send(){
+    let i=document.getElementById("msg");
+    if(i.value){
+        socket.emit("send_message",{room,msg:i.value});
         i.value="";
     }
 }
-socket.on("history",msgs=>{
-    document.getElementById("chat").innerHTML="";
-    msgs.forEach(addMsg);
-});
-socket.on("message",addMsg);
-function addMsg(d){
-    const m=document.createElement("div");
-    m.className="msg "+(d.user===myName?"me":"");
-    m.innerHTML=d.msg;
-    document.getElementById("chat").appendChild(m);
-    document.getElementById("chat").scrollTop=999999;
+
+function add(d){
+    let div=document.createElement("div");
+    div.className="msg "+(d.user=="{{ user.username }}"?"me":"");
+    div.innerText=d.user+": "+d.msg;
+    chat.appendChild(div);
+    chat.scrollTop=99999;
 }
 
-/* STORY */
-document.getElementById("story-file").onchange=e=>{
-    const f=e.target.files[0];
-    if(confirm("Hikayeye müzik eklensin mi?")){
-        document.getElementById("music-file").onchange=a=>{
-            sendStory(f,a.target.files[0]);
-        };
-        document.getElementById("music-file").click();
-    }else sendStory(f,null);
-};
-function sendStory(media,music){
-    const r1=new FileReader();
-    r1.onload=e1=>{
-        if(music){
-            const r2=new FileReader();
-            r2.onload=e2=>{
-                socket.emit("add_story",{content:e1.target.result,music:e2.target.result,type:media.type.includes("video")?"video":"image"});
-            };
-            r2.readAsDataURL(music);
-        }else{
-            socket.emit("add_story",{content:e1.target.result,type:media.type.includes("video")?"video":"image"});
-        }
-    };
-    r1.readAsDataURL(media);
+function uploadStory(){
+    document.getElementById("storyfile").click();
 }
+
+document.getElementById("storyfile").onchange=e=>{
+    let f=e.target.files[0];
+    let r=new FileReader();
+    r.onload=x=>{
+        socket.emit("add_story",{content:x.target.result,type:f.type.includes("video")?"video":"image"});
+    }
+    r.readAsDataURL(f);
+}
+
 socket.on("story_list",data=>{
-    stories=data;
-    const s=document.getElementById("story-items");
+    let s=document.getElementById("stories");
     s.innerHTML="";
     for(let u in data){
-        s.innerHTML+=`
-        <div class="story" onclick="openStory('${u}')">
-            <img src="${data[u].avatar}">
-            <div>${u===myName?"Siz":u}</div>
-        </div>`;
+        s.innerHTML+=`<div class="story"><img src="${data[u].avatar}"><div>${u}</div></div>`;
     }
 });
-function openStory(u){
-    sUser=u; sIdx=0;
-    document.getElementById("story-view").style.display="flex";
-    showStory();
-}
-function showStory(){
-    clearTimeout(timer); audio.pause();
-    const st=stories[sUser].items[sIdx];
-    document.getElementById("st-ava").src=stories[sUser].avatar;
-    document.getElementById("st-name").innerText=sUser;
-    document.getElementById("story-viewers").innerText="👁️ "+st.viewers.length;
-    const img=document.getElementById("st-img");
-    const vid=document.getElementById("st-vid");
-    img.style.display="none"; vid.style.display="none";
-    if(st.type==="video"){
-        vid.src=st.content; vid.style.display="block";
-        timer=setTimeout(nextStory,5000);
-    }else{
-        img.src=st.content; img.style.display="block";
-        if(st.music){audio.src=st.music; audio.play();}
-        timer=setTimeout(nextStory,5000);
-    }
-    socket.emit("view_story",{id:st.id});
-}
-function nextStory(){
-    sIdx++;
-    if(sIdx>=stories[sUser].items.length) closeStory();
-    else showStory();
-}
-function closeStory(){
-    document.getElementById("story-view").style.display="none";
-    clearTimeout(timer); audio.pause();
-}
-
-/* UI */
-function switchTab(t){
-    document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
-    event.target.classList.add("active");
-    document.getElementById("users-list").style.display=t==="users"?"block":"none";
-    document.getElementById("groups-list").style.display=t==="groups"?"block":"none";
-}
 </script>
 
 </body>
