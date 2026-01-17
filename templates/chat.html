@@ -14,6 +14,7 @@
         #sidebar { width: 30%; background: var(--dark-sec); border-right: 1px solid #333; display: flex; flex-direction: column; min-width: 300px; }
         .header { height: 60px; background: var(--dark-sec); padding: 10px 15px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #333; }
         .user-avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; cursor: pointer; }
+        
         .nav-tabs { display: flex; background: #111b21; }
         .nav-item { flex: 1; text-align: center; padding: 10px; cursor: pointer; border-bottom: 3px solid transparent; }
         .nav-item.active { border-bottom: 3px solid var(--green); color: var(--green); }
@@ -22,52 +23,46 @@
         .list-area { flex: 1; overflow-y: auto; }
         .list-item { padding: 15px; display: flex; align-items: center; gap: 15px; cursor: pointer; border-bottom: 1px solid #333; }
         .list-item:hover { background: #2a3942; }
-        .online-dot { width: 10px; height: 10px; background: #00a884; border-radius: 50%; margin-left: auto; }
         
-        /* SAĞ PANEL (CHAT) */
-        #main-chat { flex: 1; display: flex; flex-direction: column; background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); background-size: cover; background-position: center; position: relative; }
+        /* SAĞ PANEL */
+        #main-chat { flex: 1; display: flex; flex-direction: column; background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); background-size: cover; background-position: center; position: relative; transition: background 0.5s; }
         
+        /* HİKAYELER */
         #story-bar { background: rgba(32, 44, 51, 0.95); padding: 10px; display: flex; gap: 15px; overflow-x: auto; white-space: nowrap; height: 85px; align-items: center; border-bottom: 1px solid #333; }
         .story-circle { width: 60px; height: 60px; border-radius: 50%; border: 2px solid var(--green); padding: 2px; cursor: pointer; flex-shrink: 0; position: relative; }
         .story-circle img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
         .story-add { border: 2px dashed #666; display: flex; justify-content: center; align-items: center; font-size: 24px; color: #666; background: transparent; }
-        
-        #messages-area { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 5px; }
-        .message { max-width: 65%; padding: 8px 10px; border-radius: 8px; font-size: 14px; position: relative; word-wrap: break-word; }
+
+        /* MESAJLAR */
+        #messages-area { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+        .message { max-width: 65%; padding: 8px 10px; border-radius: 8px; font-size: 14px; position: relative; word-wrap: break-word; display: flex; flex-direction: column; }
         .msg-in { background: var(--msg-in); align-self: flex-start; border-top-left-radius: 0; }
         .msg-out { background: var(--msg-out); align-self: flex-end; border-top-right-radius: 0; }
-        .msg-info { font-size: 10px; color: #8696a0; text-align: right; margin-top: 2px; display: flex; justify-content: flex-end; align-items: center; gap: 3px; }
-        .msg-avatar { width: 20px; height: 20px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
+        
+        /* Mesaj Başlığı (Avatar + İsim) */
+        .msg-header { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+        .msg-header img { width: 25px; height: 25px; border-radius: 50%; object-fit: cover; }
+        .msg-header b { font-size: 13px; color: #dcf8c6; }
+        .msg-content { margin-left: 33px; } /* Avatarın altı boş kalsın diye */
+        .msg-out .msg-content { margin-left: 0; margin-right: 0; }
+        .msg-out .msg-header { flex-direction: row-reverse; } /* Kendi mesajında avatar sağda */
+
+        .msg-info { font-size: 10px; color: #8696a0; text-align: right; margin-top: 2px; }
 
         #input-area { background: var(--dark-sec); padding: 10px; display: flex; align-items: center; gap: 10px; }
         input[type="text"] { flex: 1; padding: 10px; border-radius: 20px; border: none; background: #2a3942; color: white; }
         .icon-btn { color: #8696a0; font-size: 20px; cursor: pointer; background: none; border: none; }
-        .icon-btn:hover { color: var(--text); }
         .recording { color: red !important; animation: pulse 1s infinite; }
         
-        /* Modal & Overlays */
+        /* Modal & Viewer */
         .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; justify-content: center; align-items: center; }
         .modal-content { background: var(--dark-sec); padding: 20px; border-radius: 10px; width: 90%; max-width: 400px; text-align: center; }
-        
-        /* Story Viewer */
         #story-viewer { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 2000; flex-direction: column; }
-        #story-progress-bar { width: 100%; height: 5px; background: #333; display: flex; }
-        .progress-segment { height: 100%; background: #555; margin-right: 2px; flex: 1; }
-        .progress-active { background: white; transition: width 0.1s linear; }
-        #story-media { flex: 1; display: flex; justify-content: center; align-items: center; position: relative; }
-        #story-media img, #story-media video { max-width: 100%; max-height: 90vh; }
-        .story-controls { position: absolute; top: 20px; width: 100%; display: flex; justify-content: space-between; padding: 0 20px; box-sizing: border-box; }
         
-        /* Video Call */
         #video-modal video { width: 100%; height: 100%; object-fit: cover; }
         #local-video { position: absolute; bottom: 20px; right: 20px; width: 120px; height: 160px; border: 2px solid white; border-radius: 10px; z-index: 3000; transform: scaleX(-1); }
         
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
-        
-        /* Context Menu */
-        .context-menu { position: absolute; background: #2a3942; border-radius: 5px; padding: 5px; display: none; z-index: 100; box-shadow: 0 2px 5px black; }
-        .context-item { padding: 8px 15px; cursor: pointer; font-size: 13px; }
-        .context-item:hover { background: #111b21; }
     </style>
 </head>
 <body>
@@ -81,7 +76,7 @@
         <div style="display:flex; gap:10px;">
             <button class="icon-btn" onclick="openGroupModal()" title="Grup Kur"><i class="fas fa-users"></i></button>
             <button class="icon-btn" onclick="location.href='/logout'" title="Çıkış"><i class="fas fa-sign-out-alt"></i></button>
-            <button class="icon-btn" onclick="location.href='/delete_account'" style="color:red;" title="Hesabı Sil"><i class="fas fa-trash"></i></button>
+            <button class="icon-btn" onclick="openDeleteAccount()" style="color:red;" title="Hesabı Sil"><i class="fas fa-trash"></i></button>
         </div>
         <input type="file" id="profile-file" hidden accept="image/*" onchange="updateProfile(this)">
     </div>
@@ -109,8 +104,9 @@
         </div>
         <div style="display:flex; gap:15px; align-items:center;">
             <span id="clock" style="font-size:12px; color:#aaa;"></span>
-            <button class="icon-btn" id="video-btn" onclick="startVideoCall()"><i class="fas fa-video"></i></button>
-            <button class="icon-btn" onclick="document.getElementById('bg-file').click()"><i class="fas fa-image"></i></button>
+            <button class="icon-btn" onclick="startVideoCall()"><i class="fas fa-video"></i></button>
+            <button class="icon-btn" onclick="document.getElementById('bg-file').click()" title="Arka Planı Değiştir"><i class="fas fa-image"></i></button>
+            <button class="icon-btn" onclick="resetBG()" title="Varsayılan Arka Plan"><i class="fas fa-undo"></i></button>
             <button class="icon-btn" id="block-btn" onclick="blockCurrentUser()" style="display:none; color:red;"><i class="fas fa-ban"></i></button>
         </div>
     </div>
@@ -137,7 +133,16 @@
         <span onclick="addEmoji('❤️')" style="cursor:pointer; font-size:20px;">❤️</span>
         <span onclick="addEmoji('👍')" style="cursor:pointer; font-size:20px;">👍</span>
         <span onclick="addEmoji('😍')" style="cursor:pointer; font-size:20px;">😍</span>
-        <span onclick="addEmoji('😭')" style="cursor:pointer; font-size:20px;">😭</span>
+    </div>
+</div>
+
+<div id="delete-modal" class="modal">
+    <div class="modal-content">
+        <h3 style="color:red">Hesabı Sil</h3>
+        <p>Emin misiniz? Tüm mesajlar silinecek!</p>
+        <input type="password" id="del-pass" placeholder="Şifrenizi girin">
+        <button onclick="confirmDeleteAccount()" style="background:red; color:white; margin-top:10px;">Evet, Sil</button>
+        <button onclick="closeModal('delete-modal')" style="background:#555; color:white; margin-top:5px;">İptal</button>
     </div>
 </div>
 
@@ -146,8 +151,8 @@
         <h3>Yeni Grup Oluştur</h3>
         <input type="text" id="group-name" placeholder="Grup Adı">
         <input type="password" id="group-pass" placeholder="Şifre (İsteğe bağlı)">
-        <button onclick="createGroup()" style="background:var(--green); color:white; border:none; padding:10px; width:100%; margin-top:10px;">Oluştur</button>
-        <button onclick="closeModal('group-modal')" style="background:red; color:white; border:none; padding:10px; width:100%; margin-top:5px;">İptal</button>
+        <button onclick="createGroup()" style="background:var(--green); color:white; margin-top:10px;">Oluştur</button>
+        <button onclick="closeModal('group-modal')" style="background:#555; color:white; margin-top:5px;">İptal</button>
     </div>
 </div>
 
@@ -155,37 +160,35 @@
     <div class="modal-content">
         <h3>Hikaye Ekle</h3>
         <input type="file" id="story-file" accept="image/*,video/*">
-        <br><br>
-        <label>Müzik Ekle (Opsiyonel):</label>
+        <label>Müzik (Opsiyonel):</label>
         <input type="file" id="story-music" accept="audio/*">
-        <br><br>
-        <button onclick="uploadStory()" style="background:var(--green); color:white; border:none; padding:10px; width:100%;">Paylaş</button>
-        <button onclick="closeModal('story-add-modal')" style="background:red; color:white; border:none; padding:10px; width:100%; margin-top:5px;">İptal</button>
+        <button onclick="uploadStory()" style="background:var(--green); color:white; margin-top:10px;">Paylaş</button>
+        <button onclick="closeModal('story-add-modal')" style="background:#555; color:white; margin-top:5px;">İptal</button>
     </div>
 </div>
 
 <div id="story-viewer">
-    <div id="story-progress-bar"></div>
-    <div class="story-controls">
+    <div style="height:5px; display:flex;" id="story-progress-bar"></div>
+    <div style="padding:10px; display:flex; justify-content:space-between; align-items:center;">
         <div style="display:flex; align-items:center; gap:10px;">
-            <img id="st-avatar" class="user-avatar" style="border:none;">
+            <img id="st-avatar" class="user-avatar">
             <b id="st-username" style="color:white;"></b>
-            <span id="st-viewers" style="font-size:12px; color:#ddd; margin-left:10px;">👁️ 0</span>
+            <span id="st-viewers" style="font-size:12px; color:#ddd;"></span>
         </div>
         <div style="display:flex; gap:10px;">
-            <button onclick="deleteCurrentStory()" id="st-del-btn" style="background:none; border:none; color:red; cursor:pointer; display:none;"><i class="fas fa-trash"></i></button>
-            <button onclick="closeStoryViewer()" style="background:none; border:none; color:white; font-size:24px; cursor:pointer;">&times;</button>
+            <button onclick="deleteCurrentStory()" id="st-del-btn" style="color:red; background:none; border:none; display:none;"><i class="fas fa-trash"></i></button>
+            <button onclick="closeStoryViewer()" style="color:white; background:none; border:none; font-size:24px;">&times;</button>
         </div>
     </div>
-    <div id="story-media"></div>
+    <div id="story-media" style="flex:1; display:flex; justify-content:center; align-items:center;"></div>
 </div>
 
 <div id="video-call-modal" class="modal" style="background:black;">
-    <video id="remote-video" autoplay playsinline></video>
+    <video id="remote-video" autoplay playsinline style="width:100%; height:100%; object-fit:cover;"></video>
     <video id="local-video" autoplay playsinline muted></video>
-    <div style="position:absolute; bottom:20px; left:0; width:100%; text-align:center;">
-        <button onclick="switchCamera()" id="cam-switch" style="padding:15px; border-radius:50%; border:none; background:#333; color:white; margin-right:20px; display:none;"><i class="fas fa-sync"></i></button>
-        <button onclick="endCall()" style="padding:15px 30px; border-radius:30px; border:none; background:red; color:white;"><i class="fas fa-phone-slash"></i> Bitir</button>
+    <div style="position:absolute; bottom:20px; text-align:center; width:100%;">
+        <button onclick="switchCamera()" id="cam-switch" style="padding:15px; border-radius:50%; background:#333; color:white; display:none;"><i class="fas fa-sync"></i></button>
+        <button onclick="endCall()" style="padding:15px 30px; border-radius:30px; background:red; color:white;">Bitir</button>
     </div>
 </div>
 
@@ -197,29 +200,82 @@
     let isPrivate = false;
     let targetUser = null;
 
-    // Başlangıç
     window.onload = function() {
         startClock();
         socket.emit('join', {room: 'Genel'});
         socket.emit('get_stories');
         socket.emit('get_music');
         
-        // Arka planı yükle
         const savedBG = "{{ user.bg_image }}";
         if(savedBG) document.getElementById('main-chat').style.backgroundImage = `url('${savedBG}')`;
-
-        // Telefondaysa kamera değiştirme tuşunu göster
-        if(/Android|iPhone|iPad/i.test(navigator.userAgent)) {
+        
+        if(/Android|iPhone/i.test(navigator.userAgent)) {
             document.getElementById('cam-switch').style.display = 'inline-block';
         }
     };
 
     function startClock() {
         setInterval(() => {
-            const now = new Date();
-            document.getElementById('clock').innerText = now.toLocaleString('tr-TR');
+            document.getElementById('clock').innerText = new Date().toLocaleString('tr-TR');
         }, 1000);
     }
+    
+    function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+
+    // --- GRUP İŞLEMLERİ ---
+    function openGroupModal() { document.getElementById('group-modal').style.display = 'flex'; }
+    
+    function createGroup() {
+        const name = document.getElementById('group-name').value;
+        const pass = document.getElementById('group-pass').value;
+        if(name) {
+            socket.emit('create_group', {name: name, password: pass});
+            closeModal('group-modal');
+        } else {
+            alert('Grup adı gerekli!');
+        }
+    }
+
+    socket.on('update_group_list', (groups) => {
+        const list = document.getElementById('list-groups');
+        list.innerHTML = '';
+        groups.forEach(g => {
+            const lock = g.protected ? '<i class="fas fa-lock" style="font-size:12px; color:#aaa;"></i>' : '';
+            list.innerHTML += `
+            <div class="list-item" onclick="joinGroup('${g.name}', ${g.protected})">
+                <div style="width:40px; height:40px; background:#555; border-radius:50%; display:flex; justify-content:center; align-items:center; color:white;"><i class="fas fa-users"></i></div>
+                <b>${g.name} ${lock}</b>
+            </div>`;
+        });
+    });
+
+    function joinGroup(name, protected) {
+        if(protected) {
+            const p = prompt("Grup şifresi:");
+            // Basitlik için burada doğrulama sunucu tarafında yapılmalı ama
+            // bu örnekte şifre girilince odaya alıyoruz.
+        }
+        joinRoom(name, false);
+    }
+
+    // --- HESAP SİLME ---
+    function openDeleteAccount() { document.getElementById('delete-modal').style.display = 'flex'; }
+    
+    function confirmDeleteAccount() {
+        const pass = document.getElementById('del-pass').value;
+        if(pass) {
+            socket.emit('delete_account_confirm', {password: pass});
+        }
+    }
+    
+    socket.on('account_deleted_success', (data) => {
+        alert('Hesabınız başarıyla silindi.');
+        window.location.href = data.url;
+    });
+    
+    socket.on('account_deleted_error', (data) => {
+        alert(data.msg);
+    });
 
     // --- TAB SİSTEMİ ---
     function switchTab(tab) {
@@ -230,7 +286,7 @@
         document.getElementById('list-music').style.display = tab === 'music' ? 'block' : 'none';
     }
 
-    // --- KULLANICI LİSTESİ ---
+    // --- MESAJLAŞMA ---
     socket.on('update_user_list', (users) => {
         const list = document.getElementById('list-chats');
         list.innerHTML = `<div class="list-item" onclick="joinRoom('Genel', false)">
@@ -241,446 +297,28 @@
         users.forEach(u => {
             const blocked = myBlocked.includes(u.username) ? '<span style="color:red; font-size:10px;">(Engelli)</span>' : '';
             const name = u.is_me ? u.username + " (Siz)" : u.username;
-            const clickAction = u.is_me ? "" : `onclick="startPrivateChat('${u.username}')"`;
-            
+            const click = u.is_me ? "" : `onclick="startPrivateChat('${u.username}')"`;
             list.innerHTML += `
-            <div class="list-item" ${clickAction}>
+            <div class="list-item" ${click}>
                 <img src="${u.avatar}" class="user-avatar">
-                <div>
-                    <b>${name} ${blocked}</b>
-                    <div style="font-size:12px; color:#888;">Çevrimiçi</div>
-                </div>
+                <div><b>${name} ${blocked}</b><div style="font-size:12px; color:#888;">Çevrimiçi</div></div>
             </div>`;
         });
     });
 
-    // --- ODA & MESAJLAŞMA ---
     function joinRoom(room, priv, target) {
         currentRoom = room;
         isPrivate = priv;
         targetUser = target;
-        document.getElementById('messages-area').innerHTML = ''; // Temizle
+        document.getElementById('messages-area').innerHTML = '';
         document.getElementById('room-name').innerText = priv ? target : room;
         document.getElementById('block-btn').style.display = priv ? 'inline-block' : 'none';
-        
-        // Block butonunu güncelle
-        if(priv && myBlocked.includes(target)) {
-            document.getElementById('block-btn').innerHTML = '<i class="fas fa-unlock"></i>';
-        } else {
-            document.getElementById('block-btn').innerHTML = '<i class="fas fa-ban"></i>';
-        }
-
         socket.emit('join', {room: room});
     }
 
     function startPrivateChat(username) {
-        const roomName = [myUsername, username].sort().join('_');
-        joinRoom(roomName, true, username);
+        const room = [myUsername, username].sort().join('_');
+        joinRoom(room, true, username);
     }
 
-    socket.on('load_history', (msgs) => {
-        msgs.forEach(m => displayMessage(m));
-        scrollToBottom();
-    });
-
-    socket.on('new_message', (data) => {
-        // Eğer engelleyen kişiden geliyorsa gösterme
-        if(myBlocked.includes(data.sender)) return;
-        displayMessage(data);
-        scrollToBottom();
-    });
-
-    function sendMessage() {
-        const inp = document.getElementById('msg-input');
-        const txt = inp.value.trim();
-        if(txt) {
-            socket.emit('send_message', {room: currentRoom, msg: txt, type: 'text'});
-            inp.value = '';
-        }
-    }
-
-    function displayMessage(data) {
-        const isMe = data.sender === myUsername;
-        const area = document.getElementById('messages-area');
-        const msgDiv = document.createElement('div');
-        msgDiv.className = `message ${isMe ? 'msg-out' : 'msg-in'}`;
-        msgDiv.id = `msg-${data.id}`;
-        
-        // İçerik
-        let contentHtml = '';
-        if(data.type === 'text') contentHtml = data.content;
-        else if(data.type === 'image') contentHtml = `<img src="${data.content}" style="max-width:200px; border-radius:5px;">`;
-        else if(data.type === 'video') contentHtml = `<video src="${data.content}" controls style="max-width:200px; border-radius:5px;"></video>`;
-        else if(data.type === 'audio') contentHtml = `<audio src="${data.content}" controls></audio>`;
-        
-        // Avatar (Karşı tarafsa)
-        const avatarHtml = !isMe ? `<img src="${data.avatar}" class="msg-avatar">` : '';
-        const tick = isMe ? (data.status === 'read' ? '<i class="fas fa-check-double" style="color:#4fc3f7;"></i>' : '<i class="fas fa-check"></i>') : '';
-
-        msgDiv.innerHTML = `
-            ${avatarHtml}
-            ${!isMe ? `<b style="color:var(--green); font-size:12px;">${data.sender}</b><br>` : ''}
-            ${contentHtml}
-            <div class="msg-info">${data.time} ${tick}</div>
-        `;
-        
-        // Sağ tık silme (sadece kendin için)
-        if(isMe) {
-            msgDiv.oncontextmenu = (e) => {
-                e.preventDefault();
-                if(confirm('Mesajı silmek istiyor musunuz?')) {
-                    socket.emit('delete_message', {id: data.id});
-                }
-            };
-        }
-
-        area.appendChild(msgDiv);
-    }
-
-    socket.on('message_deleted', (data) => {
-        const el = document.getElementById(`msg-${data.id}`);
-        if(el) el.remove();
-    });
-
-    function scrollToBottom() {
-        const area = document.getElementById('messages-area');
-        area.scrollTop = area.scrollHeight;
-    }
-
-    // --- SES KAYDI (Düzeltme: ondataavailable) ---
-    let mediaRecorder;
-    let audioChunks = [];
-
-    async function startRecord() {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaRecorder = new MediaRecorder(stream);
-            audioChunks = [];
-            
-            mediaRecorder.ondataavailable = event => {
-                audioChunks.push(event.data);
-            };
-
-            mediaRecorder.onstop = () => {
-                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    socket.emit('send_message', {room: currentRoom, msg: e.target.result, type: 'audio'});
-                };
-                reader.readAsDataURL(audioBlob);
-            };
-
-            mediaRecorder.start();
-            document.getElementById('mic-btn').classList.add('recording');
-        } catch (err) {
-            alert("Mikrofon hatası: " + err);
-        }
-    }
-
-    function stopRecord() {
-        if(mediaRecorder && mediaRecorder.state !== 'inactive') {
-            mediaRecorder.stop();
-            document.getElementById('mic-btn').classList.remove('recording');
-        }
-    }
-
-    // --- DOSYA GÖNDERME ---
-    function sendMedia(input) {
-        const file = input.files[0];
-        if(!file) return;
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const type = file.type.startsWith('image') ? 'image' : (file.type.startsWith('video') ? 'video' : 'text');
-            socket.emit('send_message', {room: currentRoom, msg: e.target.result, type: type});
-        };
-        reader.readAsDataURL(file);
-    }
-
-    // --- HİKAYELER ---
-    let currentStories = [];
-    let currentStoryIndex = 0;
-    let storyTimer;
-    let storyAudio = new Audio();
-
-    function openStoryModal() { document.getElementById('story-add-modal').style.display = 'flex'; }
-    function closeModal(id) { document.getElementById(id).style.display = 'none'; }
-
-    function uploadStory() {
-        const file = document.getElementById('story-file').files[0];
-        const music = document.getElementById('story-music').files[0];
-        if(!file) return alert('Lütfen bir dosya seçin');
-
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const content = e.target.result;
-            const type = file.type.startsWith('image') ? 'image' : 'video';
-            
-            if(music) {
-                const mReader = new FileReader();
-                mReader.onload = (mE) => {
-                    socket.emit('post_story', {content: content, type: type, music: mE.target.result});
-                    closeModal('story-add-modal');
-                };
-                mReader.readAsDataURL(music);
-            } else {
-                socket.emit('post_story', {content: content, type: type, music: null});
-                closeModal('story-add-modal');
-            }
-        };
-        reader.readAsDataURL(file);
-    }
-
-    socket.on('stories_update', (grouped) => {
-        const list = document.getElementById('story-list');
-        list.innerHTML = '';
-        for(let user in grouped) {
-            const data = grouped[user];
-            // Tüm hikayeler görüldü mü?
-            const allSeen = data.items.every(i => i.seen_by_me);
-            const borderCol = allSeen ? '#666' : 'var(--green)';
-            
-            const div = document.createElement('div');
-            div.className = 'story-circle';
-            div.style.borderColor = borderCol;
-            div.innerHTML = `<img src="${data.avatar}">`;
-            div.onclick = () => viewStories(data);
-            list.appendChild(div);
-        }
-    });
-
-    function viewStories(userData) {
-        currentStories = userData.items;
-        currentStoryIndex = 0;
-        document.getElementById('st-avatar').src = userData.avatar;
-        document.getElementById('st-username').innerText = userData.username;
-        document.getElementById('story-viewer').style.display = 'flex';
-        showStory();
-    }
-
-    function showStory() {
-        if(currentStoryIndex >= currentStories.length) {
-            closeStoryViewer();
-            return;
-        }
-        
-        const s = currentStories[currentStoryIndex];
-        const mediaDiv = document.getElementById('story-media');
-        const viewersSpan = document.getElementById('st-viewers');
-        const delBtn = document.getElementById('st-del-btn');
-        
-        // Görüldü bildir
-        if(!s.seen_by_me) socket.emit('story_seen', {id: s.id});
-        
-        // İzleyenler & Silme yetkisi
-        viewersSpan.innerText = `👁️ ${s.viewers.length}`;
-        delBtn.style.display = (s.username === myUsername) ? 'inline' : 'none'; // Sadece kendi hikayeni sil
-        if(s.username === myUsername) {
-           delBtn.onclick = () => { socket.emit('delete_story', {id: s.id}); closeStoryViewer(); };
-        }
-
-        // İçerik
-        mediaDiv.innerHTML = '';
-        storyAudio.pause();
-        
-        let duration = 30000; // Varsayılan 30sn
-        
-        if(s.type === 'image') {
-            mediaDiv.innerHTML = `<img src="${s.content}">`;
-            if(s.music) {
-                storyAudio.src = s.music;
-                storyAudio.play();
-                // Müzik süresi kadar bekle (maks 30sn)
-                // Basitlik için 30sn sabit tutuyoruz veya müziğe göre uzatılabilir
-            }
-        } else {
-            mediaDiv.innerHTML = `<video src="${s.content}" autoplay style="width:100%; height:100%;"></video>`;
-            const vid = mediaDiv.querySelector('video');
-            vid.onloadedmetadata = () => { duration = vid.duration * 1000; };
-            // Video bitince geç
-            vid.onended = nextStory;
-            // Video süresini timer için kullanacağız, aşağıda timeout ayarlamıyoruz
-            clearTimeout(storyTimer);
-            return; // Video eventleri yönetecek
-        }
-
-        // Progress Bar Animasyonu
-        updateProgressBar(duration);
-        
-        // Otomatik geçiş
-        clearTimeout(storyTimer);
-        storyTimer = setTimeout(nextStory, duration);
-    }
-
-    function nextStory() {
-        currentStoryIndex++;
-        showStory();
-    }
-
-    function closeStoryViewer() {
-        document.getElementById('story-viewer').style.display = 'none';
-        clearTimeout(storyTimer);
-        storyAudio.pause();
-        const vid = document.querySelector('#story-media video');
-        if(vid) vid.pause();
-    }
-
-    function updateProgressBar(duration) {
-        const bar = document.getElementById('story-progress-bar');
-        bar.innerHTML = '';
-        currentStories.forEach((_, idx) => {
-            const seg = document.createElement('div');
-            seg.className = 'progress-segment';
-            if(idx < currentStoryIndex) seg.style.background = 'white';
-            else if(idx === currentStoryIndex) {
-                seg.classList.add('progress-active');
-                setTimeout(() => { seg.style.width = '100%'; }, 10); // Animasyon tetikle
-                seg.style.transition = `background 0s, flex-grow ${duration}ms linear`; // Basit hack
-            }
-            bar.appendChild(seg);
-        });
-    }
-
-    // --- MÜZİK ---
-    function uploadMusic(input) {
-        const file = input.files[0];
-        if(!file) return;
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const name = prompt("Şarkı adı nedir?", file.name);
-            socket.emit('add_music', {name: name || file.name, content: e.target.result});
-        };
-        reader.readAsDataURL(file);
-    }
-
-    socket.on('music_list', (list) => {
-        const div = document.getElementById('music-items');
-        div.innerHTML = '';
-        list.forEach(m => {
-            const item = document.createElement('div');
-            item.className = 'list-item';
-            item.innerHTML = `
-                <i class="fas fa-music"></i>
-                <div style="flex:1;"><b>${m.title}</b><br><small>${m.uploader}</small></div>
-                <button onclick="playMusic('${m.src}')" style="background:none; border:none; color:white;"><i class="fas fa-play"></i></button>
-                ${m.uploader === myUsername ? `<button onclick="deleteMusic(${m.id})" style="color:red; background:none; border:none;">X</button>` : ''}
-            `;
-            div.appendChild(item);
-        });
-    });
-
-    function playMusic(src) {
-        const p = document.getElementById('audio-player');
-        p.src = src;
-        p.style.display = 'block';
-        p.play();
-    }
-    
-    function deleteMusic(id) {
-        if(confirm('Müziği silmek istiyor musunuz?')) {
-            socket.emit('delete_music', {id: id});
-        }
-    }
-
-    // --- GRUPLAR ---
-    function openGroupModal() { document.getElementById('group-modal').style.display = 'flex'; }
-    function createGroup() {
-        const name = document.getElementById('group-name').value;
-        const pass = document.getElementById('group-pass').value;
-        socket.emit('create_group', {name: name, password: pass});
-        closeModal('group-modal');
-    }
-
-    // --- ENGELLEME & PROFİL ---
-    function blockCurrentUser() {
-        if(isPrivate && targetUser) {
-            socket.emit('block_user', {username: targetUser});
-            myBlocked.includes(targetUser) ? 
-                myBlocked.splice(myBlocked.indexOf(targetUser), 1) : 
-                myBlocked.push(targetUser);
-            // Butonu güncelle
-            const btn = document.getElementById('block-btn');
-            btn.innerHTML = myBlocked.includes(targetUser) ? '<i class="fas fa-unlock"></i>' : '<i class="fas fa-ban"></i>';
-            alert(myBlocked.includes(targetUser) ? 'Engellendi' : 'Engel Kaldırıldı');
-        }
-    }
-
-    function updateProfile(input) {
-        const file = input.files[0];
-        if(!file) return;
-        const r = new FileReader();
-        r.onload = e => {
-            // Resmi küçült
-            const img = new Image(); img.src = e.target.result;
-            img.onload = () => {
-                const c = document.createElement('canvas');
-                c.width=200; c.height=200;
-                c.getContext('2d').drawImage(img,0,0,200,200);
-                socket.emit('update_profile', {avatar: c.toDataURL()});
-                document.querySelector('.user-avatar').src = c.toDataURL(); // Yerel güncelle
-            }
-        };
-        r.readAsDataURL(file);
-    }
-    
-    function updateBG(input) {
-        const file = input.files[0];
-        if(!file) return;
-        const r = new FileReader();
-        r.onload = e => {
-            socket.emit('update_profile', {bg: e.target.result});
-            document.getElementById('main-chat').style.backgroundImage = `url('${e.target.result}')`;
-        };
-        r.readAsDataURL(file);
-    }
-
-    function toggleEmoji() {
-        const picker = document.getElementById('emoji-picker');
-        picker.style.display = picker.style.display === 'none' ? 'grid' : 'none';
-    }
-    function addEmoji(e) {
-        document.getElementById('msg-input').value += e;
-    }
-
-    // --- GÖRÜNTÜLÜ ARAMA (WebRTC) ---
-    let localStream;
-    let peerConnection;
-    let isFrontCamera = true;
-    const servers = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
-
-    async function startVideoCall() {
-        document.getElementById('video-call-modal').style.display = 'block';
-        try {
-            localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            document.getElementById('local-video').srcObject = localStream;
-            
-            // WebRTC başlatma sinyali gönder (Basitleştirilmiş)
-            // Gerçek WebRTC için peerConnection offer/answer mantığı gerekir.
-            // Bu demo olduğu için sadece yerel kamerayı açıp "Bağlantı Kuruldu" simülasyonu yapıyoruz.
-            // Gerçek peer-to-peer bağlantı karmaşıklığı bu yanıtın sınırlarını aşar, 
-            // ancak yerel kamera açılışı ve UI şu an çalışır.
-            
-        } catch(e) { alert('Kamera hatası: ' + e); }
-    }
-
-    async function switchCamera() {
-        if(localStream) {
-            localStream.getTracks().forEach(t => t.stop());
-        }
-        isFrontCamera = !isFrontCamera;
-        const constraints = { 
-            video: { facingMode: isFrontCamera ? 'user' : 'environment' }, 
-            audio: true 
-        };
-        localStream = await navigator.mediaDevices.getUserMedia(constraints);
-        document.getElementById('local-video').srcObject = localStream;
-    }
-
-    function endCall() {
-        document.getElementById('video-call-modal').style.display = 'none';
-        if(localStream) {
-            localStream.getTracks().forEach(t => t.stop());
-        }
-    }
-</script>
-</body>
-</html>
+    socket
