@@ -1,49 +1,59 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Süper Uygulama</title>
+    <title>Chat</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <style>
         body { font-family: 'Segoe UI', sans-serif; margin: 0; display: flex; height: 100vh; overflow: hidden; }
-        #side { width: 320px; border-right: 1px solid #ddd; display: flex; flex-direction: column; background: #f0f2f5; }
-        #main { flex: 1; display: flex; flex-direction: column; background: #e5ddd5; }
+        #side { width: 300px; border-right: 1px solid #ddd; display: flex; flex-direction: column; background: #f0f2f5; }
+        #main { flex: 1; display: flex; flex-direction: column; background-color: #e5ddd5; }
+        .header { background: #ededed; padding: 10px; display: flex; justify-content: space-between; align-items: center; }
+        .u-item { padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; display: flex; align-items: center; gap: 10px; background: white; }
+        .ava { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
         
-        .header { background: #ededed; padding: 10px 15px; display: flex; align-items: center; justify-content: space-between; }
-        .user-item { padding: 12px; border-bottom: 1px solid #eee; cursor: pointer; display: flex; align-items: center; gap: 10px; background: white; }
-        .avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
-        
-        #story-bar { height: 100px; background: white; border-bottom: 1px solid #ddd; display: flex; align-items: center; padding: 0 10px; gap: 10px; overflow-x: auto; }
-        .story-node { width: 60px; height: 60px; border-radius: 50%; border: 3px solid #25d366; cursor: pointer; flex-shrink: 0; }
+        /* Hikaye Barı */
+        #s-bar { height: 90px; background: white; display: flex; align-items: center; padding: 0 10px; gap: 10px; overflow-x: auto; border-bottom: 1px solid #ddd; }
+        .s-node { width: 55px; height: 55px; border-radius: 50%; border: 2px solid #25d366; flex-shrink: 0; cursor: pointer; padding: 2px; }
 
-        #messages { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; background-size: cover; background-position: center; }
-        .bubble { max-width: 70%; padding: 8px 12px; border-radius: 8px; font-size: 14px; position: relative; }
-        .bubble-me { align-self: flex-end; background: #dcf8c6; }
-        .bubble-other { align-self: flex-start; background: white; }
+        /* Mesaj Balonları */
+        #msgs { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+        .bbl { max-width: 70%; padding: 8px; border-radius: 8px; font-size: 14px; display: flex; gap: 8px; }
+        .bbl-me { align-self: flex-end; background: #dcf8c6; flex-direction: row-reverse; }
+        .bbl-ot { align-self: flex-start; background: white; }
+        .bbl-ava { width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0; }
         
-        #input-bar { padding: 10px; background: #f0f0f0; display: flex; align-items: center; gap: 10px; }
-        #msg-in { flex: 1; padding: 10px; border-radius: 20px; border: 1px solid #ddd; outline: none; }
-        .tick { font-size: 10px; margin-left: 5px; color: #999; }
-        .tick-blue { color: #34b7f1; }
-        #clock { font-weight: bold; color: #075e54; }
+        /* Görüntülü Arama Modalı */
+        #v-modal { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:black; z-index:9999; }
+        video { width: 100%; height: 100%; object-fit: cover; }
+        #my-v { width: 150px; position: absolute; bottom: 20px; right: 20px; border: 2px solid white; }
     </style>
 </head>
 <body>
 
+<div id="v-modal">
+    <video id="ot-v" autoplay></video>
+    <video id="my-v" autoplay muted></video>
+    <div style="position:absolute; bottom:30px; left:50%; transform:translateX(-50%); display:flex; gap:20px;">
+        <button onclick="endCall()" style="background:red; color:white; padding:15px; border-radius:50%; border:none;">Kapat</button>
+        <button onclick="toggleCam()" style="background:gray; color:white; padding:15px; border-radius:10px; border:none;">Kamerayı Değiştir</button>
+    </div>
+</div>
+
 <div id="side">
     <div class="header">
-        <img src="{{ user.avatar }}" id="my-ava" class="avatar" onclick="document.getElementById('up-ava').click()">
-        <input type="file" id="up-ava" style="display:none" onchange="syncProfile(this)">
+        <img src="{{ user.avatar }}" class="ava">
         <b>{{ user.username }}</b>
         <button onclick="location.href='/logout'">Çıkış</button>
     </div>
-    <button onclick="createGroup()" style="margin:10px; background:#25d366; color:white; border:none; padding:8px; border-radius:5px; cursor:pointer;">+ Grup Oluştur</button>
+    <div style="padding:10px;">
+        <button onclick="newGrp()" style="width:100%; padding:8px; background:#25d366; border:none; color:white; border-radius:5px; cursor:pointer;">+ Grup Oluştur</button>
+    </div>
     <div style="overflow-y:auto">
-        <div class="user-item" onclick="setRoom('Genel')">🌍 <b>Genel Sohbet</b></div>
-        <div class="user-item" onclick="setRoom('Siz')"><img src="{{user.avatar}}" class="avatar"> <b>Siz (Mesaj Kendime)</b></div>
+        <div class="u-item" onclick="setR('Genel')">🌍 <b>Genel Sohbet</b></div>
         {% for u in all_users if u.username != user.username %}
-        <div class="user-item" onclick="setPrivate('{{ u.username }}')">
-            <img src="{{ u.avatar }}" class="avatar u-ava-{{u.username}}">
-            <span class="u-name-{{u.username}}">{{ u.username }}</span>
+        <div class="u-item" onclick="setP('{{ u.username }}')">
+            <img src="{{ u.avatar }}" class="ava">
+            <span>{{ u.username }}</span>
         </div>
         {% endfor %}
     </div>
@@ -51,139 +61,180 @@
 
 <div id="main">
     <div class="header">
-        <span id="room-title">Genel Sohbet</span>
-        <div style="display:flex; gap:10px; align-items:center;">
-            <button onclick="document.getElementById('bg-in').click()">🖼️</button>
+        <span id="r-title">Genel Sohbet</span>
+        <div style="display:flex; gap:10px;">
+            <button onclick="delGrp()" id="del-btn" style="display:none; color:red;">Grubu Sil</button>
             <button onclick="startCall()">📹</button>
-            <div id="clock"></div>
+            <button onclick="document.getElementById('bg-i').click()">🖼️</button>
+            <button onclick="resetBg()" title="Fabrika Ayarı Arka Plan">🔄</button>
         </div>
     </div>
-    
-    <div id="story-bar">
-        <div style="text-align:center" onclick="document.getElementById('st-in').click()">
-            <div class="story-node" style="border: 2px dashed #ccc; display:flex; align-items:center; justify-content:center">+</div>
-            <small>Ekle</small>
+
+    <div id="s-bar">
+        <div style="text-align:center" onclick="document.getElementById('st-i').click()">
+            <div class="s-node" style="border: 2px dashed #ccc; display:flex; align-items:center; justify-content:center; font-size:24px;">+</div>
+            <small>Hikaye</small>
         </div>
-        <div id="stories-list" style="display:flex; gap:10px;"></div>
+        <div id="s-list" style="display:flex; gap:10px;">
+            {% for s in stories %}
+            <div onclick="viewStory('{{s.content}}', '{{s.type}}', '{{s.username}}')" style="text-align:center">
+                <img src="{{s.avatar}}" class="s-node">
+                <br><small>{{s.username}}</small>
+            </div>
+            {% endfor %}
+        </div>
     </div>
 
-    <div id="messages"></div>
+    <div id="msgs"></div>
 
-    <div id="input-bar">
-        <input type="file" id="media-in" style="display:none" onchange="sendMedia(this)">
-        <button onclick="document.getElementById('media-in').click()">📎</button>
-        <input type="text" id="msg-in" placeholder="Mesaj yazın..." onkeypress="if(event.key==='Enter') send()">
-        <button id="mic" onmousedown="startRec()" onmouseup="stopRec()">🎤</button>
-        <button onclick="send()" style="border:none; background:none; font-size:20px; cursor:pointer">➤</button>
+    <div style="padding:10px; background:#f0f0f0; display:flex; gap:10px; align-items:center;">
+        <input type="file" id="m-i" style="display:none" onchange="sendM(this)">
+        <button onclick="document.getElementById('m-i').click()" style="border:none; background:none; font-size:20px; cursor:pointer;">📎</button>
+        <input type="text" id="m-in" placeholder="Mesaj yazın..." style="flex:1; padding:10px; border-radius:20px; border:1px solid #ddd;" onkeypress="if(event.key==='Enter') sendT()">
+        <button onmousedown="startRec()" onmouseup="stopRec()" style="border:none; background:none; font-size:20px; cursor:pointer;">🎤</button>
+        <button onclick="sendT()" style="border:none; background:#075e54; color:white; padding:10px 20px; border-radius:20px; cursor:pointer;">Gönder</button>
     </div>
 </div>
 
-<input type="file" id="bg-in" style="display:none" onchange="changeBg(this)">
-<input type="file" id="st-in" style="display:none" onchange="postStory(this)">
+<input type="file" id="bg-i" style="display:none" onchange="chBg(this)">
+<input type="file" id="st-i" style="display:none" accept="image/*,video/*" onchange="postS(this)">
 
 <script>
     const socket = io();
     let room = 'Genel';
     const me = "{{ user.username }}";
 
-    // Saat
-    setInterval(() => {
-        document.getElementById('clock').innerText = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-    }, 1000);
-
-    function setRoom(r) {
-        room = r; document.getElementById('room-title').innerText = r;
-        document.getElementById('messages').innerHTML = '';
+    function setR(r) {
+        room = r; document.getElementById('r-title').innerText = r;
+        document.getElementById('msgs').innerHTML = '';
+        document.getElementById('del-btn').style.display = r.startsWith('Grup_') ? 'block' : 'none';
         socket.emit('join', {room: r});
     }
-    setRoom('Genel');
+    setR('Genel');
 
-    function setPrivate(other) {
-        const r = [me, other].sort().join('_');
-        setRoom(r);
-        document.getElementById('room-title').innerText = other;
+    function setP(ot) {
+        const r = [me, ot].sort().join('_');
+        setR(r); document.getElementById('r-title').innerText = ot;
     }
 
-    function send() {
-        const inp = document.getElementById('msg-in');
-        if(inp.value.trim()) {
-            socket.emit('message', {room: room, content: inp.value, type: 'text'});
-            inp.value = '';
-        }
+    function sendT() {
+        const i = document.getElementById('m-in');
+        if(i.value) { socket.emit('message', {room: room, content: i.value, type: 'text'}); i.value = ''; }
     }
 
-    socket.on('message', data => {
-        append(data);
-        if(data.sender !== me) socket.emit('mark_read', {id: data.id});
-    });
-
+    socket.on('message', append);
     socket.on('load_history', h => h.forEach(append));
 
     function append(data) {
-        const box = document.getElementById('messages');
+        const box = document.getElementById('msgs');
         const isMe = data.sender === me;
         const div = document.createElement('div');
-        div.className = `bubble ${isMe ? 'bubble-me' : 'bubble-other'}`;
-        div.id = `m-${data.id}`;
+        div.className = `bbl ${isMe ? 'bbl-me' : 'bbl-ot'}`;
+        
+        let c = data.content;
+        if(data.type==='image') c = `<img src="${data.content}" style="max-width:200px; border-radius:5px">`;
+        if(data.type==='audio') c = `<audio src="${data.content}" controls style="width:200px"></audio>`;
+        if(data.type==='video') c = `<video src="${data.content}" controls style="max-width:200px"></video>`;
 
-        let html = data.content;
-        if(data.type==='image') html = `<img src="${data.content}" style="max-width:200px; border-radius:5px">`;
-        if(data.type==='audio') html = `<audio src="${data.content}" controls style="width:200px"></audio>`;
-        if(data.type==='video') html = `<video src="${data.content}" controls style="max-width:200px"></video>`;
-
-        div.innerHTML = `<small><b>${data.sender}</b></small><br>${html}
-            <div style="text-align:right; font-size:10px; color:#888">
-                ${data.time} <span id="t-${data.id}" class="tick ${data.status==='read'?'tick-blue':''}">${isMe?(data.status==='read'?'✓✓':'✓'):''}</span>
-                ${isMe?`<span style="color:red; cursor:pointer" onclick="del(${data.id})"> Sil</span>`:''}
-            </div>`;
-        box.appendChild(div);
-        box.scrollTop = box.scrollHeight;
+        div.innerHTML = `
+            <img src="${data.avatar}" class="bbl-ava">
+            <div style="background:inherit; padding:5px; border-radius:inherit">
+                <small><b>${data.sender}</b></small><br>${c}
+                <div style="text-align:right; font-size:10px; color:#888">${data.time}</div>
+            </div>
+        `;
+        box.appendChild(div); box.scrollTop = box.scrollHeight;
     }
 
-    // SES KAYDI DÜZELTMESİ (0 Saniye Sorunu Çözüldü)
+    // --- GRUP VE ARKA PLAN ---
+    function newGrp() { const n = prompt("Grup Adı:"); if(n) setR("Grup_"+n); }
+    function delGrp() { if(confirm("Grubu ve mesajları silmek istiyor musun?")) socket.emit('delete_group', {room: room}); }
+    socket.on('group_deleted', r => { if(room === r) setR('Genel'); });
+
+    function chBg(i) {
+        const r = new FileReader();
+        r.onload = e => {
+            const m = document.getElementById('msgs');
+            m.style.backgroundImage = `url(${e.target.result})`;
+            m.style.backgroundSize = "cover";
+            m.style.backgroundPosition = "center";
+        };
+        r.readAsDataURL(i.files[0]);
+    }
+    function resetBg() {
+        const m = document.getElementById('msgs');
+        m.style.backgroundImage = "url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')";
+    }
+
+    // --- HİKAYE SİSTEMİ ---
+    function postS(i) {
+        const file = i.files[0];
+        const reader = new FileReader();
+        reader.onload = e => {
+            const type = file.type.startsWith('video') ? 'video' : 'image';
+            socket.emit('post_story', {content: e.target.result, type: type});
+        };
+        reader.readAsDataURL(file);
+    }
+    socket.on('new_story', s => { location.reload(); }); // Basitlik için yeni hikayede sayfayı yenile
+
+    function viewStory(content, type, owner) {
+        const win = window.open("", "_blank");
+        win.document.write(`
+            <body style="margin:0; background:black; display:flex; align-items:center; justify-content:center; flex-direction:column; color:white; font-family:sans-serif;">
+                <h2>${owner} Hikayesi</h2>
+                ${type==='image' ? `<img src="${content}" style="max-width:100%; max-height:80vh">` : `<video src="${content}" autoplay controls style="max-width:100%; max-height:80vh"></video>`}
+                <button onclick="window.close()" style="margin-top:20px; padding:10px 20px;">Kapat</button>
+            </body>
+        `);
+    }
+
+    // --- GÖRÜNTÜLÜ ARAMA (Düzeltildi) ---
+    let myStream;
+    let currentCam = "user"; // "user" ön, "environment" arka
+
+    async function startCall() {
+        document.getElementById('v-modal').style.display = 'block';
+        myStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: currentCam }, audio: true });
+        document.getElementById('my-v').srcObject = myStream;
+    }
+
+    async function toggleCam() {
+        if(myStream) {
+            myStream.getTracks().forEach(track => track.stop());
+            currentCam = currentCam === "user" ? "environment" : "user";
+            startCall();
+        }
+    }
+
+    function endCall() {
+        if(myStream) myStream.getTracks().forEach(track => track.stop());
+        document.getElementById('v-modal').style.display = 'none';
+    }
+
+    // --- SES KAYDI (Düzeltildi) ---
     let rec; let chunks = [];
     async function startRec() {
-        chunks = [];
-        const s = await navigator.mediaDevices.getUserMedia({audio: true});
+        chunks = []; const s = await navigator.mediaDevices.getUserMedia({audio:true});
         rec = new MediaRecorder(s);
         rec.ondataavailable = e => chunks.push(e.data);
         rec.onstop = () => {
-            const blob = new Blob(chunks, {type: 'audio/webm'});
-            const reader = new FileReader();
-            reader.readAsDataURL(blob);
-            reader.onloadend = () => socket.emit('message', {room: room, content: reader.result, type: 'audio'});
+            const b = new Blob(chunks, {type:'audio/webm'});
+            const r = new FileReader(); r.readAsDataURL(b);
+            r.onloadend = () => socket.emit('message', {room:room, content:r.result, type:'audio'});
         };
         rec.start();
-        document.getElementById('mic').style.color = 'red';
     }
-    function stopRec() { if(rec) { rec.stop(); document.getElementById('mic').style.color = 'black'; } }
+    function stopRec() { if(rec) rec.stop(); }
 
-    function del(id) { if(confirm("Silinsin mi?")) socket.emit('delete_msg', {id: id}); }
-    socket.on('msg_deleted', id => document.getElementById(`m-${id}`)?.remove());
-    socket.on('status_updated', d => { const t = document.getElementById(`t-${d.id}`); if(t){ t.innerText="✓✓"; t.classList.add('tick-blue'); } });
-
-    function changeBg(i) {
-        const r = new FileReader();
-        r.onload = e => document.getElementById('messages').style.backgroundImage = `url(${e.target.result})`;
-        r.readAsDataURL(i.files[0]);
-    }
-
-    function syncProfile(i) {
+    function sendM(i) {
         const r = new FileReader();
         r.onload = e => {
-            document.getElementById('my-ava').src = e.target.result;
-            socket.emit('update_profile', {new_avatar: e.target.result});
+            let t = i.files[0].type.split('/')[0];
+            if(t!=='image' && t!=='video') t='text';
+            socket.emit('message', {room:room, content:e.target.result, type:t});
         };
         r.readAsDataURL(i.files[0]);
-    }
-
-    socket.on('profile_synced', d => {
-        document.querySelectorAll('.u-ava-'+d.username).forEach(img => img.src = d.new_avatar);
-    });
-
-    function createGroup() {
-        const n = prompt("Grup İsmi:");
-        if(n) setRoom("Grup_"+n);
     }
 </script>
 </body>
