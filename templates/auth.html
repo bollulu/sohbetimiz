@@ -1,29 +1,51 @@
 <!DOCTYPE html>
 <html>
 <head>
+<meta charset="UTF-8">
 <title>Giriş</title>
-<meta name="viewport" content="width=device-width">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
-body{background:#075e54;color:white;font-family:sans-serif;display:flex;justify-content:center;align-items:center;height:100vh}
-.card{background:#128c7e;padding:30px;border-radius:10px;width:300px}
-input,button{width:100%;padding:10px;margin:8px 0;border:none;border-radius:5px}
-button{background:#25d366;color:white;font-weight:bold}
+body{
+    font-family:Arial;
+    background:#25d366;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    height:100vh;
+}
+form{
+    background:white;
+    padding:20px;
+    border-radius:10px;
+    width:300px;
+}
+input,button{
+    width:100%;
+    padding:10px;
+    margin-top:10px;
+}
+button{
+    background:#25d366;
+    border:none;
+    color:white;
+}
 </style>
 </head>
 <body>
-<div class="card">
-<h2>Giriş / Kayıt</h2>
-<form action="/login" method="post">
+
+<form method="POST">
+<h2>Giriş</h2>
 <input name="username" placeholder="Kullanıcı adı" required>
 <input name="password" type="password" placeholder="Şifre" required>
 <button>Giriş</button>
 </form>
-<hr>
-<form action="/register" method="post">
-<input name="username" placeholder="Yeni kullanıcı" required>
-<input name="password" type="password" placeholder="Şifre" required>
+
+<form action="/register" method="POST">
+<h3>Kayıt Ol</h3>
+<input name="username" required>
+<input name="password" type="password" required>
 <button>Kayıt</button>
 </form>
-</div>
+
 </body>
 </html>
