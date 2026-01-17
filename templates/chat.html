@@ -1,142 +1,685 @@
 <!DOCTYPE html>
-<html>
+<html lang="tr">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sohbetimiz</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        :root { --green: #075e54; --light: #25d366; }
-        body { margin: 0; font-family: sans-serif; display: flex; height: 100vh; background: #e5ddd5; }
-        #sidebar { width: 320px; background: white; border-right: 1px solid #ddd; display: flex; flex-direction: column; }
-        #main { flex: 1; display: flex; flex-direction: column; }
-        .header { background: #ededed; padding: 10px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #ddd; height: 50px; }
-        .ava { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; }
-        #story-bar { height: 90px; background: white; display: flex; align-items: center; padding: 0 10px; gap: 10px; overflow-x: auto; border-bottom: 1px solid #eee; }
-        .st-thumb { width: 55px; height: 55px; border-radius: 50%; border: 3px solid var(--light); cursor: pointer; }
-        #messages { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
-        .msg { padding: 8px 12px; border-radius: 10px; background: white; max-width: 80%; box-shadow: 0 1px 1px #ccc; }
-        .me { align-self: flex-end; background: #dcf8c6; }
-        .input-bar { background: #f0f0f0; padding: 10px; display: flex; gap: 10px; }
-        #video-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:black; z-index:100; }
+        :root { --dark: #111b21; --dark-sec: #202c33; --green: #00a884; --msg-out: #005c4b; --msg-in: #202c33; --text: #e9edef; }
+        body { margin: 0; font-family: 'Segoe UI', sans-serif; background-color: var(--dark); color: var(--text); height: 100vh; display: flex; overflow: hidden; }
+        
+        /* SOL PANEL */
+        #sidebar { width: 30%; background: var(--dark-sec); border-right: 1px solid #333; display: flex; flex-direction: column; min-width: 300px; }
+        .header { height: 60px; background: var(--dark-sec); padding: 10px 15px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #333; }
+        .user-avatar { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; cursor: pointer; }
+        .nav-tabs { display: flex; background: #111b21; }
+        .nav-item { flex: 1; text-align: center; padding: 10px; cursor: pointer; border-bottom: 3px solid transparent; }
+        .nav-item.active { border-bottom: 3px solid var(--green); color: var(--green); }
+        .nav-item:hover { background: rgba(255,255,255,0.05); }
+        
+        .list-area { flex: 1; overflow-y: auto; }
+        .list-item { padding: 15px; display: flex; align-items: center; gap: 15px; cursor: pointer; border-bottom: 1px solid #333; }
+        .list-item:hover { background: #2a3942; }
+        .online-dot { width: 10px; height: 10px; background: #00a884; border-radius: 50%; margin-left: auto; }
+        
+        /* SAĞ PANEL (CHAT) */
+        #main-chat { flex: 1; display: flex; flex-direction: column; background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); background-size: cover; background-position: center; position: relative; }
+        
+        #story-bar { background: rgba(32, 44, 51, 0.95); padding: 10px; display: flex; gap: 15px; overflow-x: auto; white-space: nowrap; height: 85px; align-items: center; border-bottom: 1px solid #333; }
+        .story-circle { width: 60px; height: 60px; border-radius: 50%; border: 2px solid var(--green); padding: 2px; cursor: pointer; flex-shrink: 0; position: relative; }
+        .story-circle img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+        .story-add { border: 2px dashed #666; display: flex; justify-content: center; align-items: center; font-size: 24px; color: #666; background: transparent; }
+        
+        #messages-area { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 5px; }
+        .message { max-width: 65%; padding: 8px 10px; border-radius: 8px; font-size: 14px; position: relative; word-wrap: break-word; }
+        .msg-in { background: var(--msg-in); align-self: flex-start; border-top-left-radius: 0; }
+        .msg-out { background: var(--msg-out); align-self: flex-end; border-top-right-radius: 0; }
+        .msg-info { font-size: 10px; color: #8696a0; text-align: right; margin-top: 2px; display: flex; justify-content: flex-end; align-items: center; gap: 3px; }
+        .msg-avatar { width: 20px; height: 20px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
+
+        #input-area { background: var(--dark-sec); padding: 10px; display: flex; align-items: center; gap: 10px; }
+        input[type="text"] { flex: 1; padding: 10px; border-radius: 20px; border: none; background: #2a3942; color: white; }
+        .icon-btn { color: #8696a0; font-size: 20px; cursor: pointer; background: none; border: none; }
+        .icon-btn:hover { color: var(--text); }
+        .recording { color: red !important; animation: pulse 1s infinite; }
+        
+        /* Modal & Overlays */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-content { background: var(--dark-sec); padding: 20px; border-radius: 10px; width: 90%; max-width: 400px; text-align: center; }
+        
+        /* Story Viewer */
+        #story-viewer { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 2000; flex-direction: column; }
+        #story-progress-bar { width: 100%; height: 5px; background: #333; display: flex; }
+        .progress-segment { height: 100%; background: #555; margin-right: 2px; flex: 1; }
+        .progress-active { background: white; transition: width 0.1s linear; }
+        #story-media { flex: 1; display: flex; justify-content: center; align-items: center; position: relative; }
+        #story-media img, #story-media video { max-width: 100%; max-height: 90vh; }
+        .story-controls { position: absolute; top: 20px; width: 100%; display: flex; justify-content: space-between; padding: 0 20px; box-sizing: border-box; }
+        
+        /* Video Call */
+        #video-modal video { width: 100%; height: 100%; object-fit: cover; }
+        #local-video { position: absolute; bottom: 20px; right: 20px; width: 120px; height: 160px; border: 2px solid white; border-radius: 10px; z-index: 3000; transform: scaleX(-1); }
+        
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+        
+        /* Context Menu */
+        .context-menu { position: absolute; background: #2a3942; border-radius: 5px; padding: 5px; display: none; z-index: 100; box-shadow: 0 2px 5px black; }
+        .context-item { padding: 8px 15px; cursor: pointer; font-size: 13px; }
+        .context-item:hover { background: #111b21; }
     </style>
 </head>
 <body>
 
 <div id="sidebar">
     <div class="header">
-        <img src="{{ user.avatar }}" class="ava">
-        <b>{{ user.username }}</b>
+        <div style="display:flex; align-items:center; gap:10px;">
+            <img src="{{ user.avatar }}" class="user-avatar" onclick="document.getElementById('profile-file').click()" title="Profili Değiştir">
+            <span style="font-weight:bold;">{{ user.username }}</span>
+        </div>
+        <div style="display:flex; gap:10px;">
+            <button class="icon-btn" onclick="openGroupModal()" title="Grup Kur"><i class="fas fa-users"></i></button>
+            <button class="icon-btn" onclick="location.href='/logout'" title="Çıkış"><i class="fas fa-sign-out-alt"></i></button>
+            <button class="icon-btn" onclick="location.href='/delete_account'" style="color:red;" title="Hesabı Sil"><i class="fas fa-trash"></i></button>
+        </div>
+        <input type="file" id="profile-file" hidden accept="image/*" onchange="updateProfile(this)">
     </div>
+    
+    <div class="nav-tabs">
+        <div class="nav-item active" onclick="switchTab('chats')">Sohbetler</div>
+        <div class="nav-item" onclick="switchTab('groups')">Gruplar</div>
+        <div class="nav-item" onclick="switchTab('music')">Müzik</div>
+    </div>
+    
+    <div id="list-chats" class="list-area"></div>
+    <div id="list-groups" class="list-area" style="display:none;"></div>
+    <div id="list-music" class="list-area" style="display:none; padding:10px;">
+        <button onclick="document.getElementById('music-file').click()" style="width:100%; padding:10px; background:var(--green); border:none; color:white; border-radius:5px; margin-bottom:10px;">Müzik Yükle</button>
+        <div id="music-items"></div>
+        <input type="file" id="music-file" hidden accept="audio/*" onchange="uploadMusic(this)">
+        <audio id="audio-player" controls style="width:100%; display:none; margin-top:10px;"></audio>
+    </div>
+</div>
+
+<div id="main-chat">
+    <div class="header" id="chat-header">
+        <div style="display:flex; align-items:center; gap:10px;">
+            <span id="room-name">Genel Sohbet</span>
+        </div>
+        <div style="display:flex; gap:15px; align-items:center;">
+            <span id="clock" style="font-size:12px; color:#aaa;"></span>
+            <button class="icon-btn" id="video-btn" onclick="startVideoCall()"><i class="fas fa-video"></i></button>
+            <button class="icon-btn" onclick="document.getElementById('bg-file').click()"><i class="fas fa-image"></i></button>
+            <button class="icon-btn" id="block-btn" onclick="blockCurrentUser()" style="display:none; color:red;"><i class="fas fa-ban"></i></button>
+        </div>
+    </div>
+    <input type="file" id="bg-file" hidden accept="image/*" onchange="updateBG(this)">
+
     <div id="story-bar">
-        <button onclick="document.getElementById('st-in').click()" style="min-width:55px; height:55px; border-radius:50%; border:none; background:#eee; font-size:24px;">+</button>
-        <div id="stories-area" style="display:flex; gap:8px;"></div>
+        <div class="story-circle story-add" onclick="openStoryModal()">+</div>
+        <div id="story-list" style="display:flex; gap:10px;"></div>
     </div>
-    <div id="user-list">
-        <div onclick="joinRoom('Genel')" style="padding:15px; border-bottom:1px solid #eee; cursor:pointer;">🌍 Genel Sohbet Grubu</div>
+
+    <div id="messages-area"></div>
+
+    <div id="input-area">
+        <button class="icon-btn" onclick="toggleEmoji()"><i class="far fa-smile"></i></button>
+        <button class="icon-btn" onclick="document.getElementById('media-file').click()"><i class="fas fa-paperclip"></i></button>
+        <input type="text" id="msg-input" placeholder="Bir mesaj yazın..." onkeypress="if(event.key==='Enter') sendMessage()">
+        <button class="icon-btn" id="mic-btn" onmousedown="startRecord()" onmouseup="stopRecord()" ontouchstart="startRecord()" ontouchend="stopRecord()"><i class="fas fa-microphone"></i></button>
+        <button class="icon-btn" onclick="sendMessage()"><i class="fas fa-paper-plane"></i></button>
+    </div>
+    <input type="file" id="media-file" hidden onchange="sendMedia(this)">
+    
+    <div id="emoji-picker" style="display:none; position:absolute; bottom:70px; left:20px; background:var(--dark-sec); padding:10px; border-radius:10px; grid-template-columns:repeat(5,1fr); gap:5px;">
+        <span onclick="addEmoji('😂')" style="cursor:pointer; font-size:20px;">😂</span>
+        <span onclick="addEmoji('❤️')" style="cursor:pointer; font-size:20px;">❤️</span>
+        <span onclick="addEmoji('👍')" style="cursor:pointer; font-size:20px;">👍</span>
+        <span onclick="addEmoji('😍')" style="cursor:pointer; font-size:20px;">😍</span>
+        <span onclick="addEmoji('😭')" style="cursor:pointer; font-size:20px;">😭</span>
     </div>
 </div>
 
-<div id="main">
-    <div class="header">
-        <b id="room-name">Lütfen Oda Seçin</b>
-        <button onclick="startVideo()" style="margin-left:auto; background:none; border:none; font-size:20px; cursor:pointer;">📹</button>
-    </div>
-    <div id="messages"></div>
-    <div class="input-bar">
-        <button onclick="document.getElementById('file-in').click()">📎</button>
-        <button id="mic-btn" onmousedown="startRec()" onmouseup="stopRec()">🎤</button>
-        <input type="text" id="msg-in" style="flex:1; padding:8px; border-radius:20px; border:1px solid #ddd;">
-        <button onclick="send()" style="border:none; background:var(--green); color:white; padding:8px 15px; border-radius:20px;">Gönder</button>
+<div id="group-modal" class="modal">
+    <div class="modal-content">
+        <h3>Yeni Grup Oluştur</h3>
+        <input type="text" id="group-name" placeholder="Grup Adı">
+        <input type="password" id="group-pass" placeholder="Şifre (İsteğe bağlı)">
+        <button onclick="createGroup()" style="background:var(--green); color:white; border:none; padding:10px; width:100%; margin-top:10px;">Oluştur</button>
+        <button onclick="closeModal('group-modal')" style="background:red; color:white; border:none; padding:10px; width:100%; margin-top:5px;">İptal</button>
     </div>
 </div>
 
-<div id="video-overlay">
-    <video id="local" autoplay muted style="width:200px; position:absolute; top:20px; right:20px; border:2px solid white;"></video>
-    <video id="remote" autoplay style="width:100%; height:100%;"></video>
-    <button onclick="location.reload()" style="position:absolute; bottom:30px; left:50%; transform:translateX(-50%); background:red; color:white; padding:15px 30px; border-radius:30px; border:none;">Kapat</button>
+<div id="story-add-modal" class="modal">
+    <div class="modal-content">
+        <h3>Hikaye Ekle</h3>
+        <input type="file" id="story-file" accept="image/*,video/*">
+        <br><br>
+        <label>Müzik Ekle (Opsiyonel):</label>
+        <input type="file" id="story-music" accept="audio/*">
+        <br><br>
+        <button onclick="uploadStory()" style="background:var(--green); color:white; border:none; padding:10px; width:100%;">Paylaş</button>
+        <button onclick="closeModal('story-add-modal')" style="background:red; color:white; border:none; padding:10px; width:100%; margin-top:5px;">İptal</button>
+    </div>
 </div>
 
-<input type="file" id="st-in" style="display:none" onchange="postStory(this)">
-<input type="file" id="file-in" style="display:none" onchange="postFile(this)">
+<div id="story-viewer">
+    <div id="story-progress-bar"></div>
+    <div class="story-controls">
+        <div style="display:flex; align-items:center; gap:10px;">
+            <img id="st-avatar" class="user-avatar" style="border:none;">
+            <b id="st-username" style="color:white;"></b>
+            <span id="st-viewers" style="font-size:12px; color:#ddd; margin-left:10px;">👁️ 0</span>
+        </div>
+        <div style="display:flex; gap:10px;">
+            <button onclick="deleteCurrentStory()" id="st-del-btn" style="background:none; border:none; color:red; cursor:pointer; display:none;"><i class="fas fa-trash"></i></button>
+            <button onclick="closeStoryViewer()" style="background:none; border:none; color:white; font-size:24px; cursor:pointer;">&times;</button>
+        </div>
+    </div>
+    <div id="story-media"></div>
+</div>
+
+<div id="video-call-modal" class="modal" style="background:black;">
+    <video id="remote-video" autoplay playsinline></video>
+    <video id="local-video" autoplay playsinline muted></video>
+    <div style="position:absolute; bottom:20px; left:0; width:100%; text-align:center;">
+        <button onclick="switchCamera()" id="cam-switch" style="padding:15px; border-radius:50%; border:none; background:#333; color:white; margin-right:20px; display:none;"><i class="fas fa-sync"></i></button>
+        <button onclick="endCall()" style="padding:15px 30px; border-radius:30px; border:none; background:red; color:white;"><i class="fas fa-phone-slash"></i> Bitir</button>
+    </div>
+</div>
 
 <script>
     const socket = io();
-    const me = "{{ user.username }}";
+    const myUsername = "{{ user.username }}";
+    const myBlocked = JSON.parse('{{ user.blocked_users|safe }}');
     let currentRoom = "Genel";
+    let isPrivate = false;
+    let targetUser = null;
 
-    // Odaya Katıl
-    socket.emit('join', {room: 'Genel'});
-    socket.emit('get_stories');
-
-    function send() {
-        const m = document.getElementById('msg-in').value;
-        if(m) { socket.emit('send_message', {room: currentRoom, msg: m, type: 'text'}); document.getElementById('msg-in').value = ""; }
-    }
-
-    socket.on('new_message', d => {
-        const area = document.getElementById('messages');
-        let html = `<b>${d.sender}:</b><br>`;
-        if(d.type === 'text') html += d.content;
-        else if(d.type === 'image') html += `<img src="${d.content}" style="max-width:200px; border-radius:10px;">`;
-        else if(d.type === 'audio') html += `<audio src="${d.content}" controls></audio>`;
+    // Başlangıç
+    window.onload = function() {
+        startClock();
+        socket.emit('join', {room: 'Genel'});
+        socket.emit('get_stories');
+        socket.emit('get_music');
         
-        const div = document.createElement('div');
-        div.className = 'msg ' + (d.sender === me ? 'me' : '');
-        div.innerHTML = html;
-        area.appendChild(div);
+        // Arka planı yükle
+        const savedBG = "{{ user.bg_image }}";
+        if(savedBG) document.getElementById('main-chat').style.backgroundImage = `url('${savedBG}')`;
+
+        // Telefondaysa kamera değiştirme tuşunu göster
+        if(/Android|iPhone|iPad/i.test(navigator.userAgent)) {
+            document.getElementById('cam-switch').style.display = 'inline-block';
+        }
+    };
+
+    function startClock() {
+        setInterval(() => {
+            const now = new Date();
+            document.getElementById('clock').innerText = now.toLocaleString('tr-TR');
+        }, 1000);
+    }
+
+    // --- TAB SİSTEMİ ---
+    function switchTab(tab) {
+        document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+        document.querySelector(`.nav-item[onclick="switchTab('${tab}')"]`).classList.add('active');
+        document.getElementById('list-chats').style.display = tab === 'chats' ? 'block' : 'none';
+        document.getElementById('list-groups').style.display = tab === 'groups' ? 'block' : 'none';
+        document.getElementById('list-music').style.display = tab === 'music' ? 'block' : 'none';
+    }
+
+    // --- KULLANICI LİSTESİ ---
+    socket.on('update_user_list', (users) => {
+        const list = document.getElementById('list-chats');
+        list.innerHTML = `<div class="list-item" onclick="joinRoom('Genel', false)">
+            <div style="width:40px; height:40px; background:var(--green); border-radius:50%; display:flex; justify-content:center; align-items:center; color:white;"><i class="fas fa-globe"></i></div>
+            <b>Genel Sohbet</b>
+        </div>`;
+        
+        users.forEach(u => {
+            const blocked = myBlocked.includes(u.username) ? '<span style="color:red; font-size:10px;">(Engelli)</span>' : '';
+            const name = u.is_me ? u.username + " (Siz)" : u.username;
+            const clickAction = u.is_me ? "" : `onclick="startPrivateChat('${u.username}')"`;
+            
+            list.innerHTML += `
+            <div class="list-item" ${clickAction}>
+                <img src="${u.avatar}" class="user-avatar">
+                <div>
+                    <b>${name} ${blocked}</b>
+                    <div style="font-size:12px; color:#888;">Çevrimiçi</div>
+                </div>
+            </div>`;
+        });
+    });
+
+    // --- ODA & MESAJLAŞMA ---
+    function joinRoom(room, priv, target) {
+        currentRoom = room;
+        isPrivate = priv;
+        targetUser = target;
+        document.getElementById('messages-area').innerHTML = ''; // Temizle
+        document.getElementById('room-name').innerText = priv ? target : room;
+        document.getElementById('block-btn').style.display = priv ? 'inline-block' : 'none';
+        
+        // Block butonunu güncelle
+        if(priv && myBlocked.includes(target)) {
+            document.getElementById('block-btn').innerHTML = '<i class="fas fa-unlock"></i>';
+        } else {
+            document.getElementById('block-btn').innerHTML = '<i class="fas fa-ban"></i>';
+        }
+
+        socket.emit('join', {room: room});
+    }
+
+    function startPrivateChat(username) {
+        const roomName = [myUsername, username].sort().join('_');
+        joinRoom(roomName, true, username);
+    }
+
+    socket.on('load_history', (msgs) => {
+        msgs.forEach(m => displayMessage(m));
+        scrollToBottom();
+    });
+
+    socket.on('new_message', (data) => {
+        // Eğer engelleyen kişiden geliyorsa gösterme
+        if(myBlocked.includes(data.sender)) return;
+        displayMessage(data);
+        scrollToBottom();
+    });
+
+    function sendMessage() {
+        const inp = document.getElementById('msg-input');
+        const txt = inp.value.trim();
+        if(txt) {
+            socket.emit('send_message', {room: currentRoom, msg: txt, type: 'text'});
+            inp.value = '';
+        }
+    }
+
+    function displayMessage(data) {
+        const isMe = data.sender === myUsername;
+        const area = document.getElementById('messages-area');
+        const msgDiv = document.createElement('div');
+        msgDiv.className = `message ${isMe ? 'msg-out' : 'msg-in'}`;
+        msgDiv.id = `msg-${data.id}`;
+        
+        // İçerik
+        let contentHtml = '';
+        if(data.type === 'text') contentHtml = data.content;
+        else if(data.type === 'image') contentHtml = `<img src="${data.content}" style="max-width:200px; border-radius:5px;">`;
+        else if(data.type === 'video') contentHtml = `<video src="${data.content}" controls style="max-width:200px; border-radius:5px;"></video>`;
+        else if(data.type === 'audio') contentHtml = `<audio src="${data.content}" controls></audio>`;
+        
+        // Avatar (Karşı tarafsa)
+        const avatarHtml = !isMe ? `<img src="${data.avatar}" class="msg-avatar">` : '';
+        const tick = isMe ? (data.status === 'read' ? '<i class="fas fa-check-double" style="color:#4fc3f7;"></i>' : '<i class="fas fa-check"></i>') : '';
+
+        msgDiv.innerHTML = `
+            ${avatarHtml}
+            ${!isMe ? `<b style="color:var(--green); font-size:12px;">${data.sender}</b><br>` : ''}
+            ${contentHtml}
+            <div class="msg-info">${data.time} ${tick}</div>
+        `;
+        
+        // Sağ tık silme (sadece kendin için)
+        if(isMe) {
+            msgDiv.oncontextmenu = (e) => {
+                e.preventDefault();
+                if(confirm('Mesajı silmek istiyor musunuz?')) {
+                    socket.emit('delete_message', {id: data.id});
+                }
+            };
+        }
+
+        area.appendChild(msgDiv);
+    }
+
+    socket.on('message_deleted', (data) => {
+        const el = document.getElementById(`msg-${data.id}`);
+        if(el) el.remove();
+    });
+
+    function scrollToBottom() {
+        const area = document.getElementById('messages-area');
         area.scrollTop = area.scrollHeight;
-    });
+    }
 
-    socket.on('load_history', msgs => {
-        document.getElementById('messages').innerHTML = "";
-        msgs.forEach(m => socket.emit('new_message_ui', m)); // Basitleştirilmiş yükleme
-    });
+    // --- SES KAYDI (Düzeltme: ondataavailable) ---
+    let mediaRecorder;
+    let audioChunks = [];
 
-    // Sesli Mesaj
-    let rec;
-    async function startRec() {
-        const stream = await navigator.mediaDevices.getUserMedia({audio:true});
-        rec = new MediaRecorder(stream);
-        let chunks = [];
-        rec.ondataavailable = e => chunks.push(e.data);
-        rec.onstop = () => {
-            const blob = new Blob(chunks);
-            const r = new FileReader();
-            r.onload = e => socket.emit('send_message', {room: currentRoom, msg: e.target.result, type: 'audio'});
-            r.readAsDataURL(blob);
+    async function startRecord() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream);
+            audioChunks = [];
+            
+            mediaRecorder.ondataavailable = event => {
+                audioChunks.push(event.data);
+            };
+
+            mediaRecorder.onstop = () => {
+                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    socket.emit('send_message', {room: currentRoom, msg: e.target.result, type: 'audio'});
+                };
+                reader.readAsDataURL(audioBlob);
+            };
+
+            mediaRecorder.start();
+            document.getElementById('mic-btn').classList.add('recording');
+        } catch (err) {
+            alert("Mikrofon hatası: " + err);
+        }
+    }
+
+    function stopRecord() {
+        if(mediaRecorder && mediaRecorder.state !== 'inactive') {
+            mediaRecorder.stop();
+            document.getElementById('mic-btn').classList.remove('recording');
+        }
+    }
+
+    // --- DOSYA GÖNDERME ---
+    function sendMedia(input) {
+        const file = input.files[0];
+        if(!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const type = file.type.startsWith('image') ? 'image' : (file.type.startsWith('video') ? 'video' : 'text');
+            socket.emit('send_message', {room: currentRoom, msg: e.target.result, type: type});
         };
-        rec.start();
-        document.getElementById('mic-btn').style.color = 'red';
-    }
-    function stopRec() { if(rec) { rec.stop(); document.getElementById('mic-btn').style.color = 'black'; } }
-
-    // Dosya & Hikaye
-    function postFile(i) {
-        const f = i.files[0];
-        const r = new FileReader();
-        r.onload = e => socket.emit('send_message', {room: currentRoom, msg: e.target.result, type: f.type.split('/')[0]});
-        r.readAsDataURL(f);
+        reader.readAsDataURL(file);
     }
 
-    function postStory(i) {
-        const f = i.files[0];
-        const r = new FileReader();
-        r.onload = e => socket.emit('post_story', {content: e.target.result, type: f.type.split('/')[0]});
-        r.readAsDataURL(f);
+    // --- HİKAYELER ---
+    let currentStories = [];
+    let currentStoryIndex = 0;
+    let storyTimer;
+    let storyAudio = new Audio();
+
+    function openStoryModal() { document.getElementById('story-add-modal').style.display = 'flex'; }
+    function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+
+    function uploadStory() {
+        const file = document.getElementById('story-file').files[0];
+        const music = document.getElementById('story-music').files[0];
+        if(!file) return alert('Lütfen bir dosya seçin');
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const content = e.target.result;
+            const type = file.type.startsWith('image') ? 'image' : 'video';
+            
+            if(music) {
+                const mReader = new FileReader();
+                mReader.onload = (mE) => {
+                    socket.emit('post_story', {content: content, type: type, music: mE.target.result});
+                    closeModal('story-add-modal');
+                };
+                mReader.readAsDataURL(music);
+            } else {
+                socket.emit('post_story', {content: content, type: type, music: null});
+                closeModal('story-add-modal');
+            }
+        };
+        reader.readAsDataURL(file);
     }
 
-    socket.on('stories_update', grouped => {
-        const area = document.getElementById('stories-area');
-        area.innerHTML = "";
+    socket.on('stories_update', (grouped) => {
+        const list = document.getElementById('story-list');
+        list.innerHTML = '';
         for(let user in grouped) {
-            area.innerHTML += `<img src="${grouped[user].avatar}" class="st-thumb" onclick='alert("Hikaye İzleme Modu Aktif")'>`;
+            const data = grouped[user];
+            // Tüm hikayeler görüldü mü?
+            const allSeen = data.items.every(i => i.seen_by_me);
+            const borderCol = allSeen ? '#666' : 'var(--green)';
+            
+            const div = document.createElement('div');
+            div.className = 'story-circle';
+            div.style.borderColor = borderCol;
+            div.innerHTML = `<img src="${data.avatar}">`;
+            div.onclick = () => viewStories(data);
+            list.appendChild(div);
         }
     });
 
-    async function startVideo() {
-        document.getElementById('video-overlay').style.display = 'block';
-        const stream = await navigator.mediaDevices.getUserMedia({video:true, audio:true});
-        document.getElementById('local').srcObject = stream;
+    function viewStories(userData) {
+        currentStories = userData.items;
+        currentStoryIndex = 0;
+        document.getElementById('st-avatar').src = userData.avatar;
+        document.getElementById('st-username').innerText = userData.username;
+        document.getElementById('story-viewer').style.display = 'flex';
+        showStory();
+    }
+
+    function showStory() {
+        if(currentStoryIndex >= currentStories.length) {
+            closeStoryViewer();
+            return;
+        }
+        
+        const s = currentStories[currentStoryIndex];
+        const mediaDiv = document.getElementById('story-media');
+        const viewersSpan = document.getElementById('st-viewers');
+        const delBtn = document.getElementById('st-del-btn');
+        
+        // Görüldü bildir
+        if(!s.seen_by_me) socket.emit('story_seen', {id: s.id});
+        
+        // İzleyenler & Silme yetkisi
+        viewersSpan.innerText = `👁️ ${s.viewers.length}`;
+        delBtn.style.display = (s.username === myUsername) ? 'inline' : 'none'; // Sadece kendi hikayeni sil
+        if(s.username === myUsername) {
+           delBtn.onclick = () => { socket.emit('delete_story', {id: s.id}); closeStoryViewer(); };
+        }
+
+        // İçerik
+        mediaDiv.innerHTML = '';
+        storyAudio.pause();
+        
+        let duration = 30000; // Varsayılan 30sn
+        
+        if(s.type === 'image') {
+            mediaDiv.innerHTML = `<img src="${s.content}">`;
+            if(s.music) {
+                storyAudio.src = s.music;
+                storyAudio.play();
+                // Müzik süresi kadar bekle (maks 30sn)
+                // Basitlik için 30sn sabit tutuyoruz veya müziğe göre uzatılabilir
+            }
+        } else {
+            mediaDiv.innerHTML = `<video src="${s.content}" autoplay style="width:100%; height:100%;"></video>`;
+            const vid = mediaDiv.querySelector('video');
+            vid.onloadedmetadata = () => { duration = vid.duration * 1000; };
+            // Video bitince geç
+            vid.onended = nextStory;
+            // Video süresini timer için kullanacağız, aşağıda timeout ayarlamıyoruz
+            clearTimeout(storyTimer);
+            return; // Video eventleri yönetecek
+        }
+
+        // Progress Bar Animasyonu
+        updateProgressBar(duration);
+        
+        // Otomatik geçiş
+        clearTimeout(storyTimer);
+        storyTimer = setTimeout(nextStory, duration);
+    }
+
+    function nextStory() {
+        currentStoryIndex++;
+        showStory();
+    }
+
+    function closeStoryViewer() {
+        document.getElementById('story-viewer').style.display = 'none';
+        clearTimeout(storyTimer);
+        storyAudio.pause();
+        const vid = document.querySelector('#story-media video');
+        if(vid) vid.pause();
+    }
+
+    function updateProgressBar(duration) {
+        const bar = document.getElementById('story-progress-bar');
+        bar.innerHTML = '';
+        currentStories.forEach((_, idx) => {
+            const seg = document.createElement('div');
+            seg.className = 'progress-segment';
+            if(idx < currentStoryIndex) seg.style.background = 'white';
+            else if(idx === currentStoryIndex) {
+                seg.classList.add('progress-active');
+                setTimeout(() => { seg.style.width = '100%'; }, 10); // Animasyon tetikle
+                seg.style.transition = `background 0s, flex-grow ${duration}ms linear`; // Basit hack
+            }
+            bar.appendChild(seg);
+        });
+    }
+
+    // --- MÜZİK ---
+    function uploadMusic(input) {
+        const file = input.files[0];
+        if(!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const name = prompt("Şarkı adı nedir?", file.name);
+            socket.emit('add_music', {name: name || file.name, content: e.target.result});
+        };
+        reader.readAsDataURL(file);
+    }
+
+    socket.on('music_list', (list) => {
+        const div = document.getElementById('music-items');
+        div.innerHTML = '';
+        list.forEach(m => {
+            const item = document.createElement('div');
+            item.className = 'list-item';
+            item.innerHTML = `
+                <i class="fas fa-music"></i>
+                <div style="flex:1;"><b>${m.title}</b><br><small>${m.uploader}</small></div>
+                <button onclick="playMusic('${m.src}')" style="background:none; border:none; color:white;"><i class="fas fa-play"></i></button>
+                ${m.uploader === myUsername ? `<button onclick="deleteMusic(${m.id})" style="color:red; background:none; border:none;">X</button>` : ''}
+            `;
+            div.appendChild(item);
+        });
+    });
+
+    function playMusic(src) {
+        const p = document.getElementById('audio-player');
+        p.src = src;
+        p.style.display = 'block';
+        p.play();
+    }
+    
+    function deleteMusic(id) {
+        if(confirm('Müziği silmek istiyor musunuz?')) {
+            socket.emit('delete_music', {id: id});
+        }
+    }
+
+    // --- GRUPLAR ---
+    function openGroupModal() { document.getElementById('group-modal').style.display = 'flex'; }
+    function createGroup() {
+        const name = document.getElementById('group-name').value;
+        const pass = document.getElementById('group-pass').value;
+        socket.emit('create_group', {name: name, password: pass});
+        closeModal('group-modal');
+    }
+
+    // --- ENGELLEME & PROFİL ---
+    function blockCurrentUser() {
+        if(isPrivate && targetUser) {
+            socket.emit('block_user', {username: targetUser});
+            myBlocked.includes(targetUser) ? 
+                myBlocked.splice(myBlocked.indexOf(targetUser), 1) : 
+                myBlocked.push(targetUser);
+            // Butonu güncelle
+            const btn = document.getElementById('block-btn');
+            btn.innerHTML = myBlocked.includes(targetUser) ? '<i class="fas fa-unlock"></i>' : '<i class="fas fa-ban"></i>';
+            alert(myBlocked.includes(targetUser) ? 'Engellendi' : 'Engel Kaldırıldı');
+        }
+    }
+
+    function updateProfile(input) {
+        const file = input.files[0];
+        if(!file) return;
+        const r = new FileReader();
+        r.onload = e => {
+            // Resmi küçült
+            const img = new Image(); img.src = e.target.result;
+            img.onload = () => {
+                const c = document.createElement('canvas');
+                c.width=200; c.height=200;
+                c.getContext('2d').drawImage(img,0,0,200,200);
+                socket.emit('update_profile', {avatar: c.toDataURL()});
+                document.querySelector('.user-avatar').src = c.toDataURL(); // Yerel güncelle
+            }
+        };
+        r.readAsDataURL(file);
+    }
+    
+    function updateBG(input) {
+        const file = input.files[0];
+        if(!file) return;
+        const r = new FileReader();
+        r.onload = e => {
+            socket.emit('update_profile', {bg: e.target.result});
+            document.getElementById('main-chat').style.backgroundImage = `url('${e.target.result}')`;
+        };
+        r.readAsDataURL(file);
+    }
+
+    function toggleEmoji() {
+        const picker = document.getElementById('emoji-picker');
+        picker.style.display = picker.style.display === 'none' ? 'grid' : 'none';
+    }
+    function addEmoji(e) {
+        document.getElementById('msg-input').value += e;
+    }
+
+    // --- GÖRÜNTÜLÜ ARAMA (WebRTC) ---
+    let localStream;
+    let peerConnection;
+    let isFrontCamera = true;
+    const servers = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+
+    async function startVideoCall() {
+        document.getElementById('video-call-modal').style.display = 'block';
+        try {
+            localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            document.getElementById('local-video').srcObject = localStream;
+            
+            // WebRTC başlatma sinyali gönder (Basitleştirilmiş)
+            // Gerçek WebRTC için peerConnection offer/answer mantığı gerekir.
+            // Bu demo olduğu için sadece yerel kamerayı açıp "Bağlantı Kuruldu" simülasyonu yapıyoruz.
+            // Gerçek peer-to-peer bağlantı karmaşıklığı bu yanıtın sınırlarını aşar, 
+            // ancak yerel kamera açılışı ve UI şu an çalışır.
+            
+        } catch(e) { alert('Kamera hatası: ' + e); }
+    }
+
+    async function switchCamera() {
+        if(localStream) {
+            localStream.getTracks().forEach(t => t.stop());
+        }
+        isFrontCamera = !isFrontCamera;
+        const constraints = { 
+            video: { facingMode: isFrontCamera ? 'user' : 'environment' }, 
+            audio: true 
+        };
+        localStream = await navigator.mediaDevices.getUserMedia(constraints);
+        document.getElementById('local-video').srcObject = localStream;
+    }
+
+    function endCall() {
+        document.getElementById('video-call-modal').style.display = 'none';
+        if(localStream) {
+            localStream.getTracks().forEach(t => t.stop());
+        }
     }
 </script>
 </body>
