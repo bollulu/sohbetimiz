@@ -1,72 +1,67 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
 <head>
-<meta charset="UTF-8">
-<title>Sohbet</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
-
+<meta name="viewport" content="width=device-width">
+<title>10 LİNE CHAT</title>
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 <style>
-body{margin:0;display:flex;height:100vh;font-family:Arial}
-#left{width:260px;background:#fff;border-right:1px solid #ccc;overflow:auto}
-#right{flex:1;display:flex;flex-direction:column;background:#e5ddd5}
-.user{padding:10px;border-bottom:1px solid #eee}
-.online{color:green;font-size:12px}
-#chat{flex:1;overflow:auto;padding:10px}
-.msg{background:#fff;margin:5px;padding:6px;border-radius:6px;max-width:70%;display:flex;gap:6px}
-.me{background:#dcf8c6;margin-left:auto}
-.msg img{width:32px;height:32px;border-radius:50%}
-#bar{display:flex;padding:10px}
-#bar input{flex:1;padding:10px;border-radius:20px;border:none}
+body{margin:0;font-family:sans-serif;background:#efeae2}
+#top{background:#075e54;color:#fff;padding:10px;display:flex;align-items:center}
+#top img{width:40px;height:40px;border-radius:50%;margin-right:10px}
+#chat{height:75vh;overflow:auto;padding:10px}
+.msg{max-width:70%;margin:5px;padding:8px;border-radius:8px;display:flex}
+.me{margin-left:auto;background:#dcf8c6}
+.other{background:#fff}
+.msg img.avatar{width:30px;height:30px;border-radius:50%;margin-right:5px}
+#bar{display:flex;padding:10px;background:#f0f0f0}
+#bar input{flex:1;padding:10px}
 </style>
 </head>
-
 <body>
 
-<div id="left">
-<h4>Kullanıcılar</h4>
-{% for u in users %}
-<div class="user">
-{{ u.username }}
-{% if u.online %}<span class="online">●</span>{% endif %}
-</div>
-{% endfor %}
+<div id="top">
+<img src="{{ user.avatar }}">
+<b>{{ user.username }}</b>
 </div>
 
-<div id="right">
 <div id="chat"></div>
+
 <div id="bar">
-<input id="msg" placeholder="Mesaj yaz">
+<input id="text" placeholder="Mesaj yaz" onkeydown="if(event.key==='Enter')send()">
+<input type="file" id="file" hidden onchange="upload()">
+<button onclick="file.click()">+</button>
 <button onclick="send()">➤</button>
-</div>
 </div>
 
 <script>
 const socket = io();
-const room = "genel";
-const me = "{{ user.username }}";
+socket.emit("join");
 
-socket.emit("join_room",{room});
-
-function send(){
-    if(msg.value){
-        socket.emit("send_msg",{room,msg:msg.value});
-        msg.value="";
-    }
-}
-
-socket.on("history",list=>list.forEach(add));
-socket.on("new_msg",add);
+socket.on("history", msgs => msgs.forEach(add));
+socket.on("new", add);
 
 function add(d){
-    const m=document.createElement("div");
-    m.className="msg "+(d.user===me?"me":"");
-    m.innerHTML=`<img src="${d.avatar}">
-    <div><b>${d.user}</b><br>${d.msg}<br>
-    <small>${d.read?"✔✔":"✔"}</small></div>`;
-    chat.appendChild(m);
-    chat.scrollTop=99999;
-    socket.emit("read_msg",{id:d.id});
+ let div=document.createElement("div");
+ div.className="msg "+(d.me?"me":"other");
+ let content=d.type==="text"?d.text:
+ d.type==="image"?`<img src="${d.text}" width=150>`:
+ `<audio controls src="${d.text}"></audio>`;
+ div.innerHTML=`<img class="avatar" src="${d.avatar}"><div>${content}</div>`;
+ chat.appendChild(div);
+ chat.scrollTop=99999;
+ socket.emit("read", d.id);
+}
+
+function send(){
+ if(!text.value) return;
+ socket.emit("send",{text:text.value});
+ text.value="";
+}
+
+function upload(){
+ let fd=new FormData();
+ fd.append("file",file.files[0]);
+ fetch("/upload",{method:"POST",body:fd});
 }
 </script>
 
