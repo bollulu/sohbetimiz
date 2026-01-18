@@ -1,57 +1,43 @@
-from flask import Flask, render_template, request, redirect, session, jsonify
-from flask_socketio import SocketIO, emit, join_room, leave_room
-from flask_sqlalchemy import SQLAlchemy
-from werkzeug.security import generate_password_hash, check_password_hash
-from datetime import datetime, timedelta
 import os, uuid
+from datetime import datetime
+from flask import Flask, render_template, request, redirect, session, jsonify
+from flask_sqlalchemy import SQLAlchemy
+from flask_socketio import SocketIO, emit, join_room
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app = Flask(__name__)
-app.config["SECRET_KEY"] = "secret123"
+app.secret_key = "secret-key"
+
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///db.sqlite3"
-app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
+app.config["UPLOAD_FOLDER"] = "static/uploads"
+app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024  # 10MB
 
 db = SQLAlchemy(app)
-socketio = SocketIO(app, cors_allowed_origins="*")
+socketio = SocketIO(app, async_mode="eventlet")
 
-UPLOAD_DIR = "static/uploads"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+os.makedirs("static/uploads", exist_ok=True)
+os.makedirs("static/avatars", exist_ok=True)
 
 # ================= MODELS =================
 
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(50), unique=True)
+    username = db.Column(db.String(40), unique=True)
     password = db.Column(db.String(200))
-    avatar = db.Column(db.String(200), default="/static/default.png")
-    online = db.Column(db.Boolean, default=False)
-
-class Group(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(50), unique=True)
-    password = db.Column(db.String(200))
-
-class GroupMember(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    group = db.Column(db.String(50))
-    username = db.Column(db.String(50))
+    gender = db.Column(db.String(10))
+    avatar = db.Column(db.String(200))
 
 class Message(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    room = db.Column(db.String(50))
-    user = db.Column(db.String(50))
+    user = db.Column(db.String(40))
     avatar = db.Column(db.String(200))
-    msg = db.Column(db.Text)
-    read_by = db.Column(db.Text, default="")
+    text = db.Column(db.Text)
+    type = db.Column(db.String(10))  # text / image / audio
+    room = db.Column(db.String(40))
     created = db.Column(db.DateTime, default=datetime.utcnow)
+    read = db.Column(db.Boolean, default=False)
 
-class Story(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(50))
-    media = db.Column(db.Text)
-    created = db.Column(db.DateTime, default=datetime.utcnow)
-
-with app.app_context():
-    db.create_all()
+db.create_all()
 
 # ================= AUTH =================
 
@@ -60,31 +46,27 @@ def auth():
     if request.method == "POST":
         u = request.form["username"]
         p = request.form["password"]
+        g = request.form["gender"]
+        avatar = request.files["avatar"]
+
         user = User.query.filter_by(username=u).first()
-        if user and check_password_hash(user.password, p):
-            session["user"] = u
-            user.online = True
+        if not user:
+            name = f"avatars/{uuid.uuid4().hex}.png"
+            avatar.save("static/" + name)
+            user = User(
+                username=u,
+                password=generate_password_hash(p),
+                gender=g,
+                avatar="/static/" + name
+            )
+            db.session.add(user)
             db.session.commit()
+
+        if check_password_hash(user.password, p):
+            session["user"] = u
             return redirect("/chat")
+
     return render_template("auth.html")
-
-@app.route("/register", methods=["POST"])
-def register():
-    u = request.form["username"]
-    p = generate_password_hash(request.form["password"])
-    if not User.query.filter_by(username=u).first():
-        db.session.add(User(username=u, password=p))
-        db.session.commit()
-    return redirect("/")
-
-@app.route("/logout")
-def logout():
-    u = User.query.filter_by(username=session.get("user")).first()
-    if u:
-        u.online = False
-        db.session.commit()
-    session.clear()
-    return redirect("/")
 
 # ================= CHAT =================
 
@@ -93,79 +75,74 @@ def chat():
     if "user" not in session:
         return redirect("/")
     user = User.query.filter_by(username=session["user"]).first()
-    groups = Group.query.all()
-    users = User.query.all()
-    return render_template("chat.html", user=user, groups=groups, users=users)
+    return render_template("chat.html", user=user)
 
-# ================= AVATAR =================
+# ================= UPLOAD =================
 
-@app.route("/upload_avatar", methods=["POST"])
-def upload_avatar():
-    f = request.files["file"]
-    name = f"{uuid.uuid4().hex}.png"
-    path = os.path.join(UPLOAD_DIR, name)
-    f.save(path)
-    u = User.query.filter_by(username=session["user"]).first()
-    u.avatar = "/" + path
-    db.session.commit()
-    return jsonify({"avatar": u.avatar})
+@app.route("/upload", methods=["POST"])
+def upload():
+    file = request.files["file"]
+    ext = file.filename.rsplit(".",1)[1]
+    name = f"uploads/{uuid.uuid4().hex}.{ext}"
+    file.save("static/" + name)
 
-# ================= SOCKET =================
-
-@socketio.on("join_room")
-def join(data):
-    room = data["room"]
-    join_room(room)
-
-    msgs = Message.query.filter_by(room=room).all()
-    emit("history", [{
-        "id": m.id,
-        "user": m.user,
-        "avatar": m.avatar,
-        "msg": m.msg,
-        "read": session["user"] in m.read_by.split(",")
-    } for m in msgs])
-
-@socketio.on("send_msg")
-def send(data):
     u = User.query.filter_by(username=session["user"]).first()
     m = Message(
-        room=data["room"],
         user=u.username,
         avatar=u.avatar,
-        msg=data["msg"],
-        read_by=u.username
+        text="/static/" + name,
+        type="image" if ext in ["png","jpg","jpeg"] else "audio",
+        room="main"
     )
     db.session.add(m)
     db.session.commit()
-    emit("new_msg", {
+
+    socketio.emit("new", serialize(m), to="main")
+    return "ok"
+
+# ================= SOCKET =================
+
+@socketio.on("join")
+def join():
+    join_room("main")
+    msgs = Message.query.filter_by(room="main").all()
+    emit("history", [serialize(m) for m in msgs])
+
+@socketio.on("send")
+def send(data):
+    u = User.query.filter_by(username=session["user"]).first()
+    m = Message(
+        user=u.username,
+        avatar=u.avatar,
+        text=data["text"],
+        type="text",
+        room="main"
+    )
+    db.session.add(m)
+    db.session.commit()
+    emit("new", serialize(m), to="main")
+
+@socketio.on("read")
+def read(id):
+    m = Message.query.get(id)
+    if m:
+        m.read = True
+        db.session.commit()
+
+# ================= HELPERS =================
+
+def serialize(m):
+    return {
         "id": m.id,
         "user": m.user,
         "avatar": m.avatar,
-        "msg": m.msg
-    }, to=data["room"])
+        "text": m.text,
+        "type": m.type,
+        "me": m.user == session.get("user"),
+        "read": m.read
+    }
 
-@socketio.on("read_msg")
-def read(data):
-    m = Message.query.get(data["id"])
-    if m and session["user"] not in m.read_by:
-        m.read_by += session["user"] + ","
-        db.session.commit()
-        emit("read_update", {"id": m.id}, broadcast=True)
+# ================= RUN =================
 
-@socketio.on("edit_msg")
-def edit(data):
-    m = Message.query.get(data["id"])
-    if m and m.user == session["user"]:
-        if datetime.utcnow() - m.created < timedelta(minutes=5):
-            m.msg = data["msg"]
-            db.session.commit()
-            emit("edit_update", {"id": m.id, "msg": m.msg}, broadcast=True)
-
-@socketio.on("disconnect")
-def disconnect():
-    if "user" in session:
-        u = User.query.filter_by(username=session["user"]).first()
-        if u:
-            u.online = False
-            db.session.commit()
+if __name__ == "__main__":
+    socketio.run(app, host="0.0.0.0", port=5000)
