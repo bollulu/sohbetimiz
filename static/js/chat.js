@@ -1,16 +1,15 @@
 const socket = io();
+const chatId = window.location.pathname.split("/").pop();
+
+socket.emit("join", { chat_id: chatId });
 
 function send() {
-  const msg = document.getElementById("msg").value;
-  socket.emit("send_message", {
-    username: USERNAME,
-    message: msg
-  });
-  document.getElementById("msg").value = "";
+    const text = document.getElementById("msg").value;
+    socket.emit("send_message", { chat_id: chatId, text: text });
 }
 
 socket.on("receive_message", data => {
-  const p = document.createElement("p");
-  p.innerHTML = `<b>${data.username}:</b> ${data.message}`;
-  document.getElementById("chat").appendChild(p);
+    const div = document.createElement("div");
+    div.innerText = data.sender + ": " + data.text;
+    document.getElementById("messages").appendChild(div);
 });
