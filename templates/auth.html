@@ -4,18 +4,19 @@
     <title>Giriş</title>
 </head>
 <body>
-<h2>Giriş / Kayıt</h2>
+<h2>Giriş</h2>
 
 <form method="POST">
     <input name="username" placeholder="Kullanıcı adı">
-    <input name="password" type="password" placeholder="Şifre">
+    <input type="password" name="password" placeholder="Şifre">
     <button>Giriş</button>
 </form>
 
+<h3>Kayıt Ol</h3>
 <form action="/register" method="POST">
-    <input name="username" placeholder="Yeni kullanıcı">
-    <input name="password" type="password" placeholder="Şifre">
-    <button>Kayıt Ol</button>
+    <input name="username">
+    <input type="password" name="password">
+    <button>Kayıt</button>
 </form>
 </body>
 </html>
