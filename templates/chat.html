@@ -1,38 +1,31 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Sohbet</title>
-    <link rel="stylesheet" href="/static/css/style.css">
+<link rel="stylesheet" href="/static/css/style.css">
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 </head>
 <body>
 
+<h2>Hikayeler</h2>
+{% for s in stories %}
+<img src="/static/stories/{{ s.image }}" width="100">
+{% endfor %}
+<br><a href="/add-story">Hikaye ekle</a>
+
+<hr>
+
 <div id="chat">
-    {% for msg in messages %}
-        <div><b>{{ msg.username }}</b>: {{ msg.text }}</div>
-    {% endfor %}
+{% for m in messages %}
+<p><b>{{ m.username }}:</b> {{ m.text }}</p>
+{% endfor %}
 </div>
 
-<input id="message" placeholder="Mesaj yaz">
+<input id="msg">
 <button onclick="send()">Gönder</button>
 
-<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script src="/static/js/chat.js"></script>
 <script>
-const socket = io();
-
-function send() {
-    const input = document.getElementById("message");
-    socket.emit("send_message", {
-        username: "{{ username }}",
-        message: input.value
-    });
-    input.value = "";
-}
-
-socket.on("receive_message", data => {
-    const div = document.createElement("div");
-    div.innerHTML = "<b>" + data.username + "</b>: " + data.message;
-    document.getElementById("chat").appendChild(div);
-});
+const USERNAME = "{{ current_user.username }}";
 </script>
 
 </body>
