@@ -1,31 +1,39 @@
-<!doctype html>
+<!DOCTYPE html>
 <html>
 <head>
-<meta name="viewport" content="width=device-width">
+<meta charset="UTF-8">
 <title>Giriş</title>
 <style>
-body{margin:0;background:#f0f2f5;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh}
-form{background:#fff;padding:20px;width:300px;border-radius:10px}
-input,select,button{width:100%;padding:10px;margin:6px 0}
+body {
+    font-family: Arial;
+    background:#0f2027;
+    color:white;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    height:100vh;
+}
+form {
+    background:#203a43;
+    padding:30px;
+    border-radius:10px;
+    width:300px;
+}
+input,button {
+    width:100%;
+    padding:10px;
+    margin-top:10px;
+}
 </style>
 </head>
 <body>
 
-<form method="post" enctype="multipart/form-data">
-<h3>WhatsApp Clone</h3>
-
-<input name="username" placeholder="Kullanıcı adı" required>
-<input name="password" type="password" placeholder="Şifre" required>
-
-<select name="gender" required>
-  <option value="">Cinsiyet</option>
-  <option>Erkek</option>
-  <option>Kadın</option>
-</select>
-
-<input type="file" name="avatar" required>
-
-<button>Giriş / Kayıt</button>
+<form method="post">
+    <h2>Giriş / Kayıt</h2>
+    <input name="username" placeholder="Kullanıcı adı" required>
+    <input name="password" type="password" placeholder="Şifre" required>
+    <input name="avatar" placeholder="Avatar URL (opsiyonel)">
+    <button>Devam</button>
 </form>
 
 </body>
