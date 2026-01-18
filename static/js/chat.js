@@ -1,22 +1,14 @@
 const socket = io();
-const room = "genel";
-
-socket.emit("join", { room: room });
+socket.emit("join", { room: "genel" });
 
 socket.on("message", data => {
     const chat = document.getElementById("chat");
+    const div = document.createElement("div");
 
-    const msgDiv = document.createElement("div");
-    msgDiv.classList.add("message");
+    div.className = "message " + (data.user === myUsername ? "me" : "other");
+    div.innerHTML = `<b>${data.user}</b><br>${data.msg}`;
 
-    if (data.user === myUsername) {
-        msgDiv.classList.add("me");
-    } else {
-        msgDiv.classList.add("other");
-    }
-
-    msgDiv.innerHTML = `<b>${data.user}</b><br>${data.msg}`;
-    chat.appendChild(msgDiv);
+    chat.appendChild(div);
     chat.scrollTop = chat.scrollHeight;
 });
 
@@ -25,16 +17,8 @@ function sendMessage() {
     if (input.value.trim() === "") return;
 
     socket.emit("message", {
-        room: room,
+        room: "genel",
         msg: input.value
     });
-
     input.value = "";
 }
-
-/* ENTER ile gönder */
-document.getElementById("msg").addEventListener("keypress", function (e) {
-    if (e.key === "Enter") {
-        sendMessage();
-    }
-});
