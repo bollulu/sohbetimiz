@@ -1,73 +1,96 @@
-<!doctype html>
+<!DOCTYPE html>
 <html>
 <head>
-<meta name="viewport" content="width=device-width">
-<title>Chat</title>
-<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<meta charset="UTF-8">
+<title>Sohbet</title>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+
 <style>
-body{margin:0;font-family:sans-serif;background:#efeae2}
-#top{background:#075e54;color:#fff;padding:10px;display:flex;align-items:center}
-#top img{width:40px;height:40px;border-radius:50%;margin-right:10px}
-#chat{height:75vh;overflow:auto;padding:10px}
-.msg{max-width:70%;margin:5px;padding:8px;border-radius:8px;display:flex;gap:5px}
-.me{margin-left:auto;background:#dcf8c6}
-.other{background:#fff}
-.msg img.avatar{width:30px;height:30px;border-radius:50%}
-#bar{display:flex;padding:10px;background:#f0f0f0;gap:5px}
-#bar input[type=text]{flex:1;padding:10px}
+body {
+    margin:0;
+    font-family:Arial;
+    background:#ece5dd;
+}
+#chat {
+    height:90vh;
+    overflow-y:auto;
+    padding:10px;
+}
+.msg {
+    display:flex;
+    margin-bottom:8px;
+}
+.me {
+    justify-content:flex-end;
+}
+.bubble {
+    max-width:60%;
+    padding:10px;
+    border-radius:8px;
+}
+.me .bubble {
+    background:#dcf8c6;
+}
+.other .bubble {
+    background:white;
+}
+.avatar {
+    width:30px;
+    height:30px;
+    border-radius:50%;
+    margin-right:6px;
+}
+#input {
+    display:flex;
+    padding:10px;
+    background:#f0f0f0;
+}
+#input input {
+    flex:1;
+    padding:10px;
+}
 </style>
 </head>
-<body>
 
-<div id="top">
-<img src="{{ user.avatar }}">
-<b>{{ user.username }}</b>
-</div>
+<body>
 
 <div id="chat"></div>
 
-<div id="bar">
-<input id="text" placeholder="Mesaj yaz" onkeydown="if(event.key==='Enter')send()">
-<input type="file" id="file" hidden onchange="upload()">
-<button onclick="file.click()">+</button>
-<button onclick="send()">➤</button>
+<div id="input">
+    <input id="text" placeholder="Mesaj yaz..." autocomplete="off">
 </div>
 
 <script>
 const socket = io();
+const chat = document.getElementById("chat");
+const text = document.getElementById("text");
+
 socket.emit("join");
 
-socket.on("history", msgs => msgs.forEach(add));
-socket.on("new", add);
+socket.on("history", msgs => {
+    msgs.forEach(addMsg);
+});
 
-function add(d){
- let div=document.createElement("div");
- div.className="msg "+(d.me?"me":"other");
+socket.on("new", addMsg);
 
- let content = d.type==="text" ? d.text :
- d.type==="image" ? `<img src="${d.text}" width="150">` :
- `<audio controls src="${d.text}"></audio>`;
+function addMsg(m){
+    const div = document.createElement("div");
+    div.className = "msg " + (m.me ? "me" : "other");
 
- div.innerHTML = `
-   <img class="avatar" src="${d.avatar}">
-   <div>${content}</div>
- `;
- chat.appendChild(div);
- chat.scrollTop = chat.scrollHeight;
- socket.emit("read", d.id);
+    div.innerHTML = `
+        ${!m.me ? `<img class="avatar" src="${m.avatar}">` : ""}
+        <div class="bubble"><b>${m.user}</b><br>${m.text}</div>
+    `;
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
 }
 
-function send(){
- if(!text.value.trim()) return;
- socket.emit("send",{text:text.value});
- text.value="";
-}
-
-function upload(){
- let fd=new FormData();
- fd.append("file",file.files[0]);
- fetch("/upload",{method:"POST",body:fd});
-}
+text.addEventListener("keydown", e => {
+    if(e.key === "Enter"){
+        socket.emit("send", {text:text.value});
+        text.value="";
+    }
+});
 </script>
 
 </body>
