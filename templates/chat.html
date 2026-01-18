@@ -1,44 +1,39 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="utf-8">
-    <title>Sohbet</title>
-    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <title>Sohbet</title>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 </head>
 <body>
 
-<h3>Hoşgeldin {{ username }}</h3>
-<a href="/logout">Çıkış</a>
-
-<hr>
-
+<h2>Oda: genel</h2>
 <div id="messages"></div>
 
-<input id="msg" placeholder="Mesaj yaz">
+<input id="msg" placeholder="Mesaj">
 <button onclick="send()">Gönder</button>
 
 <script>
-    const socket = io();
-    const room = "genel";
-    const user = "{{ username }}";
+const socket = io();
+const room = "genel";
+const username = "{{ username }}";
 
-    socket.emit("join", {room: room});
+socket.emit("join", {room: room});
 
-    function send() {
-        const text = document.getElementById("msg").value;
-        socket.emit("message", {
-            room: room,
-            user: user,
-            text: text
-        });
-        document.getElementById("msg").value = "";
-    }
+socket.on("receive_message", data => {
+  const div = document.createElement("div");
+  div.innerText = data.username + ": " + data.message;
+  document.getElementById("messages").appendChild(div);
+});
 
-    socket.on("message", data => {
-        const div = document.createElement("div");
-        div.innerText = data.user + ": " + data.text;
-        document.getElementById("messages").appendChild(div);
-    });
+function send() {
+  const msg = document.getElementById("msg").value;
+  socket.emit("send_message", {
+    room: room,
+    username: username,
+    message: msg
+  });
+  document.getElementById("msg").value = "";
+}
 </script>
 
 </body>
