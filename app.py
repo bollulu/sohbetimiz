@@ -3,7 +3,7 @@ eventlet.monkey_patch()
 
 import os
 from datetime import datetime
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import (
     LoginManager, UserMixin,
@@ -15,12 +15,10 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
-app.config["SECRET_KEY"] = "secret-key"
+app.config["SECRET_KEY"] = "faz27-secret"
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///chat.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-
 app.config["STORY_FOLDER"] = "static/stories"
-app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
 
 db = SQLAlchemy(app)
 socketio = SocketIO(app, async_mode="eventlet")
@@ -28,14 +26,16 @@ socketio = SocketIO(app, async_mode="eventlet")
 login_manager = LoginManager(app)
 login_manager.login_view = "auth"
 
-######################
-# MODELS
-######################
+# ================= MODELS =================
 
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True)
     password = db.Column(db.String(200))
+
+class Room(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(50), unique=True)
 
 class Message(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -51,17 +51,13 @@ class Story(db.Model):
     file = db.Column(db.String(200))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-######################
-# LOGIN
-######################
+# ================= LOGIN =================
 
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-######################
-# ROUTES
-######################
+# ================= ROUTES =================
 
 @app.route("/", methods=["GET", "POST"])
 def auth():
@@ -90,9 +86,29 @@ def auth():
 @app.route("/chat")
 @login_required
 def chat():
+    rooms = Room.query.all()
     stories = Story.query.all()
-    messages = Message.query.filter_by(room="genel").all()
-    return render_template("chat.html", stories=stories, messages=messages)
+    return render_template(
+        "chat.html",
+        rooms=rooms,
+        stories=stories,
+        current_room="genel",
+        messages=Message.query.filter_by(room="genel").all()
+    )
+
+@app.route("/room/<room>")
+@login_required
+def room(room):
+    rooms = Room.query.all()
+    messages = Message.query.filter_by(room=room).all()
+    stories = Story.query.all()
+    return render_template(
+        "chat.html",
+        rooms=rooms,
+        messages=messages,
+        current_room=room,
+        stories=stories
+    )
 
 @app.route("/add-story", methods=["GET", "POST"])
 @login_required
@@ -111,16 +127,14 @@ def logout():
     logout_user()
     return redirect("/")
 
-######################
-# SOCKET.IO
-######################
+# ================= SOCKET =================
 
 @socketio.on("join")
 def join(data):
-    join_room(data["room"])
+    room = data["room"]
+    join_room(room)
 
-    # Odaya girince mesajları okundu yap
-    Message.query.filter_by(room=data["room"], read=False)\
+    Message.query.filter_by(room=room, read=False)\
         .filter(Message.username != current_user.username)\
         .update({"read": True})
     db.session.commit()
@@ -141,9 +155,15 @@ def message(data):
         "read": msg.read
     }, room=data["room"])
 
-######################
-# INIT DB
-######################
+# ================= INIT =================
 
 with app.app_context():
     db.create_all()
+    if not Room.query.first():
+        db.session.add(Room(name="genel"))
+        db.session.add(Room(name="grup1"))
+        db.session.add(Room(name="grup2"))
+        db.session.commit()
+
+if __name__ == "__main__":
+    socketio.run(app, debug=True)
