@@ -3,54 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <title>Sohbet</title>
-
-    <!-- CSS -->
     <link rel="stylesheet" href="/static/css/style.css">
-
-    <!-- Socket.IO -->
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 
-    <!-- Kullanıcı adı JS'ye aktar -->
     <script>
         const myUsername = "{{ current_user.username }}";
     </script>
 </head>
 <body>
 
-<!-- ÜST BAR -->
 <div class="header">
-    <strong>{{ current_user.username }}</strong>
-    <a href="/logout" style="color:white; margin-left:auto;">Çıkış</a>
+    {{ current_user.username }}
+    <a href="/logout" style="color:white; float:right;">Çıkış</a>
 </div>
 
-<!-- STORY BAR -->
 <div class="story-bar">
-    <div class="story">
-        <a href="/add-story">
-            <img src="/static/avatars/{{ current_user.avatar }}">
-            <div>+</div>
-        </a>
-    </div>
-
+    <a href="/add-story">+ Story</a>
     {% for s in stories %}
-    <div class="story">
-        <img src="/static/stories/{{ s.file }}">
-        <div>{{ s.user }}</div>
-    </div>
+        <img src="/static/stories/{{ s.file }}" width="40">
     {% endfor %}
 </div>
 
-<!-- SOHBET -->
-<div id="chat" class="chat-container"></div>
+<div id="chat" class="chat-container">
+    {% for m in messages %}
+        <div class="message {{ 'me' if m.username == current_user.username else 'other' }}">
+            <b>{{ m.username }}</b><br>
+            {{ m.text }}
+            {% if m.username == current_user.username %}
+                <small>{{ '✔✔' if m.read else '✔' }}</small>
+            {% endif %}
+        </div>
+    {% endfor %}
+</div>
 
-<!-- MESAJ GÖNDER -->
 <div class="input-area">
-    <input id="msg" placeholder="Mesaj yaz..." autocomplete="off">
+    <input id="msg" placeholder="Mesaj yaz...">
     <button onclick="sendMessage()">➤</button>
 </div>
 
-<!-- JS -->
 <script src="/static/js/chat.js"></script>
-
 </body>
 </html>
