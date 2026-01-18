@@ -1,144 +1,32 @@
-<!DOCTYPE html>
-<html lang="tr">
+<!doctype html>
+<html>
 <head>
-<meta charset="UTF-8">
-<title>Sohbet | Giriş</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-
+<meta name="viewport" content="width=device-width">
+<title>Giriş</title>
 <style>
-:root{
-    --green:#25d366;
-    --dark:#075e54;
-}
-*{box-sizing:border-box}
-body{
-    margin:0;
-    height:100vh;
-    font-family:Arial,Helvetica,sans-serif;
-    background:linear-gradient(135deg,var(--green),var(--dark));
-    display:flex;
-    justify-content:center;
-    align-items:center;
-}
-
-/* CARD */
-.card{
-    background:white;
-    width:100%;
-    max-width:360px;
-    padding:25px;
-    border-radius:12px;
-    box-shadow:0 10px 30px rgba(0,0,0,.2);
-}
-.logo{
-    text-align:center;
-    font-size:42px;
-    margin-bottom:5px;
-}
-h2{
-    text-align:center;
-    margin:5px 0 20px;
-    color:#333;
-}
-
-/* INPUT */
-input{
-    width:100%;
-    padding:12px;
-    margin-top:10px;
-    border-radius:8px;
-    border:1px solid #ccc;
-    font-size:16px;
-}
-input:focus{
-    outline:none;
-    border-color:var(--green);
-}
-
-/* BUTTON */
-button{
-    width:100%;
-    padding:12px;
-    margin-top:15px;
-    border:none;
-    border-radius:25px;
-    background:var(--green);
-    color:white;
-    font-size:16px;
-    cursor:pointer;
-}
-button:hover{
-    opacity:.9;
-}
-
-/* TOGGLE */
-.toggle{
-    text-align:center;
-    margin-top:15px;
-    font-size:14px;
-    color:#555;
-}
-.toggle span{
-    color:var(--green);
-    cursor:pointer;
-    font-weight:bold;
-}
-
-/* NOTE */
-.note{
-    font-size:12px;
-    color:#777;
-    text-align:center;
-    margin-top:10px;
-}
-
-@media(max-width:400px){
-    .card{margin:10px}
-}
+body{font-family:sans-serif;background:#f0f2f5;display:flex;align-items:center;justify-content:center;height:100vh}
+form{background:#fff;padding:20px;width:300px;border-radius:10px}
+input,select,button{width:100%;padding:10px;margin:6px 0}
 </style>
 </head>
-
 <body>
 
-<div class="card">
+<form method="post" enctype="multipart/form-data">
+<h3>WhatsApp Clone</h3>
 
-    <div class="logo">💬</div>
-    <h2>Sohbet</h2>
+<input name="username" placeholder="Kullanıcı adı" required>
+<input name="password" type="password" placeholder="Şifre" required>
 
-    <!-- LOGIN -->
-    <form id="loginForm" method="POST" action="/">
-        <input name="username" placeholder="Kullanıcı adı" required>
-        <input name="password" type="password" placeholder="Şifre" required>
-        <button>Giriş Yap</button>
-    </form>
+<select name="gender" required>
+  <option value="">Cinsiyet</option>
+  <option>Erkek</option>
+  <option>Kadın</option>
+</select>
 
-    <!-- REGISTER -->
-    <form id="registerForm" method="POST" action="/register" style="display:none">
-        <input name="username" placeholder="Kullanıcı adı" required>
-        <input name="password" type="password" placeholder="Şifre" required>
-        <button>Kayıt Ol</button>
-    </form>
+<input type="file" name="avatar" required>
 
-    <div class="toggle">
-        <span onclick="toggle()">Hesabın yok mu? Kayıt Ol</span>
-    </div>
-
-    <div class="note">
-        WhatsApp benzeri sohbet uygulaması
-    </div>
-
-</div>
-
-<script>
-let login=true;
-function toggle(){
-    login=!login;
-    loginForm.style.display=login?"block":"none";
-    registerForm.style.display=login?"none":"block";
-    document.querySelector(".toggle span").innerText=
-        login?"Hesabın yok mu? Kayıt Ol":"Zaten hesabın var mı? Giriş Yap";
-}
-</script>
+<button>Giriş / Kayıt</button>
+</form>
 
 </body>
 </html>
