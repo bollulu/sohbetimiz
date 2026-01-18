@@ -1,40 +1,21 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="UTF-8">
-<title>Giriş</title>
-<style>
-body {
-    font-family: Arial;
-    background:#0f2027;
-    color:white;
-    display:flex;
-    justify-content:center;
-    align-items:center;
-    height:100vh;
-}
-form {
-    background:#203a43;
-    padding:30px;
-    border-radius:10px;
-    width:300px;
-}
-input,button {
-    width:100%;
-    padding:10px;
-    margin-top:10px;
-}
-</style>
+    <title>Giriş</title>
 </head>
 <body>
-
-<form method="post">
-    <h2>Giriş / Kayıt</h2>
-    <input name="username" placeholder="Kullanıcı adı" required>
-    <input name="password" type="password" placeholder="Şifre" required>
-    <input name="avatar" placeholder="Avatar URL (opsiyonel)">
-    <button>Devam</button>
+<h2>Giriş</h2>
+<form method="POST">
+    <input name="username" placeholder="Kullanıcı">
+    <input name="password" type="password" placeholder="Şifre">
+    <button name="login">Giriş</button>
 </form>
 
+<h2>Kayıt</h2>
+<form method="POST">
+    <input name="username" placeholder="Kullanıcı">
+    <input name="password" type="password" placeholder="Şifre">
+    <button>Kayıt</button>
+</form>
 </body>
 </html>
