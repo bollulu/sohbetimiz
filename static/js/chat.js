@@ -1,11 +1,12 @@
 const socket = io();
-const chatId = window.location.pathname.split("/").pop();
+const chatId = window.location.pathname.split("/")[2];
 
-socket.emit("join", { chat_id: chatId });
+if (chatId) socket.emit("join", { chat_id: chatId });
 
 function send() {
-    const text = document.getElementById("msg").value;
-    socket.emit("send_message", { chat_id: chatId, text: text });
+    const msg = document.getElementById("msg").value;
+    socket.emit("send_message", { chat_id: chatId, text: msg });
+    document.getElementById("msg").value = "";
 }
 
 socket.on("receive_message", data => {
