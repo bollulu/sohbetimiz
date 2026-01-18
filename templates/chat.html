@@ -2,34 +2,76 @@
 <html>
 <head>
     <title>Sohbet</title>
-    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        body { margin:0; font-family:Arial; display:flex; height:100vh; }
+        .users {
+            width:30%; background:#f0f0f0;
+            padding:10px; overflow:auto;
+        }
+        .chat {
+            width:70%; display:flex; flex-direction:column;
+        }
+        .messages {
+            flex:1; padding:10px; overflow:auto;
+            background:#e5ddd5;
+        }
+        .input {
+            display:flex;
+        }
+        input { flex:1; padding:10px; }
+        button { padding:10px; }
+        .msg { margin:5px 0; }
+    </style>
 </head>
 <body>
 
-<div class="app">
-    <div class="sidebar">
-        <h3>{{ current_user.username }}</h3>
-
-        {% for user in users %}
-            <a href="/start_chat/{{ user.id }}">{{ user.username }}</a><br>
-        {% endfor %}
-    </div>
-
-    <div class="chat">
-        <div id="messages">
-            {% for msg in messages %}
-                <div>{{ msg.text }}</div>
-            {% endfor %}
+<div class="users">
+    <h3>Kullanıcılar</h3>
+    {% for u in users %}
+        <div onclick="selectUser('{{ u.username }}')">
+            {{ u.username }}
         </div>
+    {% endfor %}
+    <br>
+    <a href="/logout">Çıkış</a>
+</div>
 
-        {% if chat %}
-        <input id="msg">
+<div class="chat">
+    <div class="messages" id="messages"></div>
+    <div class="input">
+        <input id="msg" placeholder="Mesaj yaz">
         <button onclick="send()">Gönder</button>
-        {% endif %}
     </div>
 </div>
 
-<script src="/socket.io/socket.io.js"></script>
-<script src="/static/js/chat.js"></script>
+<script>
+    const socket = io();
+    let room = null;
+
+    function selectUser(username) {
+        room = username;
+        document.getElementById("messages").innerHTML = "";
+        socket.emit("join", { room: room });
+    }
+
+    function send() {
+        const text = document.getElementById("msg").value;
+        if (!text || !room) return;
+        socket.emit("send_message", {
+            room: room,
+            message: text
+        });
+        document.getElementById("msg").value = "";
+    }
+
+    socket.on("receive_message", data => {
+        const div = document.createElement("div");
+        div.className = "msg";
+        div.innerText = data.user + ": " + data.message;
+        document.getElementById("messages").appendChild(div);
+    });
+</script>
+
 </body>
 </html>
