@@ -1,20 +1,21 @@
 <!DOCTYPE html>
 <html>
+<head>
+    <title>Giriş</title>
+</head>
 <body>
-<h2>Giriş</h2>
+<h2>Giriş / Kayıt</h2>
 
 <form method="POST">
-  <input name="username" placeholder="Kullanıcı adı" required>
-  <input name="password" type="password" placeholder="Şifre" required>
-  <button>Giriş</button>
+    <input name="username" placeholder="Kullanıcı adı">
+    <input name="password" type="password" placeholder="Şifre">
+    <button>Giriş</button>
 </form>
 
-<h3>Kayıt</h3>
 <form action="/register" method="POST">
-  <input name="username" required>
-  <input name="password" type="password" required>
-  <button>Kayıt Ol</button>
+    <input name="username" placeholder="Yeni kullanıcı">
+    <input name="password" type="password" placeholder="Şifre">
+    <button>Kayıt Ol</button>
 </form>
-
 </body>
 </html>
