@@ -1,44 +1,40 @@
 <!DOCTYPE html>
-<html lang="tr">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <title>Sohbet</title>
-    <link rel="stylesheet" href="/static/css/style.css">
-    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<meta charset="utf-8">
+<title>Sohbet</title>
+<link rel="stylesheet" href="/static/css/style.css">
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 
-    <script>
-        const myUsername = "{{ current_user.username }}";
-    </script>
+<script>
+const myUsername = "{{ current_user.username }}";
+const currentRoom = "{{ current_room }}";
+</script>
 </head>
 <body>
 
-<div class="header">
-    {{ current_user.username }}
-    <a href="/logout" style="color:white; float:right;">Çıkış</a>
+<div class="sidebar">
+<h3>Odalar</h3>
+{% for r in rooms %}
+<a href="/room/{{ r.name }}">{{ r.name }}</a><br>
+{% endfor %}
 </div>
 
-<div class="story-bar">
-    <a href="/add-story">+ Story</a>
-    {% for s in stories %}
-        <img src="/static/stories/{{ s.file }}" width="40">
-    {% endfor %}
+<div class="main">
+<div class="header">{{ currentRoom }} <a href="/logout">Çıkış</a></div>
+
+<div id="chat" class="chat">
+{% for m in messages %}
+<div class="message {{ 'me' if m.username==current_user.username else 'other' }}">
+<b>{{ m.username }}</b><br>{{ m.text }}
+</div>
+{% endfor %}
 </div>
 
-<div id="chat" class="chat-container">
-    {% for m in messages %}
-        <div class="message {{ 'me' if m.username == current_user.username else 'other' }}">
-            <b>{{ m.username }}</b><br>
-            {{ m.text }}
-            {% if m.username == current_user.username %}
-                <small>{{ '✔✔' if m.read else '✔' }}</small>
-            {% endif %}
-        </div>
-    {% endfor %}
+<div class="input">
+<input id="msg">
+<button onclick="sendMessage()">Gönder</button>
 </div>
-
-<div class="input-area">
-    <input id="msg" placeholder="Mesaj yaz...">
-    <button onclick="sendMessage()">➤</button>
 </div>
 
 <script src="/static/js/chat.js"></script>
