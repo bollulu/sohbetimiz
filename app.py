@@ -14,47 +14,35 @@ from flask_socketio import SocketIO, emit, join_room
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 
-############################
-# APP CONFIG
-############################
-
 app = Flask(__name__)
-app.config["SECRET_KEY"] = "super-secret-key"
+app.config["SECRET_KEY"] = "secret-key"
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///chat.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
-app.config["UPLOAD_FOLDER"] = "static/uploads"
 app.config["STORY_FOLDER"] = "static/stories"
-app.config["AVATAR_FOLDER"] = "static/avatars"
-app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024  # 10MB
-
-############################
-# EXTENSIONS
-############################
+app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
 
 db = SQLAlchemy(app)
 socketio = SocketIO(app, async_mode="eventlet")
 
-login_manager = LoginManager()
-login_manager.init_app(app)
+login_manager = LoginManager(app)
 login_manager.login_view = "auth"
 
-############################
+######################
 # MODELS
-############################
+######################
 
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(50), unique=True, nullable=False)
-    password = db.Column(db.String(200), nullable=False)
-    avatar = db.Column(db.String(200), default="default.png")
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    username = db.Column(db.String(50), unique=True)
+    password = db.Column(db.String(200))
 
 class Message(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(50))
     room = db.Column(db.String(50))
+    username = db.Column(db.String(50))
     text = db.Column(db.Text)
+    read = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Story(db.Model):
@@ -63,102 +51,99 @@ class Story(db.Model):
     file = db.Column(db.String(200))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-############################
+######################
 # LOGIN
-############################
+######################
 
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-############################
+######################
 # ROUTES
-############################
+######################
 
 @app.route("/", methods=["GET", "POST"])
 def auth():
     if request.method == "POST":
-        username = request.form.get("username")
-        password = request.form.get("password")
+        username = request.form["username"]
+        password = request.form["password"]
 
-        # LOGIN
         if "login" in request.form:
             user = User.query.filter_by(username=username).first()
             if user and check_password_hash(user.password, password):
                 login_user(user)
-                return redirect(url_for("chat"))
-
-        # REGISTER
+                return redirect("/chat")
         else:
             if not User.query.filter_by(username=username).first():
-                hashed = generate_password_hash(password)
-                new_user = User(username=username, password=hashed)
-                db.session.add(new_user)
+                user = User(
+                    username=username,
+                    password=generate_password_hash(password)
+                )
+                db.session.add(user)
                 db.session.commit()
-                login_user(new_user)
-                return redirect(url_for("chat"))
+                login_user(user)
+                return redirect("/chat")
 
     return render_template("auth.html")
 
 @app.route("/chat")
 @login_required
 def chat():
-    stories = Story.query.order_by(Story.created_at.desc()).all()
-    return render_template("chat.html", stories=stories)
+    stories = Story.query.all()
+    messages = Message.query.filter_by(room="genel").all()
+    return render_template("chat.html", stories=stories, messages=messages)
 
 @app.route("/add-story", methods=["GET", "POST"])
 @login_required
 def add_story():
     if request.method == "POST":
-        file = request.files.get("story")
-        if file:
-            filename = secure_filename(file.filename)
-            path = os.path.join(app.config["STORY_FOLDER"], filename)
-            file.save(path)
-
-            story = Story(username=current_user.username, file=filename)
-            db.session.add(story)
-            db.session.commit()
-
-            return redirect(url_for("chat"))
-
+        file = request.files["story"]
+        filename = secure_filename(file.filename)
+        file.save(os.path.join(app.config["STORY_FOLDER"], filename))
+        db.session.add(Story(username=current_user.username, file=filename))
+        db.session.commit()
+        return redirect("/chat")
     return render_template("add_story.html")
 
 @app.route("/logout")
 def logout():
     logout_user()
-    return redirect(url_for("auth"))
+    return redirect("/")
 
-############################
+######################
 # SOCKET.IO
-############################
+######################
 
 @socketio.on("join")
-def handle_join(data):
-    room = data.get("room")
-    join_room(room)
+def join(data):
+    join_room(data["room"])
+
+    # Odaya girince mesajları okundu yap
+    Message.query.filter_by(room=data["room"], read=False)\
+        .filter(Message.username != current_user.username)\
+        .update({"read": True})
+    db.session.commit()
 
 @socketio.on("message")
-def handle_message(data):
-    room = data.get("room")
-    text = data.get("msg")
-
+def message(data):
     msg = Message(
+        room=data["room"],
         username=current_user.username,
-        room=room,
-        text=text
+        text=data["msg"]
     )
     db.session.add(msg)
     db.session.commit()
 
     emit("message", {
-        "user": current_user.username,
-        "msg": text
-    }, room=room)
+        "user": msg.username,
+        "msg": msg.text,
+        "read": msg.read
+    }, room=data["room"])
 
-############################
-# INIT DB (RENDER SAFE)
-############################
+######################
+# INIT DB
+######################
 
 with app.app_context():
     db.create_all()
