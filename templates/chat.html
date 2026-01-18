@@ -1,21 +1,31 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <title>Sohbet</title>
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
 
-<div class="container">
+<div class="app">
     <div class="sidebar">
-        {% for u in users %}
-        <a href="/start-chat/{{ u.id }}">{{ u.username }}</a><br>
+        <h3>{{ current_user.username }}</h3>
+
+        {% for user in users %}
+            <a href="/start_chat/{{ user.id }}">{{ user.username }}</a><br>
         {% endfor %}
     </div>
 
     <div class="chat">
-        <div id="messages"></div>
-        <input id="msg" placeholder="Mesaj yaz">
+        <div id="messages">
+            {% for msg in messages %}
+                <div>{{ msg.text }}</div>
+            {% endfor %}
+        </div>
+
+        {% if chat %}
+        <input id="msg">
         <button onclick="send()">Gönder</button>
+        {% endif %}
     </div>
 </div>
 
