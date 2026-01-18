@@ -1,32 +1,25 @@
 <!DOCTYPE html>
 <html>
 <head>
-<link rel="stylesheet" href="/static/css/style.css">
-<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
 
-<h2>Hikayeler</h2>
-{% for s in stories %}
-<img src="/static/stories/{{ s.image }}" width="100">
-{% endfor %}
-<br><a href="/add-story">Hikaye ekle</a>
+<div class="container">
+    <div class="sidebar">
+        {% for u in users %}
+        <a href="/start-chat/{{ u.id }}">{{ u.username }}</a><br>
+        {% endfor %}
+    </div>
 
-<hr>
-
-<div id="chat">
-{% for m in messages %}
-<p><b>{{ m.username }}:</b> {{ m.text }}</p>
-{% endfor %}
+    <div class="chat">
+        <div id="messages"></div>
+        <input id="msg" placeholder="Mesaj yaz">
+        <button onclick="send()">Gönder</button>
+    </div>
 </div>
 
-<input id="msg">
-<button onclick="send()">Gönder</button>
-
+<script src="/socket.io/socket.io.js"></script>
 <script src="/static/js/chat.js"></script>
-<script>
-const USERNAME = "{{ current_user.username }}";
-</script>
-
 </body>
 </html>
