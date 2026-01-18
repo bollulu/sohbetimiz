@@ -1,6 +1,9 @@
+import eventlet
+eventlet.monkey_patch()
+
 import os, uuid
 from datetime import datetime
-from flask import Flask, render_template, request, redirect, session, jsonify
+from flask import Flask, render_template, request, redirect, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_socketio import SocketIO, emit, join_room
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -10,7 +13,7 @@ app.secret_key = "secret-key"
 
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///db.sqlite3"
 app.config["UPLOAD_FOLDER"] = "static/uploads"
-app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024  # 10MB
+app.config["MAX_CONTENT_LENGTH"] = 10 * 1024 * 1024
 
 db = SQLAlchemy(app)
 socketio = SocketIO(app, async_mode="eventlet")
@@ -32,12 +35,13 @@ class Message(db.Model):
     user = db.Column(db.String(40))
     avatar = db.Column(db.String(200))
     text = db.Column(db.Text)
-    type = db.Column(db.String(10))  # text / image / audio
+    type = db.Column(db.String(10))  # text,image,audio
     room = db.Column(db.String(40))
     created = db.Column(db.DateTime, default=datetime.utcnow)
     read = db.Column(db.Boolean, default=False)
 
-db.create_all()
+with app.app_context():
+    db.create_all()
 
 # ================= AUTH =================
 
@@ -50,9 +54,11 @@ def auth():
         avatar = request.files["avatar"]
 
         user = User.query.filter_by(username=u).first()
+
         if not user:
             name = f"avatars/{uuid.uuid4().hex}.png"
             avatar.save("static/" + name)
+
             user = User(
                 username=u,
                 password=generate_password_hash(p),
@@ -82,7 +88,7 @@ def chat():
 @app.route("/upload", methods=["POST"])
 def upload():
     file = request.files["file"]
-    ext = file.filename.rsplit(".",1)[1]
+    ext = file.filename.rsplit(".",1)[1].lower()
     name = f"uploads/{uuid.uuid4().hex}.{ext}"
     file.save("static/" + name)
 
@@ -105,7 +111,7 @@ def upload():
 @socketio.on("join")
 def join():
     join_room("main")
-    msgs = Message.query.filter_by(room="main").all()
+    msgs = Message.query.filter_by(room="main").order_by(Message.id).all()
     emit("history", [serialize(m) for m in msgs])
 
 @socketio.on("send")
@@ -123,13 +129,13 @@ def send(data):
     emit("new", serialize(m), to="main")
 
 @socketio.on("read")
-def read(id):
-    m = Message.query.get(id)
+def read(mid):
+    m = Message.query.get(mid)
     if m:
         m.read = True
         db.session.commit()
 
-# ================= HELPERS =================
+# ================= HELPER =================
 
 def serialize(m):
     return {
