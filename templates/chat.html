@@ -1,74 +1,42 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <meta charset="utf-8">
     <title>Sohbet</title>
-    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-    <style>
-        body { margin:0; font-family:Arial; display:flex; height:100vh; }
-        .users {
-            width:30%; background:#f0f0f0;
-            padding:10px; overflow:auto;
-        }
-        .chat {
-            width:70%; display:flex; flex-direction:column;
-        }
-        .messages {
-            flex:1; padding:10px; overflow:auto;
-            background:#e5ddd5;
-        }
-        .input {
-            display:flex;
-        }
-        input { flex:1; padding:10px; }
-        button { padding:10px; }
-        .msg { margin:5px 0; }
-    </style>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 </head>
 <body>
 
-<div class="users">
-    <h3>Kullanıcılar</h3>
-    {% for u in users %}
-        <div onclick="selectUser('{{ u.username }}')">
-            {{ u.username }}
-        </div>
-    {% endfor %}
-    <br>
-    <a href="/logout">Çıkış</a>
-</div>
+<h3>Hoşgeldin {{ username }}</h3>
+<a href="/logout">Çıkış</a>
 
-<div class="chat">
-    <div class="messages" id="messages"></div>
-    <div class="input">
-        <input id="msg" placeholder="Mesaj yaz">
-        <button onclick="send()">Gönder</button>
-    </div>
-</div>
+<hr>
+
+<div id="messages"></div>
+
+<input id="msg" placeholder="Mesaj yaz">
+<button onclick="send()">Gönder</button>
 
 <script>
     const socket = io();
-    let room = null;
+    const room = "genel";
+    const user = "{{ username }}";
 
-    function selectUser(username) {
-        room = username;
-        document.getElementById("messages").innerHTML = "";
-        socket.emit("join", { room: room });
-    }
+    socket.emit("join", {room: room});
 
     function send() {
         const text = document.getElementById("msg").value;
-        if (!text || !room) return;
-        socket.emit("send_message", {
+        socket.emit("message", {
             room: room,
-            message: text
+            user: user,
+            text: text
         });
         document.getElementById("msg").value = "";
     }
 
-    socket.on("receive_message", data => {
+    socket.on("message", data => {
         const div = document.createElement("div");
-        div.className = "msg";
-        div.innerText = data.user + ": " + data.message;
+        div.innerText = data.user + ": " + data.text;
         document.getElementById("messages").appendChild(div);
     });
 </script>
