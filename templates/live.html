@@ -130,3 +130,67 @@
     </script>
 </body>
 </html>
+
+                    video: { facingMode: mode }
+                };
+
+                const newStream = await navigator.mediaDevices.getUserMedia(constraints);
+                localStream = newStream;
+                document.getElementById('localVideo').srcObject = localStream;
+
+                // EĞER peer zaten varsa, video kanalını güncelle
+                if (peer) {
+                    const videoTrack = localStream.getVideoTracks()[0];
+                    const sender = peer.getSenders().find(s => s.track && s.track.kind === 'video');
+                    if (sender) {
+                        await sender.replaceTrack(videoTrack);
+                        document.getElementById('status').innerText = "Görüntü aktarıldı.";
+                    }
+                } else {
+                    document.getElementById('status').innerText = "Bağlantı sinyali gönderiliyor...";
+                    socket.emit('join_live', { room: 'live_room' });
+                }
+
+            } catch (err) {
+                console.error("Hata Detayı:", err);
+                document.getElementById('status').innerText = "Hata: Kamera başlatılamadı.";
+                alert("Kamera izni veya donanım hatası: " + err.name);
+            }
+        }
+
+        // --- WebRTC Sinyalleşme Mantığı (Aynı Kalıyor) ---
+        socket.on('user_joined', async () => {
+            setupPeer();
+            const offer = await peer.createOffer();
+            await peer.setLocalDescription(offer);
+            socket.emit('signal', { type: 'offer', sdp: offer });
+        });
+
+        socket.on('signal', async (data) => {
+            if (data.type === 'offer') {
+                setupPeer();
+                await peer.setRemoteDescription(new RTCSessionDescription(data.sdp));
+                const answer = await peer.createAnswer();
+                await peer.setLocalDescription(answer);
+                socket.emit('signal', { type: 'answer', sdp: answer });
+            } else if (data.type === 'answer') {
+                await peer.setRemoteDescription(new RTCSessionDescription(data.sdp));
+            } else if (data.type === 'candidate') {
+                if (peer) await peer.addIceCandidate(new RTCIceCandidate(data.candidate)).catch(() => {});
+            }
+        });
+
+        function setupPeer() {
+            if (peer) return;
+            peer = new RTCPeerConnection(config);
+            localStream.getTracks().forEach(track => peer.addTrack(track, localStream));
+            peer.onicecandidate = (e) => e.candidate && socket.emit('signal', { type: 'candidate', candidate: e.candidate });
+            peer.ontrack = (e) => {
+                document.getElementById('remoteVideo').srcObject = e.streams[0];
+                document.getElementById('status').innerText = "Görüşme başladı!";
+            };
+        }
+    </script>
+</body>
+</html>
+
