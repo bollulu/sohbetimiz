@@ -1,173 +1,145 @@
 from gevent import monkey
 monkey.patch_all()
 
-import os, json, uuid
-from flask import Flask, render_template, request, redirect, url_for, jsonify
-from flask_sqlalchemy import SQLAlchemy
-from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
-from flask_socketio import SocketIO, emit, join_room
+import os
+import json
 from datetime import datetime
-from werkzeug.utils import secure_filename
+from flask import Flask, render_template, request, redirect, url_for
+from flask_sqlalchemy import SQLAlchemy
+from flask_login import (
+    LoginManager, UserMixin,
+    login_user, logout_user,
+    login_required, current_user
+)
+from flask_socketio import SocketIO, emit
 
+# --------------------
+# APP CONFIG
+# --------------------
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'super_secret_key_2026'
-
-BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(BASE_DIR, 'chat_v2.db')
-app.config['UPLOAD_FOLDER'] = os.path.join(BASE_DIR, 'static/media/stories')
-app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024
-
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+app.config["SECRET_KEY"] = "secret_123"
+basedir = os.path.abspath(os.path.dirname(__file__))
+app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///" + os.path.join(basedir, "chat.db")
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode="gevent")
+socketio = SocketIO(
+    app,
+    async_mode="gevent",
+    cors_allowed_origins="*"
+)
 
-# ---------------- MODELLER ----------------
-
+# --------------------
+# MODELS
+# --------------------
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True)
-    password = db.Column(db.String(100))
-    avatar = db.Column(db.Text)
-    blocked_users = db.Column(db.Text, default='[]')
+    password = db.Column(db.String(50))
 
 class Message(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    room = db.Column(db.String(100))
-    sender = db.Column(db.String(50))
-    avatar = db.Column(db.Text)
-    content = db.Column(db.Text)
-    msg_type = db.Column(db.String(20))
-    timestamp = db.Column(db.String(20))
-    status = db.Column(db.String(10), default='sent')
+    username = db.Column(db.String(50))
+    text = db.Column(db.Text)
+    time = db.Column(db.String(10))
 
 class Story(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50))
-    user_avatar = db.Column(db.Text)
-    media_url = db.Column(db.Text)
-    media_type = db.Column(db.String(20))
-    viewers = db.Column(db.Text, default='[]')
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    content = db.Column(db.Text)  # base64 image/video
 
 with app.app_context():
     db.create_all()
 
-# ---------------- LOGIN ----------------
-
+# --------------------
+# LOGIN
+# --------------------
 login_manager = LoginManager(app)
-login_manager.login_view = 'auth'
+login_manager.login_view = "login"
 
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(User, int(user_id))
 
-# ---------------- ROUTES ----------------
+# --------------------
+# ROUTES
+# --------------------
+@app.route("/", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        u = request.form["username"]
+        p = request.form["password"]
 
-@app.route('/')
-def auth():
-    if current_user.is_authenticated:
-        return redirect('/chat')
-    return render_template('auth.html')
+        user = User.query.filter_by(username=u).first()
+        if not user:
+            user = User(username=u, password=p)
+            db.session.add(user)
+            db.session.commit()
 
-@app.route('/login', methods=['POST'])
-def login_proc():
-    u = User.query.filter_by(username=request.form['username']).first()
-    if u and u.password == request.form['password']:
-        login_user(u)
-        return redirect('/chat')
-    return redirect('/')
+        login_user(user)
+        return redirect(url_for("chat"))
 
-@app.route('/register', methods=['POST'])
-def register_proc():
-    if User.query.filter_by(username=request.form['username']).first():
-        return redirect('/')
-    u = User(
-        username=request.form['username'],
-        password=request.form['password'],
-        avatar=request.form.get('avatar_data')
-    )
-    db.session.add(u)
-    db.session.commit()
-    login_user(u)
-    return redirect('/chat')
+    return render_template("auth.html")
 
-@app.route('/chat')
+@app.route("/chat")
 @login_required
 def chat():
-    return render_template('chat.html', user=current_user)
+    return render_template("chat.html", user=current_user)
 
-@app.route('/logout')
+@app.route("/logout")
 @login_required
 def logout():
     logout_user()
-    return redirect('/')
+    return redirect("/")
 
-# ---------------- STORY UPLOAD (🔥 ANA NOKTA) ----------------
+# --------------------
+# SOCKET.IO
+# --------------------
+@socketio.on("connect")
+def connect():
+    emit("stories", get_stories())
+    emit("messages", get_messages())
 
-@app.route('/upload_story', methods=['POST'])
-@login_required
-def upload_story():
-    file = request.files.get('file')
-    if not file:
-        return jsonify({'error': 'no file'}), 400
-
-    ext = secure_filename(file.filename).split('.')[-1]
-    filename = f"{uuid.uuid4()}.{ext}"
-    path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-    file.save(path)
-
-    media_type = 'video' if ext in ['mp4', 'webm'] else 'image'
-
-    story = Story(
+@socketio.on("send_message")
+def send_message(data):
+    m = Message(
         username=current_user.username,
-        user_avatar=current_user.avatar,
-        media_url=f"/static/media/stories/{filename}",
-        media_type=media_type
+        text=data["text"],
+        time=datetime.now().strftime("%H:%M")
     )
-    db.session.add(story)
+    db.session.add(m)
     db.session.commit()
+    emit("new_message", {
+        "user": m.username,
+        "text": m.text,
+        "time": m.time
+    }, broadcast=True)
 
-    socketio.emit('story_updated')
-    return jsonify({'success': True})
+@socketio.on("add_story")
+def add_story(data):
+    s = Story(
+        username=current_user.username,
+        content=data["content"]
+    )
+    db.session.add(s)
+    db.session.commit()
+    emit("stories", get_stories(), broadcast=True)
 
-# ---------------- SOCKET ----------------
+# --------------------
+# HELPERS
+# --------------------
+def get_messages():
+    return [
+        {"user": m.username, "text": m.text, "time": m.time}
+        for m in Message.query.all()
+    ]
 
-@socketio.on('join_room')
-def join(data):
-    join_room(data['room'])
-    send_stories()
-
-@socketio.on('get_stories')
-def send_stories():
-    stories = Story.query.all()
+def get_stories():
     grouped = {}
-    for s in stories:
-        grouped.setdefault(s.username, {
-            'avatar': s.user_avatar,
-            'items': []
-        })
-        grouped[s.username]['items'].append({
-            'id': s.id,
-            'url': s.media_url,
-            'type': s.media_type,
-            'can_delete': s.username == current_user.username
-        })
-    emit('story_list', grouped, broadcast=True)
+    for s in Story.query.all():
+        grouped.setdefault(s.username, []).append(s.content)
+    return grouped
 
-@socketio.on('delete_story')
-def delete_story(data):
-    s = db.session.get(Story, data['id'])
-    if s and s.username == current_user.username:
-        try:
-            os.remove(BASE_DIR + s.media_url)
-        except:
-            pass
-        db.session.delete(s)
-        db.session.commit()
-        send_stories()
-
-# ---------------- RUN ----------------
-
+# --------------------
 if __name__ == "__main__":
     socketio.run(app, host="0.0.0.0", port=10000)
