@@ -1,8 +1,8 @@
-Flask==2.2.5
-Flask-SocketIO==5.3.6
-python-socketio==5.11.2
-python-engineio==4.9.0
-Flask-Login==0.6.3
-Flask-SQLAlchemy==3.1.1
-gevent==23.9.1
-greenlet==3.0.3
+Flask
+Flask-SocketIO
+python-socketio
+python-engineio
+Flask-Login
+Flask-SQLAlchemy
+gevent
+greenlet
