@@ -1,7 +1,9 @@
-flask
-flask-sqlalchemy
-flask-login
-flask-socketio
-gevent
-gevent-websocket
-gunicorn
+Flask==2.2.5
+Flask-SocketIO==5.3.6
+python-socketio==5.11.2
+python-engineio==4.9.0
+Flask-Login==0.6.3
+Flask-SQLAlchemy==3.1.1
+gevent==24.2.1
+gevent-websocket==0.10.1
+gunicorn==21.2.0
