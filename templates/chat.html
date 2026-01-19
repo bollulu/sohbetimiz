@@ -1,56 +1,75 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Süper Chat</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.3.0/socket.io.js"></script>
+    <meta charset="utf-8">
+    <title>Sohbet</title>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <style>
-        :root { --bg: #e5ddd5; --header: #ededed; --green: #008069; --bubble-me: #dcf8c6; }
-        body { margin: 0; font-family: 'Helvetica Neue', sans-serif; height: 100vh; display: flex; overflow: hidden; background: #d1d7db; }
-        /* --- (CSS TAMAMI DEĞİŞMEDİ) --- */
+        body { font-family: Arial; background:#111; color:#fff; }
+        #stories img { width:60px; height:60px; border-radius:50%; margin:5px; }
+        #messages { height:300px; overflow-y:auto; border:1px solid #444; padding:5px; }
+        input { width:80%; }
     </style>
 </head>
 <body>
 
-<input type="file" id="p-img" style="display:none" accept="image/*" onchange="uploadAvatar(this)">
+<h3>Merhaba {{ user.username }}</h3>
+<a href="/logout">Çıkış</a>
 
-<!-- 🔥 BURASI DÜZELTİLDİ -->
-<input type="file" id="msg-file" style="display:none" onchange="uploadMsgFile(this)">
+<hr>
 
-<input type="file" id="bg-in" style="display:none" accept="image/*" onchange="changeBG(this)">
-<input type="file" id="st-media" style="display:none" accept="image/*,video/*" onchange="previewStory(this)">
-<input type="file" id="st-audio" style="display:none" accept="audio/*">
-<input type="file" id="music-file" style="display:none" accept="audio/*" onchange="uploadMusic(this)">
+<h4>Hikayeler</h4>
+<input type="file" id="storyFile">
+<button onclick="addStory()">+</button>
+<div id="stories"></div>
 
-<!-- ⬇️ BURADAN SONRASI SENİN ATTIĞIN HTML İLE BİREBİR AYNI -->
-<!-- sidebar, main, story bar, chat, viewer vs. -->
-<!-- JS KODUNUN TAMAMI DEĞİŞMEDİ -->
+<hr>
+
+<h4>Mesajlar</h4>
+<div id="messages"></div>
+<input id="msg">
+<button onclick="sendMsg()">Gönder</button>
 
 <script>
-    const socket = io();
-    const myName = "{{ user.username }}";
-    let currentRoom = 'Genel';
-    let storiesData = {};
-    let currentStoryUser = null;
-    let currentStoryIdx = 0;
-    let storyTimer = null;
-    let stAudio = new Audio();
+const socket = io();
 
-    socket.on('connect', () => {
-        socket.emit('join_room', {room: 'Genel'});
-    });
+socket.on("messages", msgs => {
+    msgs.forEach(m => addMsg(m.user, m.text, m.time));
+});
 
-    /* --- TÜM ORİJİNAL JS KODUN AYNI --- */
+socket.on("new_message", m => {
+    addMsg(m.user, m.text, m.time);
+});
 
-    function uploadMsgFile(inp) {
-        const f = inp.files[0];
-        if(!f) return;
-        const type = f.type.startsWith('image') ? 'image' : (f.type.startsWith('video')?'video':'audio');
-        const r = new FileReader();
-        r.onload = e => socket.emit('send_message', {room:currentRoom, msg:e.target.result, type:type});
-        r.readAsDataURL(f);
+socket.on("stories", data => {
+    document.getElementById("stories").innerHTML = "";
+    for (let user in data) {
+        let img = document.createElement("img");
+        img.src = data[user][0];
+        document.getElementById("stories").appendChild(img);
     }
+});
+
+function sendMsg() {
+    const text = document.getElementById("msg").value;
+    socket.emit("send_message", { text });
+    document.getElementById("msg").value = "";
+}
+
+function addMsg(u,t,tm) {
+    document.getElementById("messages").innerHTML +=
+        `<div><b>${u}</b>: ${t} <small>${tm}</small></div>`;
+}
+
+function addStory() {
+    const f = document.getElementById("storyFile").files[0];
+    const r = new FileReader();
+    r.onload = () => {
+        socket.emit("add_story", { content: r.result });
+    };
+    r.readAsDataURL(f);
+}
 </script>
+
 </body>
 </html>
-
