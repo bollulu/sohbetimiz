@@ -1,32 +1,26 @@
 from gevent import monkey
 monkey.patch_all()
 
-import os, json
-from flask import Flask, render_template, request, redirect, url_for
+import os, json, uuid
+from flask import Flask, render_template, request, redirect, url_for, jsonify
 from flask_sqlalchemy import SQLAlchemy
-from flask_login import (
-    LoginManager, UserMixin,
-    login_user, logout_user,
-    login_required, current_user
-)
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_socketio import SocketIO, emit, join_room
 from datetime import datetime
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'super_secret_key_2026'
-basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'chat_v2.db')
+
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(BASE_DIR, 'chat_v2.db')
+app.config['UPLOAD_FOLDER'] = os.path.join(BASE_DIR, 'static/media/stories')
 app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024
 
-db = SQLAlchemy(app)
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-# 🔥 KRİTİK SATIR BURASI
-socketio = SocketIO(
-    app,
-    cors_allowed_origins="*",
-    async_mode="gevent",
-    max_http_buffer_size=100 * 1024 * 1024  # 🔥 STORY FIX
-)
+db = SQLAlchemy(app)
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode="gevent")
 
 # ---------------- MODELLER ----------------
 
@@ -34,7 +28,6 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True)
     password = db.Column(db.String(100))
-    gender = db.Column(db.String(10))
     avatar = db.Column(db.Text)
     blocked_users = db.Column(db.Text, default='[]')
 
@@ -52,23 +45,10 @@ class Story(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50))
     user_avatar = db.Column(db.Text)
-    content = db.Column(db.Text)
-    audio_data = db.Column(db.Text)
+    media_url = db.Column(db.Text)
     media_type = db.Column(db.String(20))
     viewers = db.Column(db.Text, default='[]')
-    duration = db.Column(db.Integer, default=30)
-
-class Music(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(100))
-    src = db.Column(db.Text)
-    uploader = db.Column(db.String(50))
-
-class Group(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100))
-    members = db.Column(db.Text)
-    created_by = db.Column(db.String(50))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 with app.app_context():
     db.create_all()
@@ -87,7 +67,7 @@ def load_user(user_id):
 @app.route('/')
 def auth():
     if current_user.is_authenticated:
-        return redirect(url_for('chat'))
+        return redirect('/chat')
     return render_template('auth.html')
 
 @app.route('/login', methods=['POST'])
@@ -102,14 +82,10 @@ def login_proc():
 def register_proc():
     if User.query.filter_by(username=request.form['username']).first():
         return redirect('/')
-    ava = request.form.get('avatar_data')
-    if not ava:
-        ava = "https://cdn-icons-png.flaticon.com/512/847/847969.png"
     u = User(
         username=request.form['username'],
         password=request.form['password'],
-        gender=request.form['gender'],
-        avatar=ava
+        avatar=request.form.get('avatar_data')
     )
     db.session.add(u)
     db.session.commit()
@@ -127,93 +103,71 @@ def logout():
     logout_user()
     return redirect('/')
 
-# ---------------- SOCKET ----------------
+# ---------------- STORY UPLOAD (🔥 ANA NOKTA) ----------------
 
-@socketio.on('connect')
-def connect():
-    emit('update_user_list', get_all_users(), broadcast=True)
+@app.route('/upload_story', methods=['POST'])
+@login_required
+def upload_story():
+    file = request.files.get('file')
+    if not file:
+        return jsonify({'error': 'no file'}), 400
+
+    ext = secure_filename(file.filename).split('.')[-1]
+    filename = f"{uuid.uuid4()}.{ext}"
+    path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    file.save(path)
+
+    media_type = 'video' if ext in ['mp4', 'webm'] else 'image'
+
+    story = Story(
+        username=current_user.username,
+        user_avatar=current_user.avatar,
+        media_url=f"/static/media/stories/{filename}",
+        media_type=media_type
+    )
+    db.session.add(story)
+    db.session.commit()
+
+    socketio.emit('story_updated')
+    return jsonify({'success': True})
+
+# ---------------- SOCKET ----------------
 
 @socketio.on('join_room')
 def join(data):
     join_room(data['room'])
-    msgs = Message.query.filter_by(room=data['room']).all()
-    history = []
-    blocked = json.loads(current_user.blocked_users)
-    for m in msgs:
-        if m.sender not in blocked:
-            history.append({
-                'id': m.id,
-                'user': m.sender,
-                'ava': m.avatar,
-                'msg': m.content,
-                'type': m.msg_type,
-                'time': m.timestamp,
-                'status': m.status
-            })
-    emit('history', history)
     send_stories()
 
-@socketio.on('send_message')
-def send_msg(d):
-    now = datetime.now().strftime("%H:%M")
-    m = Message(
-        room=d['room'],
-        sender=current_user.username,
-        avatar=current_user.avatar,
-        content=d['msg'],
-        msg_type=d['type'],
-        timestamp=now
-    )
-    db.session.add(m)
-    db.session.commit()
-    emit('message', {
-        'id': m.id,
-        'room': d['room'],
-        'user': current_user.username,
-        'ava': current_user.avatar,
-        'msg': d['msg'],
-        'type': d['type'],
-        'time': now,
-        'status': 'sent'
-    }, to=d['room'])
-
-# ---------------- STORY ----------------
-
-@socketio.on('add_story')
-def add_story(data):
-    s = Story(
-        username=current_user.username,
-        user_avatar=current_user.avatar,
-        content=data['content'],
-        audio_data=data.get('music'),
-        media_type=data['type'],
-        duration=data.get('duration', 30)
-    )
-    db.session.add(s)
-    db.session.commit()
-    send_stories()
-
+@socketio.on('get_stories')
 def send_stories():
     stories = Story.query.all()
     grouped = {}
     for s in stories:
-        if s.username not in grouped:
-            grouped[s.username] = {'avatar': s.user_avatar, 'items': []}
+        grouped.setdefault(s.username, {
+            'avatar': s.user_avatar,
+            'items': []
+        })
         grouped[s.username]['items'].append({
             'id': s.id,
-            'content': s.content,
-            'music': s.audio_data,
+            'url': s.media_url,
             'type': s.media_type,
-            'duration': s.duration,
-            'viewers': json.loads(s.viewers),
             'can_delete': s.username == current_user.username
         })
-    socketio.emit('story_list', grouped)
+    emit('story_list', grouped, broadcast=True)
 
-# ---------------- HELPERS ----------------
+@socketio.on('delete_story')
+def delete_story(data):
+    s = db.session.get(Story, data['id'])
+    if s and s.username == current_user.username:
+        try:
+            os.remove(BASE_DIR + s.media_url)
+        except:
+            pass
+        db.session.delete(s)
+        db.session.commit()
+        send_stories()
 
-def get_all_users():
-    return [{'username': u.username, 'avatar': u.avatar} for u in User.query.all()]
+# ---------------- RUN ----------------
 
 if __name__ == "__main__":
     socketio.run(app, host="0.0.0.0", port=10000)
