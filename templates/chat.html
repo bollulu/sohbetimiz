@@ -1,166 +1,192 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Süper Chat</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <script src="/socket.io/socket.io.js"></script>
+<title>Süper Chat</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="/socket.io/socket.io.js"></script>
 
-    <style>
-        :root {
-            --bg:#e5ddd5; --header:#ededed;
-            --green:#008069; --bubble:#fff;
-            --me:#dcf8c6;
-        }
-        body {
-            margin:0; font-family:Arial;
-            height:100vh; display:flex;
-            background:#d1d7db;
-        }
-        #sidebar {
-            width:320px; background:#fff;
-            border-right:1px solid #ddd;
-            display:flex; flex-direction:column;
-        }
-        .header {
-            height:60px; padding:10px;
-            background:var(--header);
-            display:flex; align-items:center;
-            justify-content:space-between;
-        }
-        .my-ava {
-            width:40px; height:40px;
-            border-radius:50%;
-        }
-        #users {
-            flex:1; overflow-y:auto;
-        }
-        .user {
-            display:flex; align-items:center;
-            gap:10px; padding:10px;
-            cursor:pointer;
-        }
-        .user:hover { background:#f0f0f0 }
-        #main {
-            flex:1; display:flex;
-            flex-direction:column;
-            background:var(--bg);
-        }
-        #top {
-            height:60px; background:var(--header);
-            display:flex; align-items:center;
-            justify-content:space-between;
-            padding:10px;
-        }
-        #chat {
-            flex:1; padding:15px;
-            overflow-y:auto;
-            display:flex; flex-direction:column;
-            gap:8px;
-            background-image:url('https://i.imgur.com/8Y7ZK0F.png');
-        }
-        .msg {
-            max-width:65%;
-            padding:8px 12px;
-            border-radius:8px;
-            background:var(--bubble);
-            box-shadow:0 1px 1px rgba(0,0,0,.1);
-        }
-        .me { align-self:flex-end; background:var(--me); }
-        .footer {
-            display:flex; gap:10px;
-            padding:10px;
-            background:#f0f0f0;
-        }
-        input {
-            flex:1; padding:10px;
-            border:none; border-radius:20px;
-        }
-    </style>
+<style>
+:root{
+--bg:#e5ddd5;--header:#ededed;
+--green:#008069;--me:#dcf8c6;
+}
+body{margin:0;font-family:Arial;height:100vh;display:flex;background:#d1d7db}
+#sidebar{width:320px;background:#fff;border-right:1px solid #ddd;display:flex;flex-direction:column}
+.header{height:60px;padding:10px;background:var(--header);display:flex;align-items:center;justify-content:space-between}
+.my-ava{width:40px;height:40px;border-radius:50%}
+#users{flex:1;overflow-y:auto}
+.user{display:flex;align-items:center;gap:10px;padding:10px;cursor:pointer}
+.user:hover{background:#f0f0f0}
+#main{flex:1;display:flex;flex-direction:column;background:var(--bg)}
+#top{height:60px;background:var(--header);display:flex;align-items:center;justify-content:space-between;padding:10px}
+#story-bar{display:flex;gap:10px;padding:10px;background:#fff;border-bottom:1px solid #ddd;overflow-x:auto}
+.story{width:55px;text-align:center;font-size:11px;cursor:pointer}
+.story img{width:50px;height:50px;border-radius:50%;border:2px solid var(--green)}
+#chat{flex:1;padding:15px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;background-image:url('https://i.imgur.com/8Y7ZK0F.png')}
+.msg{max-width:65%;padding:8px 12px;border-radius:8px;background:#fff;box-shadow:0 1px 1px rgba(0,0,0,.1)}
+.me{align-self:flex-end;background:var(--me)}
+.footer{display:flex;gap:8px;padding:10px;background:#f0f0f0}
+input{flex:1;padding:10px;border:none;border-radius:20px}
+button{border:none;background:none;font-size:18px;cursor:pointer}
+</style>
 </head>
 
 <body>
 
+<input type="file" id="file" hidden onchange="sendFile(this)">
+<input type="file" id="storyFile" hidden accept="image/*,video/*" onchange="addStory(this)">
+
 <div id="sidebar">
-    <div class="header">
-        <div style="display:flex;align-items:center;gap:10px">
-            <img src="{{ user.avatar }}" class="my-ava">
-            <b>{{ user.username }}</b>
-        </div>
-        <a href="/logout">🚪</a>
-    </div>
-    <div id="users"></div>
+<div class="header">
+<div style="display:flex;gap:10px;align-items:center">
+<img src="{{ user.avatar }}" class="my-ava">
+<b>{{ user.username }}</b>
+</div>
+<a href="/logout">🚪</a>
+</div>
+<div id="users"></div>
 </div>
 
 <div id="main">
-    <div id="top"><b id="room">Genel Sohbet</b></div>
-    <div id="chat"></div>
-    <div class="footer">
-        <input id="msg" placeholder="Mesaj yaz..."
-               onkeydown="if(event.key==='Enter')send()">
-        <button onclick="send()">➤</button>
-    </div>
+<div id="top">
+<b id="room">Genel Sohbet</b>
+<div>
+<button onclick="document.getElementById('storyFile').click()">➕📸</button>
+<button onclick="changeBG()">🖼️</button>
+</div>
+</div>
+
+<div id="story-bar"></div>
+
+<div id="chat"></div>
+
+<div class="footer">
+<button onclick="document.getElementById('file').click()">📎</button>
+<input id="msg" placeholder="Mesaj yaz..." onkeydown="if(event.key==='Enter')send()">
+<button onclick="toggleMic()" id="mic">🎤</button>
+<button onclick="send()">➤</button>
+</div>
 </div>
 
 <script>
-const socket = io();
-const myName = "{{ user.username }}";
-let currentRoom = "Genel";
+const socket=io();
+const myName="{{ user.username }}";
+let currentRoom="Genel";
+let mediaRec;
 
-socket.on("update_user_list", users => {
-    const d = document.getElementById("users");
-    d.innerHTML="";
-    users.forEach(u=>{
-        if(u.username!==myName){
-            d.innerHTML+=`
-            <div class="user" onclick="openChat('${u.username}')">
-                <img src="${u.avatar}" class="my-ava">
-                ${u.username}
-            </div>`;
-        }
-    });
+socket.emit("join_room",{room:"Genel"});
+
+/* USERS */
+socket.on("update_user_list",users=>{
+const d=document.getElementById("users");d.innerHTML="";
+users.forEach(u=>{
+if(u.username!==myName){
+d.innerHTML+=`
+<div class="user" onclick="openChat('${u.username}')">
+<img src="${u.avatar}" class="my-ava">${u.username}
+</div>`;
+}});
 });
 
-socket.on("history", msgs=>{
-    const c=document.getElementById("chat");
-    c.innerHTML="";
-    msgs.forEach(addMsg);
-});
-
-socket.on("message", addMsg);
-
-socket.on("message_deleted", d=>{
-    document.getElementById(d.id)?.remove();
-});
-
+/* ROOMS */
 function openChat(u){
-    currentRoom=[myName,u].sort().join("_");
-    document.getElementById("room").innerText=u;
-    socket.emit("join_room",{room:currentRoom});
+currentRoom=[myName,u].sort().join("_");
+document.getElementById("room").innerText=u;
+socket.emit("join_room",{room:currentRoom});
 }
 
+/* CHAT */
+socket.on("history",msgs=>{
+const c=document.getElementById("chat");c.innerHTML="";
+msgs.forEach(addMsg);
+});
+
+socket.on("message",addMsg);
+
+socket.on("message_deleted",d=>{
+document.getElementById(d.id)?.remove();
+});
+
 function addMsg(m){
-    const d=document.createElement("div");
-    d.className="msg"+(m.user===myName?" me":"");
-    d.id=m.id;
-    d.innerHTML=`<b>${m.user}</b><br>${m.msg}<br><small>${m.time}</small>
-    ${m.user===myName?`<br><a onclick="del('${m.id}')">sil</a>`:""}`;
-    document.getElementById("chat").appendChild(d);
-    document.getElementById("chat").scrollTop=99999;
+const d=document.createElement("div");
+d.className="msg"+(m.user===myName?" me":"");
+d.id=m.id;
+let content=m.msg;
+if(m.type==="image")content=`<img src="${m.msg}" style="max-width:200px">`;
+if(m.type==="audio")content=`<audio controls src="${m.msg}"></audio>`;
+if(m.type==="video")content=`<video controls src="${m.msg}" style="max-width:200px"></video>`;
+d.innerHTML=`<b>${m.user}</b><br>${content}<br><small>${m.time} ${m.status==="read"?"✓✓":"✓"}</small>
+${m.user===myName?`<br><a onclick="del('${m.id}')">sil</a>`:""}`;
+document.getElementById("chat").appendChild(d);
+document.getElementById("chat").scrollTop=99999;
+if(m.user!==myName)socket.emit("read_message",{id:m.id});
 }
 
 function send(){
-    const i=document.getElementById("msg");
-    if(i.value.trim()){
-        socket.emit("send_message",{
-            room:currentRoom,
-            msg:i.value
-        });
-        i.value="";
-    }
+const i=document.getElementById("msg");
+if(i.value.trim()){
+socket.emit("send_message",{room:currentRoom,msg:i.value});
+i.value="";
+}
 }
 
-function del(id){
-    socket.emit("delete_message",{id:id});
+function del(id){socket.emit("delete_message",{id});}
+
+/* FILE */
+function sendFile(inp){
+const f=inp.files[0];
+const r=new FileReader();
+const type=f.type.startsWith("image")?"image":f.type.startsWith("video")?"video":"audio";
+r.onload=e=>socket.emit("send_message",{room:currentRoom,msg:e.target.result,type});
+r.readAsDataURL(f);
+}
+
+/* MIC */
+async function toggleMic(){
+if(!mediaRec||mediaRec.state==="inactive"){
+const s=await navigator.mediaDevices.getUserMedia({audio:true});
+mediaRec=new MediaRecorder(s);
+let c=[];
+mediaRec.ondataavailable=e=>c.push(e.data);
+mediaRec.onstop=()=>{
+const b=new Blob(c);
+const r=new FileReader();
+r.onload=e=>socket.emit("send_message",{room:currentRoom,msg:e.target.result,type:"audio"});
+r.readAsDataURL(b);
+};
+mediaRec.start();document.getElementById("mic").style.color="red";
+}else{
+mediaRec.stop();document.getElementById("mic").style.color="black";
+}
+}
+
+/* STORY */
+socket.on("story_list",data=>{
+const b=document.getElementById("story-bar");b.innerHTML="";
+for(let u in data){
+b.innerHTML+=`
+<div class="story" onclick="viewStory('${u}')">
+<img src="${data[u].avatar}"><div>${u===myName?"Siz":u}</div>
+</div>`;
+}
+});
+
+function addStory(inp){
+const f=inp.files[0];
+const r=new FileReader();
+const type=f.type.includes("video")?"video":"image";
+r.onload=e=>socket.emit("add_story",{content:e.target.result,type});
+r.readAsDataURL(f);
+}
+
+function viewStory(u){
+alert("Story görüntüleme UI burada (backend hazır)");
+}
+
+/* BG */
+function changeBG(){
+const url=prompt("Arka plan URL:");
+if(url)document.getElementById("chat").style.backgroundImage=`url(${url})`;
 }
 </script>
 
