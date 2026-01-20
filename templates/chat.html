@@ -1,53 +1,160 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Chat</title>
+    <title>Süper Chat</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <script src="/socket.io/socket.io.js"></script>
+
     <style>
-        body { font-family: Arial; margin: 0; }
-        #chat { height: 80vh; overflow-y: auto; padding: 10px; background: #eee; }
-        .me { text-align: right; }
-        .msg { margin: 5px 0; }
+        :root {
+            --bg:#e5ddd5; --header:#ededed;
+            --green:#008069; --bubble:#fff;
+            --me:#dcf8c6;
+        }
+        body {
+            margin:0; font-family:Arial;
+            height:100vh; display:flex;
+            background:#d1d7db;
+        }
+        #sidebar {
+            width:320px; background:#fff;
+            border-right:1px solid #ddd;
+            display:flex; flex-direction:column;
+        }
+        .header {
+            height:60px; padding:10px;
+            background:var(--header);
+            display:flex; align-items:center;
+            justify-content:space-between;
+        }
+        .my-ava {
+            width:40px; height:40px;
+            border-radius:50%;
+        }
+        #users {
+            flex:1; overflow-y:auto;
+        }
+        .user {
+            display:flex; align-items:center;
+            gap:10px; padding:10px;
+            cursor:pointer;
+        }
+        .user:hover { background:#f0f0f0 }
+        #main {
+            flex:1; display:flex;
+            flex-direction:column;
+            background:var(--bg);
+        }
+        #top {
+            height:60px; background:var(--header);
+            display:flex; align-items:center;
+            justify-content:space-between;
+            padding:10px;
+        }
+        #chat {
+            flex:1; padding:15px;
+            overflow-y:auto;
+            display:flex; flex-direction:column;
+            gap:8px;
+            background-image:url('https://i.imgur.com/8Y7ZK0F.png');
+        }
+        .msg {
+            max-width:65%;
+            padding:8px 12px;
+            border-radius:8px;
+            background:var(--bubble);
+            box-shadow:0 1px 1px rgba(0,0,0,.1);
+        }
+        .me { align-self:flex-end; background:var(--me); }
+        .footer {
+            display:flex; gap:10px;
+            padding:10px;
+            background:#f0f0f0;
+        }
+        input {
+            flex:1; padding:10px;
+            border:none; border-radius:20px;
+        }
     </style>
 </head>
+
 <body>
 
-<h3>Hoş geldin {{ user.username }} <a href="/logout">Çıkış</a></h3>
+<div id="sidebar">
+    <div class="header">
+        <div style="display:flex;align-items:center;gap:10px">
+            <img src="{{ user.avatar }}" class="my-ava">
+            <b>{{ user.username }}</b>
+        </div>
+        <a href="/logout">🚪</a>
+    </div>
+    <div id="users"></div>
+</div>
 
-<div id="chat"></div>
-
-<input id="msg" placeholder="Mesaj..." onkeydown="if(event.key==='Enter')send()">
-<button onclick="send()">Gönder</button>
+<div id="main">
+    <div id="top"><b id="room">Genel Sohbet</b></div>
+    <div id="chat"></div>
+    <div class="footer">
+        <input id="msg" placeholder="Mesaj yaz..."
+               onkeydown="if(event.key==='Enter')send()">
+        <button onclick="send()">➤</button>
+    </div>
+</div>
 
 <script>
 const socket = io();
 const myName = "{{ user.username }}";
+let currentRoom = "Genel";
 
-socket.on("history", msgs => {
-    document.getElementById("chat").innerHTML = "";
+socket.on("update_user_list", users => {
+    const d = document.getElementById("users");
+    d.innerHTML="";
+    users.forEach(u=>{
+        if(u.username!==myName){
+            d.innerHTML+=`
+            <div class="user" onclick="openChat('${u.username}')">
+                <img src="${u.avatar}" class="my-ava">
+                ${u.username}
+            </div>`;
+        }
+    });
+});
+
+socket.on("history", msgs=>{
+    const c=document.getElementById("chat");
+    c.innerHTML="";
     msgs.forEach(addMsg);
 });
 
 socket.on("message", addMsg);
 
-socket.on("message_deleted", d => {
-    const el = document.getElementById("m"+d.id);
-    if(el) el.remove();
+socket.on("message_deleted", d=>{
+    document.getElementById(d.id)?.remove();
 });
 
-function addMsg(m) {
-    const d = document.createElement("div");
-    d.className = "msg " + (m.user === myName ? "me" : "");
-    d.id = "m"+m.id;
-    d.innerHTML = `<b>${m.user}</b>: ${m.msg} <small>${m.time}</small>
-    ${m.user===myName?`<button onclick="del(${m.id})">Sil</button>`:""}`;
-    document.getElementById("chat").appendChild(d);
+function openChat(u){
+    currentRoom=[myName,u].sort().join("_");
+    document.getElementById("room").innerText=u;
+    socket.emit("join_room",{room:currentRoom});
 }
 
-function send() {
-    const i = document.getElementById("msg");
-    if(i.value.trim()) {
-        socket.emit("send_message", {msg:i.value});
+function addMsg(m){
+    const d=document.createElement("div");
+    d.className="msg"+(m.user===myName?" me":"");
+    d.id=m.id;
+    d.innerHTML=`<b>${m.user}</b><br>${m.msg}<br><small>${m.time}</small>
+    ${m.user===myName?`<br><a onclick="del('${m.id}')">sil</a>`:""}`;
+    document.getElementById("chat").appendChild(d);
+    document.getElementById("chat").scrollTop=99999;
+}
+
+function send(){
+    const i=document.getElementById("msg");
+    if(i.value.trim()){
+        socket.emit("send_message",{
+            room:currentRoom,
+            msg:i.value
+        });
         i.value="";
     }
 }
