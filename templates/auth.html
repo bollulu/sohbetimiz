@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>GiriÅŸ / KayÄ±t</title>
+    <title>Giriş / Kayıt</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
         body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #0f2027, #203a43, #2c5364); display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; color:white; }
@@ -18,33 +18,33 @@
 <body>
     <div class="card">
         <div id="login-form">
-            <h2>GiriÅŸ Yap</h2>
+            <h2>Giriş Yap</h2>
             <form action="/login" method="POST">
-                <input type="text" name="username" placeholder="KullanÄ±cÄ± AdÄ±" required>
-                <input type="password" name="password" placeholder="Åifre" required>
-                <button type="submit">GiriÅŸ Yap</button>
+                <input type="text" name="username" placeholder="Kullanıcı Adı" required>
+                <input type="password" name="password" placeholder="Şifre" required>
+                <button type="submit">Giriş Yap</button>
             </form>
-            <div class="toggle-txt" onclick="toggle()">HesabÄ±n yok mu? KayÄ±t Ol</div>
+            <div class="toggle-txt" onclick="toggle()">Hesabın yok mu? Kayıt Ol</div>
         </div>
 
         <div id="register-form" class="hidden">
-            <h2>KayÄ±t Ol</h2>
+            <h2>Kayıt Ol</h2>
             <div onclick="document.getElementById('ava-in').click()">
                 <img id="avatar-prev" src="https://cdn-icons-png.flaticon.com/512/847/847969.png">
-                <div style="font-size:11px">Profil Resmi SeÃ§ (TÄ±kla)</div>
+                <div style="font-size:11px">Profil Resmi Seç (Tıkla)</div>
             </div>
             <form action="/register" method="POST">
-                <input type="text" name="username" placeholder="KullanÄ±cÄ± AdÄ±" required>
-                <input type="password" name="password" placeholder="Åifre" required>
+                <input type="text" name="username" placeholder="Kullanıcı Adı" required>
+                <input type="password" name="password" placeholder="Şifre" required>
                 <select name="gender">
                     <option value="Erkek">Erkek</option>
-                    <option value="KadÄ±n">KadÄ±n</option>
+                    <option value="Kadın">Kadın</option>
                 </select>
                 <input type="hidden" name="avatar_data" id="avatar_data">
-                <button type="submit">KayÄ±t Ol</button>
+                <button type="submit">Kayıt Ol</button>
             </form>
             <input type="file" id="ava-in" style="display:none" accept="image/*" onchange="procImg(this)">
-            <div class="toggle-txt" onclick="toggle()">Zaten Ã¼ye misin? GiriÅŸ Yap</div>
+            <div class="toggle-txt" onclick="toggle()">Zaten üye misin? Giriş Yap</div>
         </div>
     </div>
 
