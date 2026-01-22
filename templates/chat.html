@@ -1,7 +1,7 @@
 <!DOCTYPE html>
-<html lang="tr">
+<html>
 <head>
-<meta charset="UTF-8">    <title>SOHBETİMİZ</title>
+    <title>SOHBETİMİZ</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <style>
@@ -12,8 +12,18 @@
         #side { width: 320px; background: white; border-right: 1px solid #ddd; display: flex; flex-direction: column; z-index: 2; }
         .side-header { padding: 12px; background: #ededed; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ddd; }
         
-        /* Hikaye Barı */
-        #story-bar { background: white; border-bottom: 1px solid #ddd; display: flex; align-items: center; padding: 10px 15px; gap: 15px; overflow-x: auto; height: 105px; }
+        /* Hikaye Barı (Artık Orta Panelde) */
+        #story-bar { 
+            background: rgba(255, 255, 255, 0.9); /* Biraz şeffaflık eklendi */
+            border-bottom: 1px solid #ddd; 
+            display: flex; 
+            align-items: center; 
+            padding: 10px 15px; 
+            gap: 15px; 
+            overflow-x: auto; 
+            height: 105px;
+            flex-shrink: 0; /* Chat box sıkıştırmasın diye */
+        }
         .st-item { text-align: center; cursor: pointer; min-width: 70px; display: flex; flex-direction: column; align-items: center; position: relative; }
         .st-circle { width: 60px; height: 60px; border-radius: 50%; padding: 2px; object-fit: cover; }
         .st-ring { border: 3px solid #25D366; } 
@@ -22,7 +32,7 @@
 
         /* Ana Panel */
         #main { flex: 1; display: flex; flex-direction: column; position: relative; background: rgba(255,255,255,0.6); backdrop-filter: blur(5px); }
-        .chat-header { padding: 10px 20px; background: #ededed; display: flex; justify-content: space-between; align-items: center; }
+        .chat-header { padding: 10px 20px; background: #ededed; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ddd; }
         
         #chat-box { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
         .msg { display: flex; align-items: flex-end; gap: 8px; max-width: 80%; }
@@ -90,14 +100,6 @@
         </div>
     </div>
     
-    <div id="story-bar">
-        <div class="st-item" onclick="openCreator()">
-            <div class="st-circle st-ring-none" style="display:flex; align-items:center; justify-content:center; font-size:24px; color:#999;">+</div>
-            <div class="st-name">Hikaye Ekle</div>
-        </div>
-        <div id="story-list-content" style="display:flex; gap:10px;"></div>
-    </div>
-    
     <div style="padding:10px; font-weight:bold; color:var(--green); background:#f9f9f9;">Sohbetler</div>
     <div id="online-users" style="flex:1; overflow-y:auto;"></div>
 </div>
@@ -105,6 +107,15 @@
 <div id="main">
     <div class="chat-header">
         <b>Genel Sohbet 🎵</b>
+        <a href="/live" target="_blank" style="text-decoration:none; margin-left:10px; font-size:18px;">🎥 Canlı</a>
+    </div>
+
+    <div id="story-bar">
+        <div class="st-item" onclick="openCreator()">
+            <div class="st-circle st-ring-none" style="display:flex; align-items:center; justify-content:center; font-size:24px; color:#999;">+</div>
+            <div class="st-name">Hikaye Ekle</div>
+        </div>
+        <div id="story-list-content" style="display:flex; gap:10px;"></div>
     </div>
     <div id="chat-box"></div>
     <div class="footer">
@@ -261,7 +272,6 @@
         if(d.type === 'image') content = `<img src="${d.msg}" style="max-width:100%; border-radius:8px;">`;
         if(d.type === 'video') content = `<video src="${d.msg}" controls style="max-width:100%; border-radius:8px;"></video>`;
         if(d.type === 'audio') content = `<audio controls src="${d.msg}" style="width:200px;"></audio>`;
-
         div.innerHTML = `
             ${!isMe ? `<img src="${d.avatar}" style="width:25px; height:25px; border-radius:50%;">` : ''}
             <div class="bubble">
@@ -314,7 +324,7 @@
             bar.appendChild(item);
         }
     });
-    
+
     socket.on('update_user_list', users => {
         const div = document.getElementById('online-users'); div.innerHTML = '';
         for(let u in users) {
@@ -336,7 +346,7 @@
         clearTimeout(storyTimer);
         if(bgAudio) { bgAudio.pause(); bgAudio = null; } // Önceki sesi durdur
         document.getElementById('music-icon').style.display = 'none';
-
+        
         const userStories = storiesData[currentStoryUser].items;
         if(currentStoryIndex >= userStories.length) { closeStory(); return; }
         
@@ -372,7 +382,6 @@
             mediaEl.autoplay = true;
             mediaEl.id = 'st-media';
             mediaEl.onended = nextStory;
-            // Video varsa müziği video sesi bastırmasın diye opsiyonel yapabiliriz ama şimdilik müzik varsa o çalar
         } else {
             mediaEl = document.createElement('img');
             mediaEl.src = story.content;
@@ -403,7 +412,7 @@
         }
 
         if(currentStoryUser !== myName) socket.emit('view_story', {id: story.id});
-
+        
         // Footer Actions
         const actions = document.getElementById('st-actions');
         const viewers = document.getElementById('st-viewers');
