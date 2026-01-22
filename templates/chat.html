@@ -2,101 +2,68 @@
 <html>
 <head>
     <title>SOHBETİMİZ</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <style>
         :root { --green: #075e54; --light-green: #dcf8c6; --white: #ffffff; }
         body { font-family: 'Segoe UI', sans-serif; margin: 0; display: flex; height: 100vh; background: #e5ddd5; background-size: cover; background-position: center; overflow: hidden; }
         
-        /* Layout */
         #side { width: 300px; background: white; border-right: 1px solid #ddd; display: flex; flex-direction: column; z-index: 2; flex-shrink: 0; }
         .side-header { padding: 10px; background: #ededed; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ddd; }
         
         #main { flex: 1; display: flex; flex-direction: column; position: relative; background: rgba(255,255,255,0.6); backdrop-filter: blur(5px); min-width: 0; }
         
-        /* ÜST PANEL: Tarih, Saat, Başlık */
-        .chat-header { 
-            padding: 10px 20px; 
-            background: #ededed; 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center; 
-            border-bottom: 1px solid #ddd; 
-            height: 50px;
-        }
-        .header-info { display: flex; align-items: center; gap: 15px; }
-        #date-time { font-size: 14px; font-weight: bold; color: #555; }
-
-        /* HİKAYE BARI (Orta Panelin Üstü) */
-        #story-bar { 
-            background: rgba(255, 255, 255, 0.95); 
-            border-bottom: 1px solid #ddd; 
-            display: flex; 
-            align-items: center; 
-            padding: 10px 15px; 
-            gap: 15px; 
-            overflow-x: auto; 
-            height: 90px;
-            flex-shrink: 0;
-        }
+        .chat-header { padding: 10px 20px; background: #ededed; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ddd; height: 50px; }
+        
+        /* HİKAYE BARI */
+        #story-bar { background: rgba(255, 255, 255, 0.95); border-bottom: 1px solid #ddd; display: flex; align-items: center; padding: 10px 15px; gap: 15px; overflow-x: auto; height: 90px; flex-shrink: 0; }
         .st-item { text-align: center; cursor: pointer; min-width: 70px; display: flex; flex-direction: column; align-items: center; }
         .st-circle { width: 55px; height: 55px; border-radius: 50%; padding: 2px; object-fit: cover; }
         .st-ring { border: 3px solid #25D366; } 
         .st-ring-none { border: 2px dashed #ccc; padding: 2px; }
         .st-name { font-size: 11px; margin-top: 4px; color: #333; max-width: 70px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 
-        /* SOHBET KUTUSU */
+        /* SOHBET */
         #chat-box { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
         .msg { display: flex; align-items: flex-end; gap: 8px; max-width: 70%; margin-bottom: 5px; }
         .msg.me { align-self: flex-end; flex-direction: row-reverse; }
-        
-        .bubble { padding: 8px 12px; border-radius: 12px; font-size: 14px; position: relative; box-shadow: 0 1px 1px rgba(0,0,0,0.1); word-wrap: break-word; min-width: 100px; }
+        .bubble { padding: 8px 12px; border-radius: 12px; font-size: 14px; position: relative; box-shadow: 0 1px 1px rgba(0,0,0,0.1); word-wrap: break-word; min-width: 100px; background: white; }
         .me .bubble { background: var(--light-green); border-top-right-radius: 0; }
-        .not-me .bubble { background: var(--white); border-top-left-radius: 0; }
-        
-        .msg-header { display: flex; align-items: center; gap: 5px; margin-bottom: 4px; }
-        .msg-user { font-weight: bold; font-size: 12px; color: #e542a3; } /* Diğerleri Pembe */
-        .me .msg-user { color: #075e54; text-align: right; display: block; width: 100%; } /* Biz Yeşil */
-        
+        .not-me .bubble { border-top-left-radius: 0; }
+        .msg-user { font-weight: bold; font-size: 12px; color: #e542a3; }
+        .me .msg-user { color: #075e54; text-align: right; display: block; }
         .msg-time { font-size: 10px; color: #999; text-align: right; margin-top: 4px; }
+        .del-msg { cursor: pointer; opacity: 0; font-size: 12px; margin-left:5px; }
+        .msg:hover .del-msg { opacity: 1; }
 
-        /* ALT PANEL: Mesaj Yazma */
         .footer { padding: 10px; background: #f0f0f0; display: flex; gap: 10px; align-items: center; }
         #mIn { flex: 1; padding: 12px; border-radius: 20px; border: none; outline: none; }
-        
-        /* UI ELEMENTLERİ */
-        .del-msg { cursor: pointer; opacity: 0; font-size: 12px; }
-        .msg:hover .del-msg { opacity: 1; }
         .mic-anim { animation: pulse 1s infinite; color: red; }
         @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.2); } 100% { transform: scale(1); } }
 
-        /* HİKAYE VIEWER (TAM EKRAN) */
-        #st-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 10000; flex-direction: column; }
+        /* LIVE CALL MODAL (GÖRÜNTÜLÜ KONUŞMA) */
+        #call-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 20000; flex-direction: column; }
+        .video-box { flex: 1; position: relative; background: #111; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+        #remoteVideo { width: 100%; height: 100%; object-fit: contain; }
+        #localVideo { position: absolute; right: 20px; top: 20px; width: 100px; height: 140px; border: 2px solid white; border-radius: 10px; object-fit: cover; z-index: 10; background: #333; transform: scaleX(-1); }
+        .call-controls { padding: 20px; display: flex; justify-content: center; gap: 20px; background: rgba(0,0,0,0.8); position: absolute; bottom: 0; width: 100%; box-sizing: border-box; }
+        .btn-call { width: 50px; height: 50px; border-radius: 50%; border: none; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        
+        /* DİĞER MODALLAR (AYNI KALDI) */
+        #creator-modal, #st-overlay { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index: 10002; }
+        #creator-modal { justify-content: center; align-items: center; }
+        .creator-box { background: white; padding: 20px; border-radius: 10px; width: 300px; text-align: center; display: flex; flex-direction: column; gap: 10px; }
+        #st-overlay { flex-direction: column; z-index: 10000; }
         #st-progress-container { display: flex; gap: 5px; padding: 10px; width: 95%; margin: 0 auto; z-index: 10001; }
         .progress-bar { height: 3px; background: rgba(255,255,255,0.3); flex: 1; border-radius: 2px; overflow: hidden; }
         .progress-fill { height: 100%; background: white; width: 0%; transition: width linear; }
-        
-        #st-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; color: white; z-index: 10001; }
-        #st-content-area { flex: 1; display: flex; justify-content: center; align-items: center; position: relative; width: 100%; }
-        #st-media { max-width: 100%; max-height: 80vh; object-fit: contain; }
-        
+        #st-content-area { flex: 1; display: flex; justify-content: center; align-items: center; position: relative; }
+        #st-media { max-width: 100%; max-height: 80vh; }
         .tap-zone { position: absolute; top: 0; height: 100%; width: 30%; z-index: 9999; }
-        #tap-left { left: 0; }
-        #tap-right { right: 0; width: 70%; }
-        
-        #st-footer { padding: 15px; color: white; text-align: center; background: linear-gradient(to top, rgba(0,0,0,0.8), transparent); width: 100%; box-sizing: border-box; }
-        .music-indicator { position: absolute; top: 60px; right: 20px; font-size: 24px; animation: spin 3s linear infinite; z-index: 10001; text-shadow: 0 0 5px black; display: none; }
-        @keyframes spin { 100% { transform: rotate(360deg); } }
+        #tap-left { left: 0; } #tap-right { right: 0; width: 70%; }
 
-        /* CREATOR MODAL */
-        #creator-modal { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index: 10002; justify-content: center; align-items: center; }
-        .creator-box { background: white; padding: 20px; border-radius: 10px; width: 300px; text-align: center; display: flex; flex-direction: column; gap: 10px; }
-        .c-btn { padding: 12px; border: 1px solid #ddd; border-radius: 8px; cursor: pointer; background: #f9f9f9; text-align: left; }
-        .publish-btn { background: #25D366; color: white; border: none; font-weight: bold; text-align: center; }
-
-        @media (max-width: 600px) {
-            #side { display: none; } /* Mobilde sol panel gizlenebilir veya hamburger menü yapılabilir, şimdilik basit tuttum */
-        }
+        @media (max-width: 600px) { #side { display: none; } #switch-cam-btn { display: flex; } }
+        @media (min-width: 601px) { #switch-cam-btn { display: none; } }
     </style>
 </head>
 <body>
@@ -117,23 +84,22 @@
             </div>
         </div>
         <div style="display:flex; gap:10px;">
-            <span title="Arka Plan" style="cursor:pointer; font-size:18px;" onclick="document.getElementById('bg-in').click()">🖼️</span>
-            <span title="Sıfırla" style="cursor:pointer; font-size:18px;" onclick="resetBG()">🔄</span>
-            <a href="/logout" title="Çıkış" style="text-decoration:none; font-size:18px;">🚪</a>
+            <span onclick="document.getElementById('bg-in').click()" style="cursor:pointer; font-size:18px;">🖼️</span>
+            <span onclick="resetBG()" style="cursor:pointer; font-size:18px;">🔄</span>
+            <a href="/logout" style="text-decoration:none; font-size:18px;">🚪</a>
         </div>
     </div>
-    
     <div style="padding:10px; font-weight:bold; color:var(--green); background:#f9f9f9; border-bottom:1px solid #ddd;">Kullanıcılar</div>
     <div id="online-users" style="flex:1; overflow-y:auto;"></div>
 </div>
 
 <div id="main">
     <div class="chat-header">
-        <div class="header-info">
+        <div style="display:flex; align-items:center; gap:15px;">
             <b>Genel Sohbet 🎵</b>
-            <a href="/live" target="_blank" style="text-decoration:none; color:white; background:red; padding:5px 10px; border-radius:15px; font-size:12px;">🎥 Canlı Yayın</a>
+            <button onclick="openCallModal()" style="background:red; color:white; border:none; padding:5px 12px; border-radius:15px; cursor:pointer; font-size:12px;">🎥 Canlı Başlat</button>
         </div>
-        <div id="date-time">--:--</div>
+        <div id="date-time" style="font-weight:bold; color:#555;">--:--</div>
     </div>
 
     <div id="story-bar">
@@ -141,273 +107,160 @@
             <div class="st-circle st-ring-none" style="display:flex; align-items:center; justify-content:center; font-size:24px; color:#999;">+</div>
             <div class="st-name">Hikaye</div>
         </div>
-        <div id="story-list-content" style="display:flex; gap:10px;"></div>
+        <div id="story-list-content" style="display:flex; gap:10px;">
+            {% for username, data in initial_stories.items() %}
+                {% if data.items|length > 0 %}
+                <div class="st-item" onclick="openStory('{{ username }}')">
+                    <img src="{{ data.avatar }}" class="st-circle st-ring">
+                    <div class="st-name">{{ 'Hikayen' if username == user.username else username }}</div>
+                </div>
+                {% endif %}
+            {% endfor %}
+        </div>
     </div>
 
-    <div id="chat-box"></div>
+    <div id="chat-box">
+        {% for msg in initial_msgs %}
+            <div class="msg {{ 'me' if msg.username == user.username else 'not-me' }}" id="msg-{{ msg.id }}" data-username="{{ msg.username }}">
+                {% if msg.username != user.username %}
+                    <img src="{{ msg.user_avatar }}" class="msg-avatar" style="width:28px; height:28px; border-radius:50%;">
+                {% endif %}
+                <div class="bubble">
+                    <div class="msg-header"><span class="msg-user">{{ 'Siz' if msg.username == user.username else msg.username }}</span></div>
+                    {% if msg.msg_type == 'image' %} <img src="{{ msg.content }}" style="max-width:200px; border-radius:8px;">
+                    {% elif msg.msg_type == 'video' %} <video src="{{ msg.content }}" controls style="max-width:200px; border-radius:8px;"></video>
+                    {% elif msg.msg_type == 'audio' %} <audio controls src="{{ msg.content }}" style="width:200px;"></audio>
+                    {% else %} {{ msg.content }} {% endif %}
+                    <div class="msg-time">{{ msg.timestamp }} 
+                    {% if msg.username == user.username %}<span class="del-msg" onclick="deleteMsg({{ msg.id }})">🗑️</span>{% endif %}
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
     
     <div class="footer">
         <span onclick="document.getElementById('f-in').click()" style="cursor:pointer; font-size:24px;">📎</span>
         <input type="text" id="mIn" placeholder="Mesaj yazın..." autocomplete="off">
         <span id="mic-btn" onclick="toggleMic()" style="cursor:pointer; font-size:24px;">🎤</span>
-        <button id="send-btn" onclick="send()" style="border:none; background:none; font-size:24px; color:var(--green); cursor:pointer;">➤</button>
+        <button onclick="send()" style="border:none; background:none; font-size:24px; color:var(--green); cursor:pointer;">➤</button>
+    </div>
+</div>
+
+<div id="call-modal">
+    <div class="video-box">
+        <div id="call-status" style="position:absolute; color:#aaa;">Bağlanıyor...</div>
+        <video id="remoteVideo" autoplay playsinline></video>
+        <video id="localVideo" autoplay playsinline muted></video>
+        <div class="call-controls">
+            <button class="btn-call" id="switch-cam-btn" style="background:#444; color:white;" onclick="switchCamera()">📷</button>
+            <button class="btn-call" style="background:red; color:white;" onclick="closeCallModal()">📞</button>
+        </div>
     </div>
 </div>
 
 <div id="creator-modal" onclick="if(event.target===this) this.style.display='none'">
     <div class="creator-box">
         <h3>Hikaye Oluştur</h3>
-        <button class="c-btn" onclick="document.getElementById('create-img').click()">1. Görsel/Video Seç 📸</button>
+        <button class="c-btn" onclick="document.getElementById('create-img').click()">1. Dosya Seç 📸</button>
         <div id="img-status" style="font-size:12px; color:green;"></div>
-        
-        <button class="c-btn" onclick="document.getElementById('create-audio').click()">2. Müzik Ekle (İsteğe Bağlı) 🎵</button>
+        <button class="c-btn" onclick="document.getElementById('create-audio').click()">2. Müzik Ekle 🎵</button>
         <div id="audio-status" style="font-size:12px; color:green;"></div>
-        
-        <button class="c-btn publish-btn" onclick="publishStory()">Paylaş 🚀</button>
-        <button class="c-btn" style="background:#f0f0f0; color:red; text-align:center;" onclick="document.getElementById('creator-modal').style.display='none'">İptal</button>
+        <button class="c-btn" style="background:#25D366; color:white; font-weight:bold;" onclick="publishStory()">Paylaş 🚀</button>
     </div>
 </div>
 
 <div id="st-overlay">
     <div id="st-progress-container"></div>
-    <div id="st-header">
-        <div style="display:flex; align-items:center; gap:10px;">
-            <img id="st-view-ava" style="width:35px; height:35px; border-radius:50%; border:1px solid white;">
+    <div style="padding:10px 15px; display:flex; justify-content:space-between; color:white; align-items:center;">
+        <div style="display:flex; gap:10px;">
+            <img id="st-view-ava" style="width:35px; height:35px; border-radius:50%;">
             <b id="st-view-name"></b>
         </div>
         <span onclick="closeStory()" style="cursor:pointer; font-size:24px;">✕</span>
     </div>
-    
-    <div class="music-indicator" id="music-icon">🎵</div>
-
+    <div id="music-icon" style="position:absolute; top:60px; right:20px; font-size:24px; display:none;">🎵</div>
     <div id="st-content-area">
         <div id="tap-left" class="tap-zone" onclick="prevStory()"></div>
         <div id="tap-right" class="tap-zone" onclick="nextStory()"></div>
         <div id="st-media-container"></div>
     </div>
-
-    <div id="st-footer">
+    <div style="padding:15px; text-align:center; color:white; background:linear-gradient(to top, rgba(0,0,0,0.8), transparent);">
         <div id="st-actions"></div>
-        <div id="st-viewers" style="font-size:12px; margin-top:5px; text-align:left;"></div>
+        <div id="st-viewers" style="font-size:12px; margin-top:5px;"></div>
     </div>
 </div>
 
 <script>
     const socket = io();
     const myName = "{{ user.username }}";
-    let myAvatar = "{{ user.avatar }}";
-
-    // --- SAAT GÜNCELLEME ---
-    setInterval(() => {
-        const now = new Date();
-        document.getElementById('date-time').innerText = now.toLocaleDateString() + ' ' + now.toLocaleTimeString().slice(0,5);
-    }, 1000);
+    
+    // --- BAŞLANGIÇ ---
+    const box = document.getElementById('chat-box');
+    box.scrollTop = box.scrollHeight; // En alta in
+    setInterval(() => { const n=new Date(); document.getElementById('date-time').innerText=n.toLocaleDateString()+' '+n.toLocaleTimeString().slice(0,5); }, 1000);
+    if(localStorage.getItem('chat_bg')) document.body.style.backgroundImage = `url(${localStorage.getItem('chat_bg')})`;
 
     // --- ARKA PLAN ---
-    if(localStorage.getItem('chat_bg')) document.body.style.backgroundImage = `url(${localStorage.getItem('chat_bg')})`;
-    
     function changeBG(input) {
         if(input.files[0]) {
             const r = new FileReader();
-            r.onload = e => {
-                document.body.style.backgroundImage = `url(${e.target.result})`;
-                localStorage.setItem('chat_bg', e.target.result);
-            };
+            r.onload = e => { document.body.style.backgroundImage=`url(${e.target.result})`; localStorage.setItem('chat_bg', e.target.result); };
             r.readAsDataURL(input.files[0]);
         }
     }
-    function resetBG() {
-        document.body.style.backgroundImage = 'none';
-        document.body.style.backgroundColor = '#e5ddd5';
-        localStorage.removeItem('chat_bg');
-    }
+    function resetBG() { document.body.style.backgroundImage='none'; document.body.style.backgroundColor='#e5ddd5'; localStorage.removeItem('chat_bg'); }
 
-    // --- MESAJ GÖNDERME ---
+    // --- SOHBET ---
     const mIn = document.getElementById('mIn');
+    mIn.addEventListener("keypress", e => { if(e.key==="Enter") send(); });
     
-    mIn.addEventListener("keypress", function(event) {
-        if (event.key === "Enter") {
-            event.preventDefault();
-            send();
-        }
-    });
-
-    function send() {
-        if(mIn.value.trim()) { 
-            socket.emit('message', {msg: mIn.value, type: 'text'}); 
-            mIn.value=''; 
-        }
-    }
-
+    function send() { if(mIn.value.trim()){ socket.emit('message', {msg:mIn.value, type:'text'}); mIn.value=''; } }
+    function deleteMsg(id) { socket.emit('delete_message', {id:id}); }
+    
     function uploadMessageFile(input) {
         if(input.files[0]) {
             const r = new FileReader();
-            const type = input.files[0].type.includes('video') ? 'video' : (input.files[0].type.includes('audio') ? 'audio' : 'image');
-            r.onload = e => {
-                socket.emit('message', {msg: e.target.result, type: type});
-                input.value = ''; // Reset
-            };
+            const type = input.files[0].type.includes('video')?'video':(input.files[0].type.includes('audio')?'audio':'image');
+            r.onload = e => { socket.emit('message', {msg:e.target.result, type:type}); input.value=''; };
             r.readAsDataURL(input.files[0]);
         }
     }
 
-    // --- SOCKET DİNLEYİCİLERİ ---
-    socket.on('message', d => renderMsg(d));
-    socket.on('history', list => list.forEach(d => renderMsg(d)));
-    socket.on('message_deleted', d => {
-        const el = document.getElementById('msg-'+d.id);
-        if(el) el.remove();
-    });
+    // YENİ: Tek mesaj geldiğinde ekle (Hız için)
+    socket.on('new_message', d => renderMsg(d));
+    socket.on('message_deleted', d => { document.getElementById('msg-'+d.id)?.remove(); });
 
     function renderMsg(d) {
-        const box = document.getElementById('chat-box');
         if(document.getElementById('msg-'+d.id)) return;
-        
         const isMe = d.user === myName;
         const div = document.createElement('div');
         div.className = `msg ${isMe ? 'me' : 'not-me'}`;
         div.id = 'msg-'+d.id;
-        div.setAttribute('data-username', d.user); // Profil update için referans
+        div.setAttribute('data-username', d.user);
         
         let content = d.msg;
         if(d.type === 'image') content = `<img src="${d.msg}" style="max-width:200px; border-radius:8px;">`;
         else if(d.type === 'video') content = `<video src="${d.msg}" controls style="max-width:200px; border-radius:8px;"></video>`;
         else if(d.type === 'audio') content = `<audio controls src="${d.msg}" style="width:200px;"></audio>`;
-        
+
         div.innerHTML = `
             ${!isMe ? `<img src="${d.avatar}" class="msg-avatar" style="width:28px; height:28px; border-radius:50%;">` : ''}
             <div class="bubble">
-                <div class="msg-header">
-                    <span class="msg-user">${isMe ? 'Siz' : d.user}</span>
-                </div>
+                <div class="msg-header"><span class="msg-user">${isMe ? 'Siz' : d.user}</span></div>
                 ${content}
-                <div class="msg-time">
-                    ${d.time} 
-                    ${isMe ? `<span class="del-msg" onclick="socket.emit('delete_message', {id:${d.id}})">🗑️</span>` : ''}
-                </div>
-            </div>
-        `;
+                <div class="msg-time">${d.time} ${isMe ? `<span class="del-msg" onclick="deleteMsg(${d.id})">🗑️</span>` : ''}</div>
+            </div>`;
         box.appendChild(div);
         box.scrollTop = box.scrollHeight;
     }
 
-    // --- SES KAYIT ---
-    let mediaRec, chunks=[];
-    async function toggleMic() {
-        const btn = document.getElementById('mic-btn');
-        if (!mediaRec || mediaRec.state === "inactive") {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                mediaRec = new MediaRecorder(stream);
-                chunks = [];
-                mediaRec.ondataavailable = e => chunks.push(e.data);
-                mediaRec.onstop = () => {
-                    const blob = new Blob(chunks, { type: 'audio/webm' });
-                    const r = new FileReader();
-                    r.onload = e => socket.emit('message', {msg: e.target.result, type: 'audio'});
-                    r.readAsDataURL(blob);
-                };
-                mediaRec.start();
-                btn.classList.add('mic-anim');
-            } catch(e) { alert("Mikrofon izni gerekli!"); }
-        } else {
-            mediaRec.stop();
-            btn.classList.remove('mic-anim');
-        }
-    }
-
-    // --- PROFİL GÜNCELLEME (HER YERDE) ---
-    function uploadProfile(input) {
-        if(input.files[0]) {
-            const r = new FileReader();
-            r.onload = e => {
-                socket.emit('update_profile', {avatar: e.target.result});
-                document.getElementById('my-ava').src = e.target.result;
-            };
-            r.readAsDataURL(input.files[0]);
-        }
-    }
-
-    socket.on('force_avatar_update', data => {
-        // Mesajlardaki avatarları güncelle
-        document.querySelectorAll('.msg').forEach(el => {
-            if(el.getAttribute('data-username') === data.username) {
-                const img = el.querySelector('.msg-avatar');
-                if(img) img.src = data.avatar;
-            }
-        });
-        // Kendi avatarımız güncellendiyse (veya başkası)
-        if(data.username === myName) {
-            document.getElementById('my-ava').src = data.avatar;
-            myAvatar = data.avatar;
-        }
-    });
-
-    socket.on('update_user_list', users => {
-        const div = document.getElementById('online-users'); 
-        div.innerHTML = '';
-        for(let u in users) {
-            const isMe = u === myName;
-            div.innerHTML += `
-            <div style="padding:10px; border-bottom:1px solid #eee; display:flex; align-items:center; gap:10px; background:${isMe ? '#eeffee' : 'white'}">
-                <img src="${users[u].avatar}" style="width:35px; height:35px; border-radius:50%; object-fit:cover;">
-                <div>
-                    <div>${isMe ? 'Siz' : u}</div>
-                    <div style="font-size:10px; color:green;">● Çevrimiçi</div>
-                </div>
-            </div>`;
-        }
-    });
-
-    // --- HİKAYE MANTIĞI ---
-    let storiesData = {};
-    let currentStoryUser = null;
-    let currentStoryIndex = 0;
-    let storyTimer = null;
-    let bgAudio = null;
+    // --- HİKAYELER ---
+    // Sayfa ilk açıldığında veriler Jinja'dan geliyor. 
+    // Socket sadece güncelleme gelince çalışacak.
+    let storiesData = {{ initial_stories | tojson }};
     
-    let creatorImgData = null;
-    let creatorImgType = 'image';
-    let creatorAudioData = null;
-
-    function openCreator() {
-        creatorImgData = null; creatorAudioData = null;
-        document.getElementById('img-status').innerText = "";
-        document.getElementById('audio-status').innerText = "";
-        document.getElementById('creator-modal').style.display = 'flex';
-        // Reset inputs
-        document.getElementById('create-img').value = '';
-        document.getElementById('create-audio').value = '';
-    }
-
-    function previewCreator(input) {
-        if(!input.files[0]) return;
-        const r = new FileReader();
-        r.onload = e => {
-            creatorImgData = e.target.result;
-            creatorImgType = input.files[0].type.includes('video') ? 'video' : 'image';
-            document.getElementById('img-status').innerText = input.files[0].name + " seçildi ✓";
-        };
-        r.readAsDataURL(input.files[0]);
-    }
-
-    function audioSelected(input) {
-        if(!input.files[0]) return;
-        const r = new FileReader();
-        r.onload = e => {
-            creatorAudioData = e.target.result;
-            document.getElementById('audio-status').innerText = "Müzik eklendi 🎵";
-        };
-        r.readAsDataURL(input.files[0]);
-    }
-
-    function publishStory() {
-        if(!creatorImgData) { alert("Lütfen en az bir görsel veya video seçin!"); return; }
-        socket.emit('add_story', { content: creatorImgData, type: creatorImgType, music: creatorAudioData });
-        document.getElementById('creator-modal').style.display = 'none';
-    }
-
-    socket.on('story_list', data => {
+    socket.on('story_update', data => {
         storiesData = data;
         const bar = document.getElementById('story-list-content');
         bar.innerHTML = '';
@@ -416,139 +269,154 @@
             const item = document.createElement('div');
             item.className = 'st-item';
             item.onclick = () => openStory(user);
-            const isMe = user === myName;
             item.innerHTML = `
                 <img src="${data[user].avatar}" class="st-circle st-ring">
-                <div class="st-name">${isMe ? 'Hikayen' : user}</div>
-            `;
+                <div class="st-name">${user === myName ? 'Hikayen' : user}</div>`;
             bar.appendChild(item);
         }
     });
 
-    function openStory(user) {
-        currentStoryUser = user;
-        currentStoryIndex = 0;
-        document.getElementById('st-overlay').style.display = 'flex';
-        renderStorySlide();
+    // --- HİKAYE OLUŞTURUCU ve GÖSTERİCİ (Mevcut kodlar korundu, özetlendi) ---
+    let creatorImgData=null, creatorImgType='image', creatorAudioData=null;
+    function openCreator() { 
+        creatorImgData=null; creatorAudioData=null; 
+        document.getElementById('img-status').innerText=""; document.getElementById('audio-status').innerText="";
+        document.getElementById('creator-modal').style.display='flex'; 
+        document.getElementById('create-img').value=''; document.getElementById('create-audio').value='';
+    }
+    function previewCreator(inpt) {
+        if(inpt.files[0]) {
+            const r=new FileReader();
+            r.onload=e=>{ creatorImgData=e.target.result; creatorImgType=inpt.files[0].type.includes('video')?'video':'image'; document.getElementById('img-status').innerText="Seçildi ✓"; };
+            r.readAsDataURL(inpt.files[0]);
+        }
+    }
+    function audioSelected(inpt) {
+        if(inpt.files[0]) {
+            const r=new FileReader(); r.onload=e=>{ creatorAudioData=e.target.result; document.getElementById('audio-status').innerText="Eklendi 🎵"; }; r.readAsDataURL(inpt.files[0]);
+        }
+    }
+    function publishStory() {
+        if(!creatorImgData) { alert("Dosya seçiniz"); return; }
+        socket.emit('add_story', {content:creatorImgData, type:creatorImgType, music:creatorAudioData});
+        document.getElementById('creator-modal').style.display='none';
     }
 
+    // --- HİKAYE İZLEME MANTIĞI ---
+    let currentStoryUser=null, currentStoryIndex=0, storyTimer=null, bgAudio=null;
+    function openStory(u) { currentStoryUser=u; currentStoryIndex=0; document.getElementById('st-overlay').style.display='flex'; renderStorySlide(); }
     function renderStorySlide() {
-        clearTimeout(storyTimer);
-        if(bgAudio) { bgAudio.pause(); bgAudio = null; }
-        document.getElementById('music-icon').style.display = 'none';
+        clearTimeout(storyTimer); if(bgAudio) { bgAudio.pause(); bgAudio=null; }
+        document.getElementById('music-icon').style.display='none';
         
-        // Veri Kontrolü
-        if(!storiesData[currentStoryUser] || !storiesData[currentStoryUser].items.length) {
-            closeStory(); return;
-        }
+        if(!storiesData[currentStoryUser] || !storiesData[currentStoryUser].items.length) { closeStory(); return; }
+        const items = storiesData[currentStoryUser].items;
+        if(currentStoryIndex >= items.length) { closeStory(); return; }
+        const s = items[currentStoryIndex];
 
-        const userStories = storiesData[currentStoryUser].items;
-        if(currentStoryIndex >= userStories.length) { closeStory(); return; }
-        
-        const story = userStories[currentStoryIndex];
-        
-        // Header
         document.getElementById('st-view-ava').src = storiesData[currentStoryUser].avatar;
         document.getElementById('st-view-name').innerText = currentStoryUser;
-        
-        // Progress Bars
-        const progCont = document.getElementById('st-progress-container');
-        progCont.innerHTML = '';
-        userStories.forEach((s, idx) => {
-            const bar = document.createElement('div');
-            bar.className = 'progress-bar';
-            const fill = document.createElement('div');
-            fill.className = 'progress-fill';
-            if(idx < currentStoryIndex) fill.style.width = '100%';
-            else if(idx === currentStoryIndex) fill.id = 'curr-prog';
-            bar.appendChild(fill);
-            progCont.appendChild(bar);
+
+        // Progress
+        const pc = document.getElementById('st-progress-container'); pc.innerHTML='';
+        items.forEach((_,i)=>{
+            const b=document.createElement('div'), f=document.createElement('div');
+            b.className='progress-bar'; f.className='progress-fill';
+            if(i<currentStoryIndex) f.style.width='100%'; else if(i===currentStoryIndex) f.id='curr-prog';
+            b.appendChild(f); pc.appendChild(b);
         });
 
         // Content
-        const cont = document.getElementById('st-media-container');
-        cont.innerHTML = '';
-        let mediaEl;
-        let duration = 5000;
+        const cont = document.getElementById('st-media-container'); cont.innerHTML='';
+        let el;
+        if(s.type==='video') { el=document.createElement('video'); el.src=s.content; el.autoplay=true; el.id='st-media'; el.onended=nextStory; }
+        else { el=document.createElement('img'); el.src=s.content; el.id='st-media'; }
+        cont.appendChild(el);
 
-        if(story.type === 'video') {
-            mediaEl = document.createElement('video');
-            mediaEl.src = story.content;
-            mediaEl.autoplay = true;
-            mediaEl.id = 'st-media';
-            mediaEl.onended = nextStory;
+        // Müzik & Süre
+        if(s.music) {
+            bgAudio=new Audio(s.music); bgAudio.play(); document.getElementById('music-icon').style.display='block';
+            bgAudio.onloadedmetadata=()=>{ startProgress(bgAudio.duration*1000); }; bgAudio.onended=nextStory;
         } else {
-            mediaEl = document.createElement('img');
-            mediaEl.src = story.content;
-            mediaEl.id = 'st-media';
-        }
-        cont.appendChild(mediaEl);
-
-        // Müzik
-        if(story.music) {
-            bgAudio = new Audio(story.music);
-            bgAudio.play();
-            document.getElementById('music-icon').style.display = 'block';
-            bgAudio.onloadedmetadata = () => {
-                duration = bgAudio.duration * 1000;
-                startProgress(duration);
-            };
-            bgAudio.onended = nextStory;
-        } else {
-            if(story.type === 'video') {
-                mediaEl.onloadedmetadata = () => startProgress(mediaEl.duration * 1000);
-            } else {
-                startProgress(5000);
-                storyTimer = setTimeout(nextStory, 5000);
-            }
+            if(s.type==='video') el.onloadedmetadata=()=>{ startProgress(el.duration*1000); };
+            else { startProgress(5000); storyTimer=setTimeout(nextStory, 5000); }
         }
 
-        // Viewers & Delete
-        if(currentStoryUser !== myName) socket.emit('view_story', {id: story.id});
+        if(currentStoryUser!==myName) socket.emit('view_story', {id:s.id});
         
-        const actions = document.getElementById('st-actions');
-        const viewers = document.getElementById('st-viewers');
-        actions.innerHTML = ''; viewers.innerHTML = '';
-
-        if(currentStoryUser === myName) {
-            actions.innerHTML = `<button onclick="deleteCurrentStory(${story.id})" style="background:red; color:white; border:none; padding:8px 15px; border-radius:20px; font-weight:bold; cursor:pointer;">🗑️ Hikayeyi Sil</button>`;
-            
-            const vList = story.viewers; 
-            viewers.innerHTML = vList.length > 0 
-                ? `<b>Görenler (${vList.length}):</b> ${vList.join(', ')}` 
-                : '👁️ Henüz kimse görmedi';
+        // Actions
+        const act = document.getElementById('st-actions'), vw = document.getElementById('st-viewers');
+        act.innerHTML=''; vw.innerHTML='';
+        if(currentStoryUser===myName) {
+            act.innerHTML=`<button onclick="if(confirm('Silinsin mi?')) { socket.emit('delete_story',{id:${s.id}}); closeStory(); }" style="background:red; color:white; border:none; padding:8px; border-radius:20px;">🗑️ Sil</button>`;
+            vw.innerText = s.viewers.length ? `Görenler: ${s.viewers.join(', ')}` : 'Kimse görmedi';
         }
     }
-
-    function startProgress(ms) {
-        const p = document.getElementById('curr-prog');
-        if(p) {
-            p.style.transition = 'none'; p.style.width = '0%';
-            // Reflow için ufak gecikme
-            setTimeout(() => {
-                p.style.transition = `width ${ms}ms linear`;
-                p.style.width = '100%';
-            }, 50);
-        }
-    }
-
+    function startProgress(ms) { const p=document.getElementById('curr-prog'); if(p) { p.style.transition='none'; p.style.width='0%'; setTimeout(()=>{ p.style.transition=`width ${ms}ms linear`; p.style.width='100%'; },50); } }
     function nextStory() { currentStoryIndex++; renderStorySlide(); }
-    function prevStory() { if(currentStoryIndex > 0) currentStoryIndex--; renderStorySlide(); }
+    function prevStory() { if(currentStoryIndex>0) currentStoryIndex--; renderStorySlide(); }
+    function closeStory() { document.getElementById('st-overlay').style.display='none'; clearTimeout(storyTimer); if(bgAudio) bgAudio.pause(); const v=document.querySelector('video'); if(v) v.pause(); }
+
+    // --- CANLI GÖRÜŞME (MODAL İÇİNDE) ---
+    let localStream, peer, currentFacingMode='user';
+    const rtcConfig = { iceServers: [{urls:"stun:stun.l.google.com:19302"}] };
+
+    function openCallModal() { document.getElementById('call-modal').style.display='flex'; startCamera(); }
+    function closeCallModal() { 
+        document.getElementById('call-modal').style.display='none';
+        if(localStream) localStream.getTracks().forEach(t=>t.stop());
+        if(peer) peer.close(); peer=null;
+    }
     
-    function closeStory() {
-        document.getElementById('st-overlay').style.display = 'none';
-        clearTimeout(storyTimer);
-        if(bgAudio) bgAudio.pause();
-        const v = document.querySelector('video');
-        if(v) v.pause();
+    async function startCamera() {
+        try {
+            localStream = await navigator.mediaDevices.getUserMedia({audio:true, video:{facingMode:currentFacingMode}});
+            document.getElementById('localVideo').srcObject=localStream;
+            socket.emit('signal', {type:'ready'});
+            document.getElementById('call-status').innerText="Bağlantı bekleniyor...";
+        } catch(e) { alert("Kamera hatası: "+e); }
+    }
+    async function switchCamera() {
+        if(localStream) localStream.getTracks().forEach(t=>t.stop());
+        currentFacingMode = currentFacingMode==='user'?'environment':'user';
+        startCamera();
     }
 
-    function deleteCurrentStory(id) {
-        if(confirm('Bu hikayeyi silmek istediğine emin misin?')) {
-            socket.emit('delete_story', {id: id});
-            closeStory();
+    socket.on('signal', async d => {
+        if(d.type==='ready') { if(!peer) makeCall(); }
+        else if(d.type==='offer') {
+            if(!peer) createPeer();
+            await peer.setRemoteDescription(new RTCSessionDescription(d.sdp));
+            const ans = await peer.createAnswer(); await peer.setLocalDescription(ans);
+            socket.emit('signal', {type:'answer', sdp:ans});
         }
+        else if(d.type==='answer') await peer.setRemoteDescription(new RTCSessionDescription(d.sdp));
+        else if(d.type==='candidate' && peer) await peer.addIceCandidate(new RTCIceCandidate(d.candidate));
+    });
+
+    function createPeer() {
+        peer = new RTCPeerConnection(rtcConfig);
+        peer.onicecandidate=e=>{ if(e.candidate) socket.emit('signal', {type:'candidate', candidate:e.candidate}); };
+        peer.ontrack=e=>{ document.getElementById('remoteVideo').srcObject=e.streams[0]; document.getElementById('call-status').style.display='none'; };
+        localStream.getTracks().forEach(t=>peer.addTrack(t, localStream));
     }
+    function makeCall() {
+        createPeer();
+        peer.createOffer().then(o=>{ peer.setLocalDescription(o); socket.emit('signal', {type:'offer', sdp:o}); });
+    }
+
+    // Profil Güncelleme
+    function uploadProfile(i) { if(i.files[0]) { const r=new FileReader(); r.onload=e=>{socket.emit('update_profile',{avatar:e.target.result}); document.getElementById('my-ava').src=e.target.result;}; r.readAsDataURL(i.files[0]); } }
+    socket.on('update_user_list', u => {
+        const d=document.getElementById('online-users'); d.innerHTML='';
+        for(let k in u) d.innerHTML+=`<div style="padding:10px; border-bottom:1px solid #eee; display:flex; gap:10px; align-items:center;">
+            <img src="${u[k].avatar}" style="width:30px; height:30px; border-radius:50%;">
+            <div>${k===myName?'Siz':k} <span style="font-size:10px; color:green;">●</span></div></div>`;
+    });
+    socket.on('force_avatar_update', d => {
+        document.querySelectorAll('.msg[data-username="'+d.username+'"] .msg-avatar').forEach(i=>i.src=d.avatar);
+        if(d.username===myName) document.getElementById('my-ava').src=d.avatar;
+    });
 
     socket.emit('join', {});
 </script>
