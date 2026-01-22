@@ -1,450 +1,133 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>SOHBETÄ°MÄ°Z</title>
+    <meta charset="UTF-8">
+    <title>Sohbet</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
-    <style>
-        :root { --green: #075e54; --light-green: #dcf8c6; --white: #ffffff; }
-        body { font-family: 'Segoe UI', sans-serif; margin: 0; display: flex; height: 100vh; background: #e5ddd5; background-size: cover; background-position: center; }
-        
-        /* Layout */
-        #side { width: 320px; background: white; border-right: 1px solid #ddd; display: flex; flex-direction: column; z-index: 2; }
-        .side-header { padding: 12px; background: #ededed; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ddd; }
-        
-        /* Hikaye BarÄ± */
-        #story-bar { background: white; border-bottom: 1px solid #ddd; display: flex; align-items: center; padding: 10px 15px; gap: 15px; overflow-x: auto; height: 105px; }
-        .st-item { text-align: center; cursor: pointer; min-width: 70px; display: flex; flex-direction: column; align-items: center; position: relative; }
-        .st-circle { width: 60px; height: 60px; border-radius: 50%; padding: 2px; object-fit: cover; }
-        .st-ring { border: 3px solid #25D366; } 
-        .st-ring-none { border: 2px dashed #ccc; }
-        .st-name { font-size: 11px; margin-top: 4px; color: #333; max-width: 70px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-
-        /* Ana Panel */
-        #main { flex: 1; display: flex; flex-direction: column; position: relative; background: rgba(255,255,255,0.6); backdrop-filter: blur(5px); }
-        .chat-header { padding: 10px 20px; background: #ededed; display: flex; justify-content: space-between; align-items: center; }
-        
-        #chat-box { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
-        .msg { display: flex; align-items: flex-end; gap: 8px; max-width: 80%; }
-        .msg.me { align-self: flex-end; flex-direction: row-reverse; }
-        .bubble { padding: 10px; border-radius: 12px; font-size: 14px; position: relative; box-shadow: 0 1px 1px rgba(0,0,0,0.1); word-wrap: break-word; }
-        .me .bubble { background: var(--light-green); }
-        .not-me .bubble { background: var(--white); }
-        
-        /* Footer */
-        .footer { padding: 10px; background: #f0f0f0; display: flex; gap: 10px; align-items: center; }
-        #mIn { flex: 1; padding: 12px; border-radius: 20px; border: none; outline: none; }
-        
-        /* HÄ°KAYE VIEWER */
-        #st-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 10000; flex-direction: column; }
-        #st-progress-container { display: flex; gap: 5px; padding: 10px; width: 95%; margin: 0 auto; z-index: 10001; }
-        .progress-bar { height: 3px; background: rgba(255,255,255,0.3); flex: 1; border-radius: 2px; overflow: hidden; }
-        .progress-fill { height: 100%; background: white; width: 0%; transition: width linear; }
-        
-        #st-header { display: flex; justify-content: space-between; align-items: center; padding: 0 15px; color: white; z-index: 10001; }
-        #st-content-area { flex: 1; display: flex; justify-content: center; align-items: center; position: relative; }
-        #st-media { max-width: 100%; max-height: 80vh; border-radius: 8px; }
-        
-        .tap-zone { position: absolute; top: 0; height: 100%; width: 30%; z-index: 9999; }
-        #tap-left { left: 0; }
-        #tap-right { right: 0; width: 70%; }
-
-        #st-footer { padding: 15px; color: white; text-align: center; background: linear-gradient(to top, rgba(0,0,0,0.8), transparent); }
-        
-        /* MÃ¼zik Animasyonu */
-        .music-indicator { position: absolute; top: 20px; right: 20px; font-size: 24px; animation: spin 2s linear infinite; z-index: 10001; text-shadow: 0 0 5px black; display: none; }
-        @keyframes spin { 100% { transform: rotate(360deg); } }
-
-        /* HÄ°KAYE EKLEME MODALI */
-        #creator-modal { display: none; position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index: 10002; justify-content: center; align-items: center; }
-        .creator-box { background: white; padding: 20px; border-radius: 10px; width: 300px; text-align: center; display: flex; flex-direction: column; gap: 10px; }
-        .c-btn { padding: 10px; border: 1px solid #ddd; border-radius: 5px; cursor: pointer; background: #f9f9f9; }
-        .c-btn:hover { background: #eee; }
-        .publish-btn { background: #25D366; color: white; border: none; font-weight: bold; }
-
-        /* Genel UI */
-        .del-msg { cursor: pointer; opacity: 0; margin: 0 5px; }
-        .msg:hover .del-msg { opacity: 1; }
-        .mic-anim { animation: pulse 1s infinite; color: red; }
-        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.2); } 100% { transform: scale(1); } }
-    </style>
 </head>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+
+<style>
+body { margin:0; font-family:Segoe UI; background:#e5ddd5; display:flex; height:100vh; }
+
+#side { width:280px; background:#fff; border-right:1px solid #ddd; }
+
+#main { flex:1; display:flex; flex-direction:column; }
+
+#story-bar {
+    display:flex;
+    gap:15px;
+    padding:12px;
+    background:#fff;
+    border-bottom:1px solid #ddd;
+    overflow-x:auto;
+}
+
+.st { text-align:center; cursor:pointer; min-width:70px; }
+.st img {
+    width:60px;
+    height:60px;
+    border-radius:50%;
+    border:3px solid #25D366;
+    object-fit:cover;
+}
+
+#chat-box {
+    flex:1;
+    padding:20px;
+    overflow-y:auto;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+}
+
+.msg { max-width:75%; display:flex; gap:8px; }
+.me { align-self:flex-end; flex-direction:row-reverse; }
+
+.bubble {
+    background:#fff;
+    padding:10px;
+    border-radius:10px;
+}
+
+.me .bubble { background:#dcf8c6; }
+
+.footer {
+    padding:10px;
+    background:#f0f0f0;
+    display:flex;
+    gap:10px;
+}
+
+input { flex:1; padding:10px; border-radius:20px; border:none; }
+</style>
+</head>
+
 <body>
 
-<input type="file" id="p-in" style="display:none" accept="image/*" onchange="uploadProfile(this)">
-<input type="file" id="bg-in" style="display:none" accept="image/*" onchange="changeBG(this)">
-<input type="file" id="f-in" style="display:none" accept="image/*,video/*,audio/*" onchange="uploadMessageFile(this)">
-
-<input type="file" id="create-img" style="display:none" accept="image/*,video/*" onchange="previewCreator(this)">
-<input type="file" id="create-audio" style="display:none" accept="audio/*" onchange="audioSelected(this)">
-
-<div id="side">
-    <div class="side-header">
-        <div onclick="document.getElementById('p-in').click()" style="cursor:pointer; display:flex; align-items:center; gap:10px;">
-            <img src="{{ user.avatar }}" id="my-ava" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
-            <b>{{ user.username }}</b>
-        </div>
-        <div style="display:flex; gap:15px;">
-            <span style="cursor:pointer; font-size:20px;" onclick="document.getElementById('bg-in').click()">ğŸ–¼ï¸</span>
-            <a href="/logout" style="text-decoration:none; font-size:20px;">ğŸšª</a>
-        </div>
-    </div>
-    
-    <div id="story-bar">
-        <div class="st-item" onclick="openCreator()">
-            <div class="st-circle st-ring-none" style="display:flex; align-items:center; justify-content:center; font-size:24px; color:#999;">+</div>
-            <div class="st-name">Hikaye Ekle</div>
-        </div>
-        <div id="story-list-content" style="display:flex; gap:10px;"></div>
-    </div>
-    
-    <div style="padding:10px; font-weight:bold; color:var(--green); background:#f9f9f9;">Sohbetler</div>
-    <div id="online-users" style="flex:1; overflow-y:auto;"></div>
-</div>
+<div id="side"></div>
 
 <div id="main">
-    <div class="chat-header">
-        <b>Genel Sohbet ğŸµ</b>
-    </div>
-    <div id="chat-box"></div>
-    <div class="footer">
-        <span onclick="document.getElementById('f-in').click()" style="cursor:pointer; font-size:24px;">ğŸ“</span>
-        <input type="text" id="mIn" placeholder="Mesaj yazÄ±n..." onkeydown="if(event.key==='Enter') send()">
-        <span id="mic-btn" onclick="toggleMic()" style="cursor:pointer; font-size:24px;">ğŸ¤</span>
-        <button onclick="send()" style="border:none; background:none; font-size:24px; color:var(--green); cursor:pointer;">â¤</button>
-    </div>
-</div>
 
-<div id="creator-modal" onclick="if(event.target===this) this.style.display='none'">
-    <div class="creator-box">
-        <h3>Hikaye OluÅŸtur</h3>
-        <button class="c-btn" onclick="document.getElementById('create-img').click()">1. GÃ¶rsel/Video SeÃ§ ğŸ“¸</button>
-        <div id="img-status" style="font-size:12px; color:green;"></div>
-        
-        <button class="c-btn" onclick="document.getElementById('create-audio').click()">2. MÃ¼zik Ekle (Opsiyonel) ğŸµ</button>
-        <div id="audio-status" style="font-size:12px; color:green;"></div>
-        
-        <button class="c-btn publish-btn" onclick="publishStory()">PaylaÅŸ ğŸš€</button>
-        <button class="c-btn" style="background:#f0f0f0; color:red;" onclick="document.getElementById('creator-modal').style.display='none'">Ä°ptal</button>
-    </div>
-</div>
-
-<div id="st-overlay">
-    <div id="st-progress-container"></div>
-    <div id="st-header">
-        <div style="display:flex; align-items:center; gap:10px;">
-            <img id="st-view-ava" style="width:30px; height:30px; border-radius:50%;">
-            <b id="st-view-name"></b>
+    <!-- ✅ STORY BAR ARTIK BURADA -->
+    <div id="story-bar">
+        <div class="st" onclick="openCreator()">
+            <img src="{{ user.avatar }}">
+            <div>Ekle</div>
         </div>
-        <span onclick="closeStory()" style="cursor:pointer; font-size:24px;">âœ•</span>
-    </div>
-    
-    <div class="music-indicator" id="music-icon">ğŸµ</div>
-
-    <div id="st-content-area">
-        <div id="tap-left" class="tap-zone" onclick="prevStory()"></div>
-        <div id="tap-right" class="tap-zone" onclick="nextStory()"></div>
-        <div id="st-media-container"></div>
+        <div id="story-list"></div>
     </div>
 
-    <div id="st-footer">
-        <div id="st-actions"></div>
-        <div id="st-viewers" style="font-size:12px; margin-top:5px; text-align:left;"></div>
+    <div id="chat-box"></div>
+
+    <div class="footer">
+        <input id="m" placeholder="Mesaj..." onkeydown="if(event.key==='Enter')send()">
+        <button onclick="send()">➤</button>
     </div>
 </div>
 
 <script>
-    const socket = io();
-    const myName = "{{ user.username }}";
-    
-    // DeÄŸiÅŸkenler
-    let storiesData = {};
-    let currentStoryUser = null;
-    let currentStoryIndex = 0;
-    let storyTimer = null;
-    let bgAudio = null; // Hikaye mÃ¼ziÄŸi iÃ§in
-    
-    // Creator DeÄŸiÅŸkenleri
-    let creatorImgData = null;
-    let creatorImgType = 'image';
-    let creatorAudioData = null;
+const socket = io();
+const myName = "{{ user.username }}";
 
-    // --- BAÅLANGIÃ‡ ---
-    if(localStorage.getItem('chat_bg')) document.body.style.backgroundImage = `url(${localStorage.getItem('chat_bg')})`;
+socket.emit("join", {});
 
-    // --- HÄ°KAYE OLUÅTURUCU ---
-    function openCreator() {
-        creatorImgData = null; creatorAudioData = null;
-        document.getElementById('img-status').innerText = "";
-        document.getElementById('audio-status').innerText = "";
-        document.getElementById('creator-modal').style.display = 'flex';
+function send(){
+    let i=document.getElementById("m");
+    if(i.value.trim()){
+        socket.emit("message",{msg:i.value,type:"text"});
+        i.value="";
     }
+}
 
-    function previewCreator(input) {
-        if(!input.files[0]) return;
-        const reader = new FileReader();
-        reader.onload = e => {
-            creatorImgData = e.target.result;
-            creatorImgType = input.files[0].type.includes('video') ? 'video' : 'image';
-            document.getElementById('img-status').innerText = "Dosya SeÃ§ildi âœ“";
-        };
-        reader.readAsDataURL(input.files[0]);
+socket.on("message",d=>{
+    if(document.getElementById("m"+d.id)) return;
+    let div=document.createElement("div");
+    div.className="msg "+(d.user===myName?"me":"");
+    div.id="m"+d.id;
+    div.innerHTML=`
+        <div class="bubble">
+            <b>${d.user}</b><br>${d.msg}
+        </div>`;
+    document.getElementById("chat-box").appendChild(div);
+});
+
+socket.on("story_list",data=>{
+    let bar=document.getElementById("story-list");
+    bar.innerHTML="";
+    for(let u in data){
+        let s=document.createElement("div");
+        s.className="st";
+        s.onclick=()=>alert("Hikaye Aç: "+u);
+        s.innerHTML=`<img src="${data[u].avatar}"><div>${u}</div>`;
+        bar.appendChild(s);
     }
+});
 
-    function audioSelected(input) {
-        if(!input.files[0]) return;
-        const reader = new FileReader();
-        reader.onload = e => {
-            creatorAudioData = e.target.result;
-            document.getElementById('audio-status').innerText = "MÃ¼zik Eklendi ğŸµ";
-        };
-        reader.readAsDataURL(input.files[0]);
-    }
-
-    function publishStory() {
-        if(!creatorImgData) { alert("LÃ¼tfen Ã¶nce bir gÃ¶rsel seÃ§in!"); return; }
-        socket.emit('add_story', { content: creatorImgData, type: creatorImgType, music: creatorAudioData });
-        document.getElementById('creator-modal').style.display = 'none';
-    }
-
-    // --- NORMAL UPLOADLAR ---
-    function uploadProfile(input) {
-        if(input.files[0]) {
-            const r = new FileReader();
-            r.onload = e => {
-                socket.emit('update_profile', {avatar: e.target.result});
-                document.getElementById('my-ava').src = e.target.result;
-            };
-            r.readAsDataURL(input.files[0]);
-        }
-    }
-    
-    function changeBG(input) {
-        if(input.files[0]) {
-            const r = new FileReader();
-            r.onload = e => {
-                document.body.style.backgroundImage = `url(${e.target.result})`;
-                localStorage.setItem('chat_bg', e.target.result);
-            };
-            r.readAsDataURL(input.files[0]);
-        }
-    }
-
-    function uploadMessageFile(input) {
-        if(input.files[0]) {
-            const r = new FileReader();
-            const type = input.files[0].type.includes('video') ? 'video' : (input.files[0].type.includes('audio') ? 'audio' : 'image');
-            r.onload = e => socket.emit('message', {msg: e.target.result, type: type});
-            r.readAsDataURL(input.files[0]);
-        }
-    }
-
-    // --- SOHBET ---
-    function send() {
-        const i = document.getElementById('mIn');
-        if(i.value.trim()) { socket.emit('message', {msg: i.value, type: 'text'}); i.value=''; }
-    }
-    
-    socket.on('message', d => renderMsg(d));
-    socket.on('history', list => list.forEach(d => renderMsg(d)));
-
-    function renderMsg(d) {
-        const box = document.getElementById('chat-box');
-        if(document.getElementById('msg-'+d.id)) return;
-        
-        const isMe = d.user === myName;
-        const div = document.createElement('div');
-        div.className = `msg ${isMe ? 'me' : 'not-me'}`;
-        div.id = 'msg-'+d.id;
-        
-        let content = d.msg;
-        if(d.type === 'image') content = `<img src="${d.msg}" style="max-width:100%; border-radius:8px;">`;
-        if(d.type === 'video') content = `<video src="${d.msg}" controls style="max-width:100%; border-radius:8px;"></video>`;
-        if(d.type === 'audio') content = `<audio controls src="${d.msg}" style="width:200px;"></audio>`;
-
-        div.innerHTML = `
-            ${!isMe ? `<img src="${d.avatar}" style="width:25px; height:25px; border-radius:50%;">` : ''}
-            <div class="bubble">
-                <div style="font-size:10px; font-weight:bold; color:var(--green);">${isMe ? 'Siz' : d.user}</div>
-                ${content}
-                <div style="text-align:right; font-size:9px; color:#999;">${d.time}</div>
-            </div>
-            ${isMe ? `<span class="del-msg" onclick="socket.emit('delete_message', {id:${d.id}})">ğŸ—‘ï¸</span>` : ''}
-        `;
-        box.appendChild(div);
-        box.scrollTop = box.scrollHeight;
-    }
-    
-    socket.on('message_deleted', d => document.getElementById('msg-'+d.id)?.remove());
-
-    // --- MÄ°KROFON ---
-    let mediaRec, chunks=[];
-    async function toggleMic() {
-        const btn = document.getElementById('mic-btn');
-        if (!mediaRec || mediaRec.state === "inactive") {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaRec = new MediaRecorder(stream);
-            chunks = [];
-            mediaRec.ondataavailable = e => chunks.push(e.data);
-            mediaRec.onstop = () => {
-                const blob = new Blob(chunks, { type: 'audio/webm' });
-                const r = new FileReader();
-                r.onload = e => socket.emit('message', {msg: e.target.result, type: 'audio'});
-                r.readAsDataURL(blob);
-            };
-            mediaRec.start();
-            btn.classList.add('mic-anim');
-        } else {
-            mediaRec.stop();
-            btn.classList.remove('mic-anim');
-        }
-    }
-
-    // --- HÄ°KAYE GÃ–STERÄ°MÄ° ---
-    socket.on('story_list', data => {
-        storiesData = data;
-        const bar = document.getElementById('story-list-content');
-        bar.innerHTML = '';
-        for(let user in data) {
-            if(data[user].items.length === 0) continue;
-            const item = document.createElement('div');
-            item.className = 'st-item';
-            item.onclick = () => openStory(user);
-            item.innerHTML = `<img src="${data[user].avatar}" class="st-circle st-ring"><div class="st-name">${user === myName ? 'Siz' : user}</div>`;
-            bar.appendChild(item);
-        }
-    });
-    
-    socket.on('update_user_list', users => {
-        const div = document.getElementById('online-users'); div.innerHTML = '';
-        for(let u in users) {
-            div.innerHTML += `<div style="padding:10px; border-bottom:1px solid #eee; display:flex; align-items:center; gap:10px;">
-                <img src="${users[u].avatar}" style="width:30px; height:30px; border-radius:50%; object-fit:cover;">
-                ${u}
-            </div>`;
-        }
-    });
-
-    function openStory(user) {
-        currentStoryUser = user;
-        currentStoryIndex = 0;
-        document.getElementById('st-overlay').style.display = 'flex';
-        renderStorySlide();
-    }
-
-    function renderStorySlide() {
-        clearTimeout(storyTimer);
-        if(bgAudio) { bgAudio.pause(); bgAudio = null; } // Ã–nceki sesi durdur
-        document.getElementById('music-icon').style.display = 'none';
-
-        const userStories = storiesData[currentStoryUser].items;
-        if(currentStoryIndex >= userStories.length) { closeStory(); return; }
-        
-        const story = userStories[currentStoryIndex];
-        
-        // Header
-        document.getElementById('st-view-ava').src = storiesData[currentStoryUser].avatar;
-        document.getElementById('st-view-name').innerText = currentStoryUser;
-        
-        // Progress Bars
-        const progCont = document.getElementById('st-progress-container');
-        progCont.innerHTML = '';
-        userStories.forEach((s, idx) => {
-            const bar = document.createElement('div');
-            bar.className = 'progress-bar';
-            const fill = document.createElement('div');
-            fill.className = 'progress-fill';
-            if(idx < currentStoryIndex) fill.style.width = '100%';
-            else if(idx === currentStoryIndex) fill.id = 'curr-prog';
-            bar.appendChild(fill);
-            progCont.appendChild(bar);
-        });
-
-        // Content Rendering
-        const cont = document.getElementById('st-media-container');
-        cont.innerHTML = '';
-        let mediaEl;
-        let duration = 5000; // VarsayÄ±lan sÃ¼re
-
-        if(story.type === 'video') {
-            mediaEl = document.createElement('video');
-            mediaEl.src = story.content;
-            mediaEl.autoplay = true;
-            mediaEl.id = 'st-media';
-            mediaEl.onended = nextStory;
-            // Video varsa mÃ¼ziÄŸi video sesi bastÄ±rmasÄ±n diye opsiyonel yapabiliriz ama ÅŸimdilik mÃ¼zik varsa o Ã§alar
-        } else {
-            mediaEl = document.createElement('img');
-            mediaEl.src = story.content;
-            mediaEl.id = 'st-media';
-        }
-        cont.appendChild(mediaEl);
-
-        // MÃœZÄ°K VAR MI?
-        if(story.music) {
-            bgAudio = new Audio(story.music);
-            bgAudio.play();
-            document.getElementById('music-icon').style.display = 'block'; // Ä°konu gÃ¶ster
-            
-            // SÃ¼reyi mÃ¼ziÄŸe gÃ¶re ayarla
-            bgAudio.onloadedmetadata = () => {
-                duration = bgAudio.duration * 1000;
-                startProgress(duration);
-            };
-            bgAudio.onended = nextStory;
-        } else {
-            // MÃ¼zik yoksa standart sÃ¼re (Video ise videonun sÃ¼resi)
-            if(story.type === 'video') {
-                mediaEl.onloadedmetadata = () => startProgress(mediaEl.duration * 1000);
-            } else {
-                startProgress(5000);
-                storyTimer = setTimeout(nextStory, 5000);
-            }
-        }
-
-        if(currentStoryUser !== myName) socket.emit('view_story', {id: story.id});
-
-        // Footer Actions
-        const actions = document.getElementById('st-actions');
-        const viewers = document.getElementById('st-viewers');
-        actions.innerHTML = ''; viewers.innerHTML = '';
-
-        if(currentStoryUser === myName) {
-            actions.innerHTML = `<button onclick="deleteCurrentStory(${story.id})" style="background:red; color:white; border:none; padding:5px; border-radius:5px;">ğŸ—‘ï¸ Sil</button>`;
-            viewers.innerHTML = story.viewers.length > 0 ? `ğŸ‘ï¸ ${story.viewers.join(', ')}` : 'ğŸ‘ï¸ HenÃ¼z kimse gÃ¶rmedi';
-        }
-    }
-
-    function startProgress(ms) {
-        const p = document.getElementById('curr-prog');
-        if(p) {
-            p.style.transition = 'none'; p.style.width = '0%';
-            setTimeout(() => {
-                p.style.transition = `width ${ms}ms linear`;
-                p.style.width = '100%';
-            }, 50);
-        }
-    }
-
-    function nextStory() { currentStoryIndex++; renderStorySlide(); }
-    function prevStory() { if(currentStoryIndex > 0) currentStoryIndex--; renderStorySlide(); }
-    
-    function closeStory() {
-        document.getElementById('st-overlay').style.display = 'none';
-        clearTimeout(storyTimer);
-        if(bgAudio) bgAudio.pause();
-        const v = document.querySelector('video');
-        if(v) v.pause();
-    }
-
-    function deleteCurrentStory(id) {
-        if(confirm('Silinsin mi?')) {
-            socket.emit('delete_story', {id: id});
-            closeStory();
-        }
-    }
-
-    socket.emit('join', {});
+function openCreator(){
+    alert("Hikaye ekleme modali burada açılır");
+}
 </script>
+
 </body>
 </html>
