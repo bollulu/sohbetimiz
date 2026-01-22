@@ -1,17 +1,14 @@
 <!DOCTYPE html>
-<html>
+<html lang="tr">
 <head>
-    <meta charset="UTF-8">
-    <title>Sohbet</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-</head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sohbet</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
 
 <style>
 body { margin:0; font-family:Segoe UI; background:#e5ddd5; display:flex; height:100vh; }
-
-#side { width:280px; background:#fff; border-right:1px solid #ddd; }
-
+#side { width:260px; background:#fff; border-right:1px solid #ddd; }
 #main { flex:1; display:flex; flex-direction:column; }
 
 #story-bar {
@@ -23,8 +20,12 @@ body { margin:0; font-family:Segoe UI; background:#e5ddd5; display:flex; height:
     overflow-x:auto;
 }
 
-.st { text-align:center; cursor:pointer; min-width:70px; }
-.st img {
+.story {
+    text-align:center;
+    cursor:pointer;
+    min-width:70px;
+}
+.story img {
     width:60px;
     height:60px;
     border-radius:50%;
@@ -34,14 +35,14 @@ body { margin:0; font-family:Segoe UI; background:#e5ddd5; display:flex; height:
 
 #chat-box {
     flex:1;
-    padding:20px;
+    padding:15px;
     overflow-y:auto;
     display:flex;
     flex-direction:column;
-    gap:10px;
+    gap:8px;
 }
 
-.msg { max-width:75%; display:flex; gap:8px; }
+.msg { max-width:70%; display:flex; gap:6px; }
 .me { align-self:flex-end; flex-direction:row-reverse; }
 
 .bubble {
@@ -49,7 +50,6 @@ body { margin:0; font-family:Segoe UI; background:#e5ddd5; display:flex; height:
     padding:10px;
     border-radius:10px;
 }
-
 .me .bubble { background:#dcf8c6; }
 
 .footer {
@@ -58,7 +58,6 @@ body { margin:0; font-family:Segoe UI; background:#e5ddd5; display:flex; height:
     display:flex;
     gap:10px;
 }
-
 input { flex:1; padding:10px; border-radius:20px; border:none; }
 </style>
 </head>
@@ -69,63 +68,84 @@ input { flex:1; padding:10px; border-radius:20px; border:none; }
 
 <div id="main">
 
-    <!-- ✅ STORY BAR ARTIK BURADA -->
+    <!-- 🔥 STORY ORTA PANEL ÜSTÜ -->
     <div id="story-bar">
-        <div class="st" onclick="openCreator()">
+        <div class="story" onclick="addStory()">
             <img src="{{ user.avatar }}">
             <div>Ekle</div>
         </div>
-        <div id="story-list"></div>
+        <div id="stories"></div>
     </div>
 
     <div id="chat-box"></div>
 
     <div class="footer">
-        <input id="m" placeholder="Mesaj..." onkeydown="if(event.key==='Enter')send()">
+        <input id="msg" placeholder="Mesaj yaz… İstanbul, ŞĞÜİÖÇ">
         <button onclick="send()">➤</button>
     </div>
 </div>
+
+<input type="file" id="storyInput" accept="image/*" hidden>
 
 <script>
 const socket = io();
 const myName = "{{ user.username }}";
 
-socket.emit("join", {});
+socket.emit("join",{});
 
 function send(){
-    let i=document.getElementById("m");
+    const i=document.getElementById("msg");
     if(i.value.trim()){
         socket.emit("message",{msg:i.value,type:"text"});
         i.value="";
     }
 }
 
-socket.on("message",d=>{
+socket.on("history",list=>list.forEach(renderMsg));
+socket.on("message",renderMsg);
+
+function renderMsg(d){
     if(document.getElementById("m"+d.id)) return;
-    let div=document.createElement("div");
+    const div=document.createElement("div");
     div.className="msg "+(d.user===myName?"me":"");
     div.id="m"+d.id;
     div.innerHTML=`
         <div class="bubble">
             <b>${d.user}</b><br>${d.msg}
+            <div style="font-size:10px;text-align:right">${d.time}</div>
         </div>`;
     document.getElementById("chat-box").appendChild(div);
-});
+}
 
 socket.on("story_list",data=>{
-    let bar=document.getElementById("story-list");
-    bar.innerHTML="";
+    const box=document.getElementById("stories");
+    box.innerHTML="";
     for(let u in data){
-        let s=document.createElement("div");
-        s.className="st";
-        s.onclick=()=>alert("Hikaye Aç: "+u);
+        const s=document.createElement("div");
+        s.className="story";
+        s.onclick=()=>openStory(data[u].items[0].id);
         s.innerHTML=`<img src="${data[u].avatar}"><div>${u}</div>`;
-        bar.appendChild(s);
+        box.appendChild(s);
     }
 });
 
-function openCreator(){
-    alert("Hikaye ekleme modali burada açılır");
+function addStory(){
+    document.getElementById("storyInput").click();
+}
+
+document.getElementById("storyInput").onchange=function(){
+    const f=this.files[0];
+    if(!f) return;
+    const r=new FileReader();
+    r.onload=e=>{
+        socket.emit("add_story",{content:e.target.result,type:"image"});
+    };
+    r.readAsDataURL(f);
+};
+
+function openStory(id){
+    socket.emit("view_story",{id:id});
+    alert("Hikâye açıldı");
 }
 </script>
 
