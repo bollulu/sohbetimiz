@@ -12,7 +12,7 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'wa_ultra_music_v12'
 basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'database.db')
-app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024 * 1024  # 1GB Limit
+app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024 * 1024  # 1GB Dosya Limiti
 
 db = SQLAlchemy(app)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent', max_http_buffer_size=1024 * 1024 * 1024)
@@ -31,16 +31,16 @@ class Message(db.Model):
     user_avatar = db.Column(db.Text)
     content = db.Column(db.Text)
     msg_type = db.Column(db.String(20)) 
-    timestamp = db.Column(db.String(10))
+    timestamp = db.Column(db.String(20))
     room = db.Column(db.String(50), default='Genel')
 
 class Story(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50))
     user_avatar = db.Column(db.Text)
-    content = db.Column(db.Text)       # Görsel veya Video verisi
-    audio_data = db.Column(db.Text)    # Arka plan müziği (Varsa)
-    media_type = db.Column(db.String(20)) # image, video
+    content = db.Column(db.Text)       # Görsel/Video Base64
+    audio_data = db.Column(db.Text)    # Müzik Base64
+    media_type = db.Column(db.String(20)) 
     viewers = db.Column(db.Text, default='[]')
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -57,8 +57,7 @@ def load_user(user_id):
 
 # --- ROTALAR ---
 @app.route('/')
-def index(): 
-    return redirect(url_for('login'))
+def index(): return redirect(url_for('login'))
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -86,8 +85,11 @@ def register():
 
 @app.route('/chat')
 @login_required
-def chat(): 
-    return render_template('chat.html', user=current_user)
+def chat(): return render_template('chat.html', user=current_user)
+
+@app.route('/live')
+@login_required
+def live(): return render_template('live.html', user=current_user)
 
 @app.route('/logout')
 def logout(): 
@@ -95,6 +97,10 @@ def logout():
     return redirect(url_for('login'))
 
 # --- SOCKET EVENTLERİ ---
+@socketio.on('connect')
+def on_connect():
+    if current_user.is_authenticated:
+        emit('update_user_list', get_online_users(), broadcast=True)
 
 @socketio.on('join')
 def on_join(data):
@@ -103,17 +109,17 @@ def on_join(data):
     msgs = Message.query.filter_by(room='Genel').all()
     history = [{'id':m.id, 'user':m.username,'avatar':m.user_avatar,'msg':m.content,'type':m.msg_type,'time':m.timestamp} for m in msgs]
     emit('history', history)
-    # Hikayeleri ve kullanıcıları yükle
     send_stories()
     emit('update_user_list', get_online_users(), broadcast=True)
 
 @socketio.on('message')
 def handle_msg(data):
-    now = datetime.now().strftime("%H:%M")
-    msg = Message(username=current_user.username, user_avatar=current_user.avatar, content=data['msg'], msg_type=data.get('type','text'), timestamp=now)
+    # Basit bir saat formatı
+    now_str = datetime.now().strftime("%d.%m %H:%M")
+    msg = Message(username=current_user.username, user_avatar=current_user.avatar, content=data['msg'], msg_type=data.get('type','text'), timestamp=now_str)
     db.session.add(msg)
     db.session.commit()
-    emit('message', {'id':msg.id, 'user':current_user.username,'avatar':current_user.avatar,'msg':data['msg'],'type':msg.msg_type,'time':now}, broadcast=True)
+    emit('message', {'id':msg.id, 'user':current_user.username,'avatar':current_user.avatar,'msg':data['msg'],'type':msg.msg_type,'time':now_str}, broadcast=True)
 
 @socketio.on('delete_message')
 def delete_msg(data):
@@ -123,6 +129,7 @@ def delete_msg(data):
         db.session.commit()
         emit('message_deleted', {'id': data['id']}, broadcast=True)
 
+# --- HİKAYE YÖNETİMİ ---
 @socketio.on('add_story')
 def add_story(data):
     new_story = Story(
@@ -130,7 +137,7 @@ def add_story(data):
         user_avatar=current_user.avatar, 
         content=data['content'],
         audio_data=data.get('music'), 
-        media_type=data['type'],
+        media_type=data.get('type', 'image'),
         viewers='[]'
     )
     db.session.add(new_story)
@@ -154,18 +161,29 @@ def view_story(data):
             viewers.append(current_user.username)
             story.viewers = json.dumps(viewers)
             db.session.commit()
-            send_stories()
+            send_stories() # Canlı izlenme güncellemesi için
 
 @socketio.on('update_profile')
 def update_profile(data):
     user = db.session.get(User, current_user.id)
     user.avatar = data['avatar']
-    # Eski mesaj ve hikayelerdeki avatarları güncellemek isterseniz burada opsiyonel query yapabilirsiniz
-    Story.query.filter_by(username=current_user.username).update({"user_avatar": data['avatar']})
-    Message.query.filter_by(username=current_user.username).update({"user_avatar": data['avatar']})
+    
+    # Geçmiş tüm mesaj ve hikayelerdeki avatarı güncelle (HER YERDE DEĞİŞSİN)
+    Message.query.filter_by(username=current_user.username).update({'user_avatar': data['avatar']})
+    Story.query.filter_by(username=current_user.username).update({'user_avatar': data['avatar']})
+    
     db.session.commit()
-    send_stories()
+    
+    send_stories() # Hikaye ikonlarını güncelle
+    # Mesaj ekranını yenilemek için sayfayı yenilemeye zorlayabiliriz veya event atabiliriz
+    # Basitlik için user list update atıyoruz, client tarafında mesajları da güncelleyebiliriz
     emit('update_user_list', get_online_users(), broadcast=True)
+    emit('force_avatar_update', {'username': current_user.username, 'avatar': data['avatar']}, broadcast=True)
+
+# --- WEBRTC SIGNALING (CANLI GÖRÜŞME) ---
+@socketio.on('signal')
+def signal_handler(data):
+    emit('signal', data, broadcast=True, include_self=False)
 
 # --- YARDIMCI FONKSİYONLAR ---
 def send_stories():
@@ -185,7 +203,14 @@ def send_stories():
     emit('story_list', grouped, broadcast=True)
 
 def get_online_users():
-    return {u.username: {'avatar': u.avatar} for u in User.query.all()}
+    # Burada online durumu veritabanından değil, kayıtlı kullanıcılardan çekiyoruz.
+    # Gerçek bir canlı/çevrimdışı sistemi için Redis veya aktif session takibi gerekir.
+    # Şimdilik tüm kayıtlı kullanıcıları listeliyoruz.
+    users = User.query.all()
+    u_list = {}
+    for u in users:
+        u_list[u.username] = {'avatar': u.avatar}
+    return u_list
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=10000)
