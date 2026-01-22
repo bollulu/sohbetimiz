@@ -10,6 +10,7 @@ from datetime import datetime
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'wa_ultra_music_v12'
+app.config['JSON_AS_ASCII'] = False   # ✅ TÜRKÇE KARAKTER ÇÖZÜMÜ
 basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'database.db')
 app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024 * 1024
@@ -19,10 +20,11 @@ socketio = SocketIO(
     app,
     cors_allowed_origins="*",
     async_mode="gevent",
-    max_http_buffer_size=1024 * 1024 * 1024
+    max_http_buffer_size=1024 * 1024 * 1024,
+    json=json
 )
 
-# ===================== MODELS =====================
+# ================= MODELS =================
 
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -38,7 +40,6 @@ class Message(db.Model):
     content = db.Column(db.Text)
     msg_type = db.Column(db.String(20))
     timestamp = db.Column(db.String(10))
-    room = db.Column(db.String(50), default="Genel")
 
 class Story(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -53,7 +54,7 @@ class Story(db.Model):
 with app.app_context():
     db.create_all()
 
-# ===================== LOGIN =====================
+# ================= LOGIN =================
 
 login_manager = LoginManager(app)
 login_manager.login_view = "login"
@@ -62,7 +63,7 @@ login_manager.login_view = "login"
 def load_user(user_id):
     return db.session.get(User, int(user_id))
 
-# ===================== ROUTES =====================
+# ================= ROUTES =================
 
 @app.route("/")
 def index():
@@ -71,9 +72,9 @@ def index():
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        user = User.query.filter_by(username=request.form.get("username")).first()
-        if user and user.password == request.form.get("password"):
-            login_user(user)
+        u = User.query.filter_by(username=request.form.get("username")).first()
+        if u and u.password == request.form.get("password"):
+            login_user(u)
             return redirect(url_for("chat"))
     return render_template("login.html")
 
@@ -81,9 +82,7 @@ def login():
 def register():
     if request.method == "POST":
         if not User.query.filter_by(username=request.form.get("username")).first():
-            avatar = request.form.get("avatar_data")
-            if not avatar:
-                avatar = "https://www.w3schools.com/howto/img_avatar.png"
+            avatar = request.form.get("avatar_data") or "https://www.w3schools.com/howto/img_avatar.png"
             u = User(
                 username=request.form.get("username"),
                 password=request.form.get("password"),
@@ -105,13 +104,13 @@ def logout():
     logout_user()
     return redirect(url_for("login"))
 
-# ===================== SOCKET =====================
+# ================= SOCKET =================
 
 @socketio.on("join")
 def join(data):
     join_room("Genel")
     msgs = Message.query.all()
-    emit("history", [
+    emit("history", json.loads(json.dumps([
         {
             "id": m.id,
             "user": m.username,
@@ -120,9 +119,8 @@ def join(data):
             "type": m.msg_type,
             "time": m.timestamp
         } for m in msgs
-    ])
+    ], ensure_ascii=False)))
     send_stories()
-    emit("update_user_list", get_users(), broadcast=True)
 
 @socketio.on("message")
 def message(data):
@@ -136,14 +134,15 @@ def message(data):
     )
     db.session.add(m)
     db.session.commit()
-    emit("message", {
+
+    emit("message", json.loads(json.dumps({
         "id": m.id,
         "user": m.username,
         "avatar": m.user_avatar,
         "msg": m.content,
         "type": m.msg_type,
         "time": now
-    }, broadcast=True)
+    }, ensure_ascii=False)), broadcast=True)
 
 @socketio.on("add_story")
 def add_story(data):
@@ -158,33 +157,11 @@ def add_story(data):
     db.session.commit()
     send_stories()
 
-@socketio.on("delete_story")
-def delete_story(data):
-    s = db.session.get(Story, data["id"])
-    if s and s.username == current_user.username:
-        db.session.delete(s)
-        db.session.commit()
-        send_stories()
-
-@socketio.on("view_story")
-def view_story(data):
-    s = db.session.get(Story, data["id"])
-    if s:
-        viewers = json.loads(s.viewers)
-        if current_user.username not in viewers:
-            viewers.append(current_user.username)
-            s.viewers = json.dumps(viewers)
-            db.session.commit()
-            send_stories()
-
 def send_stories():
     stories = Story.query.all()
     data = {}
     for s in stories:
-        data.setdefault(s.username, {
-            "avatar": s.user_avatar,
-            "items": []
-        })
+        data.setdefault(s.username, {"avatar": s.user_avatar, "items": []})
         data[s.username]["items"].append({
             "id": s.id,
             "content": s.content,
@@ -192,14 +169,7 @@ def send_stories():
             "type": s.media_type,
             "viewers": json.loads(s.viewers)
         })
-    emit("story_list", data, broadcast=True)
-
-def get_users():
-    return {u.username: {"avatar": u.avatar} for u in User.query.all()}
+    emit("story_list", json.loads(json.dumps(data, ensure_ascii=False)), broadcast=True)
 
 if __name__ == "__main__":
-    socketio.run(
-        app,
-        host="0.0.0.0",
-        port=int(os.environ.get("PORT", 10000))
-    )
+    socketio.run(app, host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
