@@ -2,40 +2,34 @@ from gevent import monkey
 monkey.patch_all()
 
 import os, json
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_socketio import SocketIO, emit
 from datetime import datetime
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'ultra_fast_wa_2026'
+app.config['SECRET_KEY'] = 'ultra_wa_v2_2026'
 basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'database.db')
-app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024 # 100MB Limit
+app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024 # 100MB
 
 db = SQLAlchemy(app)
-socketio = SocketIO(app, 
-    cors_allowed_origins="*", 
-    async_mode='gevent', 
-    max_http_buffer_size=100 * 1024 * 1024,
-    ping_timeout=60,
-    ping_interval=25
-)
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent', max_http_buffer_size=100 * 1024 * 1024)
 
-# --- VERİTABANI MODELLERİ ---
+# --- MODELLER ---
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True)
     password = db.Column(db.String(100))
-    avatar = db.Column(db.Text)
+    avatar = db.Column(db.Text) # Base64 profil resmi
 
 class Message(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50))
     user_avatar = db.Column(db.Text)
     content = db.Column(db.Text)
-    msg_type = db.Column(db.String(20))
+    msg_type = db.Column(db.String(20)) # text, image, video
     timestamp = db.Column(db.String(20))
 
 class Story(db.Model):
@@ -43,27 +37,20 @@ class Story(db.Model):
     username = db.Column(db.String(50))
     user_avatar = db.Column(db.Text)
     content = db.Column(db.Text)
-    audio_data = db.Column(db.Text)
     media_type = db.Column(db.String(20))
     viewers = db.Column(db.Text, default='[]')
 
 with app.app_context():
     db.create_all()
 
-# --- LOGIN YÖNETİMİ ---
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
-
 @login_manager.user_loader
-def load_user(id):
-    return db.session.get(User, int(id))
+def load_user(id): return db.session.get(User, int(id))
 
-# --- SAYFA YÖNLENDİRMELERİ (ROUTES) ---
-
+# --- ROUTES ---
 @app.route('/')
-def index():
-    # Ana sayfaya girince direkt chat'e yönlendir (giriş yapılmamışsa login'e atar)
-    return redirect(url_for('chat'))
+def index(): return redirect(url_for('chat'))
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -77,54 +64,62 @@ def login():
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        # Kullanıcı adı kontrolü
-        existing_user = User.query.filter_by(username=request.form['username']).first()
-        if existing_user:
-            return "Bu kullanıcı adı zaten alınmış!", 400
-        
         new_user = User(
             username=request.form['username'],
             password=request.form['password'],
-            avatar=request.form.get('avatar', '') # Boş gelirse hata vermemesi için
+            avatar=request.form.get('avatar_data', '') # Profil resmi kaydediliyor
         )
         db.session.add(new_user)
         db.session.commit()
         return redirect(url_for('login'))
     return render_template('register.html')
 
-@app.route('/logout')
-@login_required
-def logout():
-    logout_user()
-    return redirect(url_for('login'))
-
 @app.route('/chat')
 @login_required
 def chat():
-    # Son 50 mesajı çek
     msgs = Message.query.order_by(Message.id.desc()).limit(50).all()
-    return render_template('chat.html', 
-                           user=current_user, 
-                           initial_msgs=reversed(list(msgs)), 
-                           stories=get_grouped_stories())
+    return render_template('chat.html', user=current_user, initial_msgs=reversed(list(msgs)))
 
-# --- SOCKET.IO ETKİNLİKLERİ ---
+@app.route('/live')
+@login_required
+def live(): return render_template('live.html', user=current_user)
+
+@app.route('/logout')
+def logout(): logout_user(); return redirect(url_for('login'))
+
+# --- SOCKETS ---
+online_users = {}
+
+@socketio.on('connect')
+def connect():
+    if current_user.is_authenticated:
+        online_users[current_user.username] = {
+            "avatar": current_user.avatar,
+            "id": request.sid
+        }
+        emit('update_user_list', online_users, broadcast=True)
+
+@socketio.on('disconnect')
+def disconnect():
+    if current_user.is_authenticated:
+        online_users.pop(current_user.username, None)
+        emit('update_user_list', online_users, broadcast=True)
 
 @socketio.on('message')
 def handle_msg(data):
     time_str = datetime.now().strftime("%H:%M")
-    new_msg = Message(
+    msg = Message(
         username=current_user.username,
         user_avatar=current_user.avatar,
         content=data['msg'],
         msg_type=data.get('type', 'text'),
         timestamp=time_str
     )
-    db.session.add(new_msg)
+    db.session.add(msg)
     db.session.commit()
     emit('new_message', {
-        'id': new_msg.id, 'user': new_msg.username, 'avatar': new_msg.user_avatar,
-        'msg': new_msg.content, 'type': new_msg.msg_type, 'time': new_msg.timestamp
+        'id': msg.id, 'user': msg.username, 'avatar': msg.user_avatar,
+        'msg': msg.content, 'type': msg.msg_type, 'time': msg.timestamp
     }, broadcast=True)
 
 @socketio.on('update_profile')
@@ -132,19 +127,10 @@ def update_profile(data):
     user = db.session.get(User, current_user.id)
     user.avatar = data['avatar']
     Message.query.filter_by(username=user.username).update({'user_avatar': data['avatar']})
-    Story.query.filter_by(username=user.username).update({'user_avatar': data['avatar']})
     db.session.commit()
+    online_users[user.username]['avatar'] = data['avatar']
     emit('profile_sync', {'username': user.username, 'avatar': data['avatar']}, broadcast=True)
-
-@socketio.on('add_story')
-def add_story(data):
-    story = Story(
-        username=current_user.username, user_avatar=current_user.avatar,
-        content=data['content'], audio_data=data.get('music'), media_type=data.get('type')
-    )
-    db.session.add(story)
-    db.session.commit()
-    emit('story_refresh', get_grouped_stories(), broadcast=True)
+    emit('update_user_list', online_users, broadcast=True)
 
 @socketio.on('delete_message')
 def del_msg(data):
@@ -154,17 +140,26 @@ def del_msg(data):
         db.session.commit()
         emit('message_deleted', {'id': data['id']}, broadcast=True)
 
-def get_grouped_stories():
+# WebRTC Signaling
+@socketio.on('signal')
+def handle_signal(data):
+    emit('signal', data, broadcast=True, include_self=False)
+
+@socketio.on('get_stories')
+def send_stories():
     stories = Story.query.all()
     grouped = {}
     for s in stories:
         if s.username not in grouped: grouped[s.username] = {'avatar': s.user_avatar, 'items': []}
-        grouped[s.username]['items'].append({
-            'id': s.id, 'content': s.content, 'music': s.audio_data, 
-            'type': s.media_type, 'viewers': json.loads(s.viewers)
-        })
-    return grouped
+        grouped[s.username]['items'].append({'id': s.id, 'content': s.content, 'type': s.media_type})
+    emit('receive_stories', grouped)
+
+@socketio.on('add_story')
+def add_story(data):
+    s = Story(username=current_user.username, user_avatar=current_user.avatar, content=data['content'], media_type=data['type'])
+    db.session.add(s)
+    db.session.commit()
+    send_stories()
 
 if __name__ == '__main__':
-    # Render portu için 10000 varsayılandır
     socketio.run(app, host='0.0.0.0', port=10000)
