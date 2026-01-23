@@ -1,307 +1,89 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>WhatsApp Ultra Pro</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kayıt Ol</title>
     <style>
-        :root { --main: #075e54; --light: #25D366; --bg: #e5ddd5; }
-        body { margin:0; display:flex; height:100vh; font-family:sans-serif; overflow:hidden; background:#111; }
-        
-        #side { width:320px; background:white; border-right:1px solid #ddd; display:flex; flex-direction:column; z-index:10; }
-        .side-header { background: var(--main); color:white; padding:15px; display:flex; justify-content:space-between; align-items:center; }
-        
-        #main { flex:1; display:flex; flex-direction:column; position:relative; background-color: var(--bg); background-size: cover; background-position: center; }
-        
-        /* Hikaye */
-        #story-area { height:110px; background:white; border-bottom:1px solid #ddd; display:flex; align-items:center; padding:0 15px; gap:15px; overflow-x:auto; }
-        .st-item { text-align:center; cursor:pointer; position:relative; min-width:70px; }
-        .st-item img { width:60px; height:60px; border-radius:50%; border:3px solid var(--light); padding:2px; object-fit:cover; }
-        
-        /* Mesajlar */
-        #chat-box { flex:1; overflow-y:auto; padding:20px; display:flex; flex-direction:column; gap:12px; }
-        .msg { display:flex; gap:10px; max-width:80%; align-items: flex-end; }
-        .msg.me { align-self:flex-end; flex-direction:row-reverse; }
-        .bubble { background:white; padding:10px; border-radius:15px; box-shadow:0 1px 2px rgba(0,0,0,0.1); }
-        .me .bubble { background:#dcf8c6; }
-        .avatar-chat { width:35px; height:35px; border-radius:50%; object-fit:cover; }
-
-        footer { padding:10px; background:#f0f0f0; display:flex; gap:10px; align-items:center; }
-        #mIn { flex:1; padding:12px; border-radius:25px; border:none; outline:none; }
-
-        /* Story Viewer Gelişmiş */
-        #story-viewer { display:none; position:fixed; inset:0; background:black; z-index:20000; flex-direction:column; align-items:center; justify-content:center; }
-        #st-frame { width:100%; max-width:450px; height:100%; position:relative; display:flex; align-items:center; justify-content:center; }
-        #st-img, #st-vid { width:100%; max-height:100vh; object-fit:contain; }
-        
-        #st-nav-left, #st-nav-right { position:absolute; top:0; height:100%; width:30%; z-index:20001; cursor:pointer; }
-        #st-nav-left { left:0; } #st-nav-right { right:0; }
-        
-        #st-progress-container { position:absolute; top:10px; left:10px; right:10px; display:flex; gap:5px; height:3px; z-index:20002; }
-        .st-bar-bg { flex:1; background:rgba(255,255,255,0.3); border-radius:2px; overflow:hidden; }
-        .st-bar-fill { width:0%; height:100%; background:white; transition: width linear; }
-        
-        #st-views-info { position:absolute; bottom:20px; color:white; background:rgba(0,0,0,0.5); padding:5px 15px; border-radius:20px; font-size:13px; z-index:20003; cursor:pointer; }
-
-        /* Kamera Modal */
-        .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:30000; flex-direction:column; align-items:center; justify-content:center; color:white; }
-        #cam-preview { width:90%; max-width:400px; border-radius:15px; }
+        body { font-family: sans-serif; background: #e5ddd5; display: flex; justify-content: center; align-items: center; height: 100vh; margin:0; }
+        .card { background: white; padding: 25px; border-radius: 15px; width: 90%; max-width: 350px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+        input, select { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing:border-box; }
+        #preview { width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid #25D366; margin: 10px auto; display: block; }
+        .btn-group { display:flex; gap:5px; margin-bottom:10px; }
+        .btn-act { flex:1; padding:8px; border:none; border-radius:5px; cursor:pointer; background:#eee; }
+        #cam-area { display:none; background:#000; margin-bottom:10px; border-radius:10px; overflow:hidden; }
+        video { width:100%; }
+        .submit-btn { width:100%; padding:15px; background:#075e54; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer; }
     </style>
 </head>
 <body>
-
-<div id="side">
-    <div class="side-header">
-        <b>Aktif Üyeler</b>
-        <button onclick="location.href='/logout'" style="background:none; border:none; color:white; cursor:pointer; font-size:18px;">🚪</button>
-    </div>
-    <div style="padding:10px; background:#f9f9f9; display:flex; align-items:center; gap:10px;">
-        <img src="{{ user.avatar }}" id="my-ava" class="avatar-chat user-avatar-{{ user.username }}">
-        <b>Siz ({{ user.username }})</b>
-    </div>
-    <div id="online-list" style="flex:1; overflow-y:auto;"></div>
-    <div style="padding:15px; border-top:1px solid #ddd; display:flex; flex-wrap:wrap; gap:5px;">
-        <button onclick="openCam('avatar')">📷 Profil Çek</button>
-        <button onclick="document.getElementById('bg-in').click()">🖼️ Arka Plan</button>
-        <button onclick="document.getElementById('profile-in').click()">📁 Profil Yükle</button>
-    </div>
-</div>
-
-<div id="main" style="background-image: url('{{ user.bg_image }}');">
-    <div id="story-area">
-        <div class="st-item" onclick="showStoryOptions()">
-            <div style="width:60px; height:60px; border-radius:50%; background:#eee; display:flex; align-items:center; justify-content:center; font-size:30px;">+</div>
-            <span style="font-size:12px;">Ekle</span>
-        </div>
-        <div id="st-list" style="display:flex; gap:15px;"></div>
-    </div>
-    <div id="chat-box"></div>
-    <footer>
-        <button onclick="document.getElementById('file-in').click()" style="font-size:22px; border:none; background:none; cursor:pointer;">📎</button>
-        <button id="mic-btn" onclick="toggleMic()" style="font-size:22px; border:none; background:none; cursor:pointer;">🎤</button>
-        <input type="text" id="mIn" placeholder="Mesaj yaz..." onkeypress="if(event.key==='Enter') send()">
-        <button onclick="send()" style="font-size:22px; border:none; background:none; cursor:pointer;">🚀</button>
-    </footer>
-</div>
-
-<div id="story-viewer">
-    <div id="st-progress-container"></div>
-    <div id="st-nav-left" onclick="prevStory()"></div>
-    <div id="st-nav-right" onclick="nextStory()"></div>
-    <div id="st-frame">
-        <img id="st-img">
-        <video id="st-vid" autoplay playsinline></video>
-        <audio id="st-audio" autoplay></audio>
-        <div id="st-views-info" onclick="showViewers()">👁️ <span id="view-count">0</span></div>
-    </div>
-    <div style="position:absolute; top:20px; right:20px; color:white; font-size:30px; cursor:pointer; z-index:20005;" onclick="closeStory()">×</div>
-</div>
-
-<div id="cam-modal" class="modal">
-    <video id="cam-preview" autoplay playsinline></video>
-    <div style="margin-top:20px; display:flex; gap:15px;">
-        <button onclick="capturePhoto()" style="padding:15px 30px; border-radius:30px; border:none; background:var(--light); font-weight:bold;">📸 Çek</button>
-        <button onclick="closeCam()" style="padding:15px 30px; border-radius:30px; border:none; background:red; color:white;">İptal</button>
-    </div>
-</div>
-
-<input type="file" id="profile-in" hidden onchange="uploadMedia(this, 'avatar')">
-<input type="file" id="bg-in" hidden onchange="uploadMedia(this, 'bg')">
-<input type="file" id="file-in" hidden onchange="uploadMedia(this, 'msg')">
-<input type="file" id="story-in" hidden onchange="uploadMedia(this, 'story')">
-<input type="file" id="audio-in" hidden onchange="addMusicToStory(this)">
-
-<script>
-    const socket = io();
-    const myUser = "{{ user.username }}";
-    let storyData = {}, activeUser = "", activeIdx = 0, storyTimer;
-    let camTarget = ""; // 'avatar' veya 'story'
-
-    // --- PROFİL & ARKA PLAN ---
-    function uploadMedia(input, type) {
-        const file = input.files[0];
-        if(!file) return;
-        const reader = new FileReader();
-        reader.onload = e => {
-            const data = e.target.result;
-            if(type === 'avatar') socket.emit('update_avatar', {avatar: data});
-            if(type === 'bg') { 
-                document.getElementById('main').style.backgroundImage = `url(${data})`;
-                socket.emit('update_bg', {bg: data});
-            }
-            if(type === 'msg') {
-                let mType = file.type.startsWith('video') ? 'video' : (file.type.startsWith('image') ? 'image' : 'text');
-                socket.emit('send_msg', {content: data, type: mType});
-            }
-            if(type === 'story') {
-                let sType = file.type.startsWith('video') ? 'video' : 'image';
-                if(confirm("Müzik eklemek ister misiniz?")) {
-                    pendingStory = {content: data, type: sType};
-                    document.getElementById('audio-in').click();
-                } else {
-                    socket.emit('add_story', {content: data, type: sType});
-                }
-            }
-        };
-        reader.readAsDataURL(file);
-    }
-
-    let pendingStory = null;
-    function addMusicToStory(input) {
-        const reader = new FileReader();
-        reader.onload = e => {
-            pendingStory.audio = e.target.result;
-            socket.emit('add_story', pendingStory);
-        };
-        reader.readAsDataURL(input.files[0]);
-    }
-
-    // --- KAMERA MODAL (Madde 5) ---
-    let stream;
-    async function openCam(target) {
-        camTarget = target;
-        document.getElementById('cam-modal').style.display = 'flex';
-        stream = await navigator.mediaDevices.getUserMedia({video:true});
-        document.getElementById('cam-preview').srcObject = stream;
-    }
-    function capturePhoto() {
-        const canvas = document.createElement('canvas');
-        const video = document.getElementById('cam-preview');
-        canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-        canvas.getContext('2d').drawImage(video, 0, 0);
-        const data = canvas.toDataURL('image/jpeg');
-        if(camTarget === 'avatar') socket.emit('update_avatar', {avatar: data});
-        if(camTarget === 'story') socket.emit('add_story', {content: data, type: 'image'});
-        closeCam();
-    }
-    function closeCam() {
-        document.getElementById('cam-modal').style.display = 'none';
-        stream.getTracks().forEach(t => t.stop());
-    }
-
-    // --- HİKAYE SİSTEMİ (Madde 7, 8, 10, 11) ---
-    function showStoryOptions() {
-        const choice = confirm("Kamera ile mi çekilsin? (İptal = Dosya Seç)");
-        if(choice) openCam('story'); else document.getElementById('story-in').click();
-    }
-
-    socket.on('all_stories', data => {
-        storyData = data;
-        let html = "";
-        for(let u in data) {
-            html += `<div class="st-item" onclick="openStory('${u}')">
-                <img src="${data[u][0].avatar}" class="user-avatar-${u}">
-                <div style="font-size:11px;">${u === myUser ? 'Siz' : u}</div>
-            </div>`;
-        }
-        document.getElementById('st-list').innerHTML = html;
-    });
-
-    function openStory(user) {
-        activeUser = user; activeIdx = 0;
-        document.getElementById('story-viewer').style.display = 'flex';
-        renderStory();
-    }
-
-    function renderStory() {
-        const list = storyData[activeUser];
-        if(!list || activeIdx >= list.length) { closeStory(); return; }
-        const s = list[activeIdx];
-        
-        socket.emit('view_story', {id: s.id}); // İzleme kaydı
-
-        const img = document.getElementById('st-img');
-        const vid = document.getElementById('st-vid');
-        const aud = document.getElementById('st-audio');
-        
-        img.style.display = s.type === 'image' ? 'block' : 'none';
-        vid.style.display = s.type === 'video' ? 'block' : 'none';
-        
-        if(s.type === 'image') img.src = s.content; else vid.src = s.content;
-        aud.src = s.audio || "";
-
-        document.getElementById('view-count').innerText = s.views.length;
-
-        // Progress Bar (Madde 11)
-        let progHtml = "";
-        for(let i=0; i<list.length; i++) {
-            progHtml += `<div class="st-bar-bg"><div id="bar-${i}" class="st-bar-fill"></div></div>`;
-        }
-        document.getElementById('st-progress-container').innerHTML = progHtml;
-        
-        // Önceki barları doldur
-        for(let i=0; i<activeIdx; i++) document.getElementById(`bar-${i}`).style.width = '100%';
-
-        clearTimeout(storyTimer);
-        let currentBar = document.getElementById(`bar-${activeIdx}`);
-        currentBar.style.transition = 'none';
-        currentBar.style.width = '0%';
-        
-        setTimeout(() => {
-            currentBar.style.transition = 'width 5s linear';
-            currentBar.style.width = '100%';
-        }, 50);
-
-        storyTimer = setTimeout(nextStory, 5000);
-    }
-
-    function nextStory() { activeIdx++; renderStory(); }
-    function prevStory() { if(activeIdx > 0) activeIdx--; renderStory(); }
-    function closeStory() {
-        document.getElementById('story-viewer').style.display = 'none';
-        document.getElementById('st-vid').pause();
-        document.getElementById('st-audio').pause();
-        clearTimeout(storyTimer);
-    }
-
-    function showViewers() {
-        const s = storyData[activeUser][activeIdx];
-        alert("Görenler: " + (s.views.length > 0 ? s.views.join(", ") : "Henüz kimse görmedi."));
-    }
-
-    // Klavye Kontrolü (Madde 7)
-    window.addEventListener('keydown', e => {
-        if(document.getElementById('story-viewer').style.display === 'flex') {
-            if(e.key === 'ArrowRight') nextStory();
-            if(e.key === 'ArrowLeft') prevStory();
-            if(e.key === 'Escape') closeStory();
-        }
-    });
-
-    // --- MESAJLAŞMA & ONLINE ---
-    function send() {
-        const i = document.getElementById('mIn');
-        if(i.value.trim()) { socket.emit('send_msg', {content:i.value, type:'text'}); i.value=''; }
-    }
-
-    socket.on('new_msg', d => renderMsg(d));
-    socket.on('load_history', msgs => msgs.forEach(m => renderMsg(m)));
-
-    function renderMsg(d) {
-        const isMe = d.sender === myUser;
-        let content = d.content;
-        if(d.type === 'image') content = `<img src="${d.content}" style="max-width:200px; border-radius:10px;">`;
-        if(d.type === 'video') content = `<video src="${d.content}" controls style="max-width:200px; border-radius:10px;"></video>`;
-        if(d.type === 'audio') content = `<audio src="${d.content}" controls></audio>`;
-
-        const html = `<div class="msg ${isMe ? 'me':''}">
-            <img src="${d.avatar}" class="avatar-chat user-avatar-${d.sender}">
-            <div class="bubble">
-                <div style="font-size:10px; font-weight:bold; color:${isMe?'#075e54':'orange'}">${d.sender}</div>
-                ${content}
-                <div style="font-size:9px; text-align:right; color:gray; margin-top:5px;">${d.time}</div>
+    <div class="card">
+        <h2 style="color:#075e54;">WhatsApp Ultra</h2>
+        <form method="POST">
+            <input type="text" name="username" placeholder="Kullanıcı Adı" required>
+            <input type="password" name="password" placeholder="Şifre" required>
+            <select name="gender" id="gender" onchange="setDefaultAvatar()">
+                <option value="Erkek">Erkek</option>
+                <option value="Kadın">Kadın</option>
+            </select>
+            <img id="preview" src="">
+            <input type="hidden" name="avatar_data" id="avatar_data">
+            <div class="btn-group">
+                <button type="button" class="btn-act" onclick="document.getElementById('fileIn').click()">📁 Dosya</button>
+                <button type="button" class="btn-act" onclick="openCam()">📷 Kamera</button>
             </div>
-        </div>`;
-        const b = document.getElementById('chat-box');
-        b.insertAdjacentHTML('beforeend', html);
-        b.scrollTop = b.scrollHeight;
-    }
-
-    socket.on('force_avatar_update', d => {
-        document.querySelectorAll(`.user-avatar-${d.username}`).forEach(img => img.src = d.new_avatar);
-    });
-
-    // Mikrofon ve Video Arama butonları önceki kodlardaki gibi entegre edilmiştir.
-</script>
+            <div id="cam-area">
+                <video id="vid" autoplay playsinline></video>
+                <button type="button" onclick="takePhoto()" style="width:100%; padding:10px; background:red; color:white; border:none;">ÇEK</button>
+            </div>
+            <input type="file" id="fileIn" style="display:none" accept="image/*" onchange="handleFile(this.files[0])">
+            <button type="submit" class="submit-btn">Kayıt Ol</button>
+        </form>
+    </div>
+    <script>
+        const avatars = {
+            "Erkek": "https://cdn-icons-png.flaticon.com/512/4128/4128176.png",
+            "Kadın": "https://cdn-icons-png.flaticon.com/512/6997/6997662.png"
+        };
+        function setDefaultAvatar() {
+            const g = document.getElementById('gender').value;
+            if (!document.getElementById('avatar_data').value.startsWith('data:image')) {
+                document.getElementById('preview').src = avatars[g];
+                document.getElementById('avatar_data').value = avatars[g];
+            }
+        }
+        setDefaultAvatar();
+        function handleFile(file) {
+            const reader = new FileReader();
+            reader.onload = e => compressImage(e.target.result);
+            reader.readAsDataURL(file);
+        }
+        function compressImage(base64Str) {
+            const img = new Image();
+            img.src = base64Str;
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const MAX_SIZE = 300; 
+                canvas.width = MAX_SIZE; canvas.height = MAX_SIZE;
+                canvas.getContext('2d').drawImage(img, 0, 0, MAX_SIZE, MAX_SIZE);
+                const compressed = canvas.toDataURL('image/jpeg', 0.7);
+                document.getElementById('preview').src = compressed;
+                document.getElementById('avatar_data').value = compressed;
+                document.getElementById('cam-area').style.display = 'none';
+            };
+        }
+        async function openCam() {
+            document.getElementById('cam-area').style.display = 'block';
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+            document.getElementById('vid').srcObject = stream;
+        }
+        function takePhoto() {
+            const video = document.getElementById('vid');
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            compressImage(canvas.toDataURL('image/jpeg'));
+            video.srcObject.getTracks().forEach(track => track.stop());
+        }
+    </script>
 </body>
 </html>
