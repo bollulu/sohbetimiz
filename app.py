@@ -9,8 +9,8 @@ from flask_socketio import SocketIO, emit
 from datetime import datetime
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'ultra_pro_final_v5'
-app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024 # 100MB
+app.config['SECRET_KEY'] = 'ultra_pro_v6_final'
+app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'database.db')
@@ -24,7 +24,6 @@ class User(UserMixin, db.Model):
     password = db.Column(db.String(100))
     avatar = db.Column(db.Text)
     bg_image = db.Column(db.Text, default="")
-    gender = db.Column(db.String(20))
 
 class Message(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -32,6 +31,7 @@ class Message(db.Model):
     content = db.Column(db.Text)
     msg_type = db.Column(db.String(20))
     timestamp = db.Column(db.String(20))
+    is_read = db.Column(db.Boolean, default=False) # Mavi Tık İçin
 
 class Story(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -40,7 +40,6 @@ class Story(db.Model):
     audio = db.Column(db.Text, default="")
     media_type = db.Column(db.String(10)) 
     views = db.Column(db.Text, default="[]")
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
 with app.app_context():
     db.create_all()
@@ -52,14 +51,6 @@ def load_user(id): return db.session.get(User, int(id))
 @app.route('/')
 def index(): return redirect(url_for('login'))
 
-@app.route('/register', methods=['GET','POST'])
-def register():
-    if request.method == 'POST':
-        u = User(username=request.form['username'], password=request.form['password'], gender=request.form['gender'], avatar=request.form['avatar_data'])
-        db.session.add(u); db.session.commit()
-        return redirect(url_for('login'))
-    return render_template('register.html')
-
 @app.route('/login', methods=['GET','POST'])
 def login():
     if request.method == 'POST':
@@ -68,6 +59,13 @@ def login():
             login_user(user); return redirect(url_for('chat'))
     return render_template('login.html')
 
+@app.route('/register', methods=['GET','POST'])
+def register():
+    if request.method == 'POST':
+        u = User(username=request.form['username'], password=request.form['password'], avatar=request.form['avatar_data'])
+        db.session.add(u); db.session.commit(); return redirect(url_for('login'))
+    return render_template('register.html')
+
 @app.route('/chat')
 @login_required
 def chat(): return render_template('chat.html', user=current_user)
@@ -75,12 +73,13 @@ def chat(): return render_template('chat.html', user=current_user)
 @app.route('/logout')
 def logout(): logout_user(); return redirect(url_for('login'))
 
+# --- SOCKET EVENTS ---
 @socketio.on('connect')
 def connect():
     if current_user.is_authenticated:
         emit('update_online_list', broadcast=True)
         msgs = Message.query.all()
-        history = [{'id':m.id,'sender':m.sender,'avatar':User.query.filter_by(username=m.sender).first().avatar,'content':m.content,'type':m.msg_type,'time':m.timestamp} for m in msgs]
+        history = [{'id':m.id,'sender':m.sender,'avatar':User.query.filter_by(username=m.sender).first().avatar,'content':m.content,'type':m.msg_type,'time':m.timestamp,'is_read':m.is_read} for m in msgs]
         emit('load_history', history)
         send_stories()
 
@@ -88,17 +87,24 @@ def connect():
 def handle_msg(data):
     m = Message(sender=current_user.username, content=data['content'], msg_type=data['type'], timestamp=datetime.now().strftime("%H:%M"))
     db.session.add(m); db.session.commit()
-    emit('new_msg', {'id':m.id,'sender':m.sender,'avatar':current_user.avatar,'content':m.content,'type':m.msg_type,'time':m.timestamp}, broadcast=True)
+    emit('new_msg', {'id':m.id,'sender':m.sender,'avatar':current_user.avatar,'content':m.content,'type':m.msg_type,'time':m.timestamp,'is_read':False}, broadcast=True)
+
+@socketio.on('msg_seen') # Mavi tık güncellemesi
+def msg_seen(data):
+    msg = db.session.get(Message, data['id'])
+    if msg and msg.sender != current_user.username:
+        msg.is_read = True; db.session.commit()
+        emit('mark_read', {'id': data['id']}, broadcast=True)
 
 @socketio.on('delete_msg')
 def delete_message(data):
     msg = db.session.get(Message, data['id'])
-    if msg: db.session.delete(msg); db.session.commit(); emit('msg_deleted', {'id': data['id']}, broadcast=True)
+    if msg and msg.sender == current_user.username:
+        db.session.delete(msg); db.session.commit(); emit('msg_deleted', {'id': data['id']}, broadcast=True)
 
 @socketio.on('update_avatar')
 def update_ava(data):
-    current_user.avatar = data['avatar']
-    db.session.commit()
+    current_user.avatar = data['avatar']; db.session.commit()
     emit('force_avatar_update', {'username':current_user.username, 'new_avatar':data['avatar']}, broadcast=True)
 
 @socketio.on('update_bg')
@@ -110,17 +116,18 @@ def add_st(data):
     st = Story(username=current_user.username, content=data['content'], media_type=data['type'], audio=data.get('audio', ""))
     db.session.add(st); db.session.commit(); send_stories()
 
-@socketio.on('delete_story')
-def delete_st(data):
-    st = db.session.get(Story, data['id'])
-    if st and st.username == current_user.username: db.session.delete(st); db.session.commit(); send_stories()
-
 @socketio.on('view_story')
 def view_st(data):
     st = db.session.get(Story, data['id'])
     if st:
         v = json.loads(st.views)
-        if current_user.username not in v: v.append(current_user.username); st.views = json.dumps(v); db.session.commit(); send_stories()
+        if current_user.username not in v:
+            v.append(current_user.username); st.views = json.dumps(v); db.session.commit(); send_stories()
+
+@socketio.on('delete_story')
+def delete_st(data):
+    st = db.session.get(Story, data['id'])
+    if st and st.username == current_user.username: db.session.delete(st); db.session.commit(); send_stories()
 
 def send_stories():
     stories = Story.query.all()
