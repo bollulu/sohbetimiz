@@ -9,68 +9,70 @@ from flask_socketio import SocketIO, emit
 from datetime import datetime
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'ultra_safe_story_v5'
-app.config['MAX_CONTENT_LENGTH'] = 200 * 1024 * 1024 
+app.config['SECRET_KEY'] = 'video_chat_ultra_2026'
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'database.db')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(50), unique=True)
-    password = db.Column(db.String(100))
-    avatar = db.Column(db.Text)
-
-class Story(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(50))
-    user_avatar = db.Column(db.Text)
-    content = db.Column(db.Text)  # Base64 Verisi
-    media_type = db.Column(db.String(20)) # 'image' veya 'video'
-    music = db.Column(db.Text, default="") # Müzik Base64
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    username = db.Column(db.String(50), unique=True, nullable=False)
+    password = db.Column(db.String(100), nullable=False)
+    avatar = db.Column(db.Text, default="https://www.w3schools.com/howto/img_avatar.png")
 
 with app.app_context():
     db.create_all()
 
-# Login/Auth süreçleri aynı kalıyor...
+login_manager = LoginManager(app)
+login_manager.login_view = 'login'
+@login_manager.user_loader
+def load_user(id): return db.session.get(User, int(id))
+
+@app.route('/')
+def index(): return redirect(url_for('chat')) if current_user.is_authenticated else redirect(url_for('login'))
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        user = User.query.filter_by(username=request.form.get('username')).first()
+        if user and user.password == request.form.get('password'):
+            login_user(user); return redirect(url_for('chat'))
+    return render_template('login.html')
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        u = request.form.get('username')
+        if not User.query.filter_by(username=u).first():
+            new_u = User(username=u, password=request.form.get('password'))
+            db.session.add(new_u); db.session.commit()
+            return redirect(url_for('login'))
+    return render_template('register.html')
+
 @app.route('/chat')
 @login_required
 def chat(): return render_template('chat.html', user=current_user)
 
-@socketio.on('add_story')
-def add_story(data):
-    new_s = Story(
-        username=current_user.username,
-        user_avatar=current_user.avatar,
-        content=data['content'],
-        media_type=data['type'],
-        music=data.get('music', '')
-    )
-    db.session.add(new_s)
-    db.session.commit()
-    send_all_stories()
+@app.route('/logout')
+def logout(): logout_user(); return redirect(url_for('login'))
 
-@socketio.on('delete_story')
-def delete_story(data):
-    s = db.session.get(Story, data['id'])
-    if s and s.username == current_user.username:
-        db.session.delete(s)
-        db.session.commit()
-        send_all_stories()
+# VIDEO CHAT SİNYALLEŞME (WebRTC Signaling)
+@socketio.on('video-offer')
+def handle_offer(data):
+    emit('video-offer', data, broadcast=True, include_self=False)
 
-def send_all_stories():
-    stories = Story.query.order_by(Story.timestamp.asc()).all()
-    output = {}
-    for s in stories:
-        if s.username not in output:
-            output[s.username] = {"avatar": s.user_avatar, "items": []}
-        output[s.username]["items"].append({
-            "id": s.id, "content": s.content, "type": s.media_type, "music": s.music
-        })
-    emit('all_stories', output, broadcast=True)
+@socketio.on('video-answer')
+def handle_answer(data):
+    emit('video-answer', data, broadcast=True, include_self=False)
 
-# Gerekli diğer route'lar (login, register, logout) önceki kodla aynı kalsın.
+@socketio.on('new-ice-candidate')
+def handle_candidate(data):
+    emit('new-ice-candidate', data, broadcast=True, include_self=False)
+
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 10000))
+    socketio.run(app, host='0.0.0.0', port=port)
