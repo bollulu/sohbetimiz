@@ -1,61 +1,75 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>WhatsApp</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SOHBETİMİZ</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <style>
-        body { font-family: sans-serif; margin: 0; display: flex; height: 100vh; background-size: cover; background-attachment: fixed; }
+        body { 
+            font-family: sans-serif; margin: 0; display: flex; height: 100vh;
+            background-size: cover !important; 
+            background-position: center !important; 
+            background-repeat: no-repeat !important;
+        }
         #side { width: 300px; background: white; border-right: 1px solid #ddd; display: flex; flex-direction: column; }
-        #main { flex: 1; display: flex; flex-direction: column; position: relative; }
-        #story-bar { height: 110px; background: rgba(255,255,255,0.9); border-bottom: 1px solid #ddd; display: flex; align-items: center; padding: 0 15px; gap: 15px; overflow-x: auto; }
-        .st-item { text-align: center; min-width: 75px; cursor: pointer; }
-        .st-ava { width: 60px; height: 60px; border-radius: 50%; border: 3px solid #25D366; object-fit: cover; }
-        #story-viewer { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 2000; justify-content: center; align-items: center; flex-direction: column; }
-        #chat-box { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
-        .msg { display: flex; gap: 10px; max-width: 80%; }
+        #main { flex: 1; display: flex; flex-direction: column; background: rgba(0,0,0,0.05); }
+        
+        /* Hikaye Barı Tasarımı */
+        #story-bar { height: 100px; background: white; border-bottom: 1px solid #ddd; display: flex; align-items: center; padding: 0 10px; gap: 10px; overflow-x: auto; }
+        .st-item { text-align: center; min-width: 70px; cursor: pointer; }
+        .st-ava { width: 55px; height: 55px; border-radius: 50%; border: 2px solid #25D366; object-fit: cover; padding: 2px; }
+        
+        /* Hikaye İzleyici Resim Düzeltme */
+        #story-viewer { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 2000; justify-content: center; align-items: center; }
+        #st-media-content img, #st-media-content video { 
+            max-width: 100vw; max-height: 100vh; object-fit: contain; 
+        }
+
+        #chat-box { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 8px; }
+        .msg { display: flex; gap: 8px; max-width: 75%; transition: 0.2s; }
         .msg.me { align-self: flex-end; flex-direction: row-reverse; }
-        .bubble { padding: 10px; border-radius: 10px; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
-        .me .bubble { background: #dcf8c6; }
-        .m-ava { width: 35px; height: 35px; border-radius: 50%; object-fit: cover; }
-        .footer { padding: 15px; background: #eee; display: flex; gap: 10px; align-items: center; }
-        #mIn { flex: 1; padding: 10px; border-radius: 20px; border: 1px solid #ddd; outline: none; }
-        .btn { cursor: pointer; font-size: 20px; border: none; background: none; }
+        .bubble { padding: 8px 12px; border-radius: 12px; background: white; font-size: 14px; position: relative; }
+        .me .bubble { background: #e7ffdb; }
+        .m-ava { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; }
+        
+        .footer { padding: 10px; background: #f0f0f0; display: flex; gap: 10px; align-items: center; }
+        #mIn { flex: 1; padding: 10px; border-radius: 20px; border: none; outline: none; }
+        .btn { cursor: pointer; font-size: 18px; border: none; background: none; opacity: 0.7; }
+        .btn:hover { opacity: 1; }
     </style>
 </head>
 <body id="body" style="background-image: url('{{ user.bg_img if user.bg_img else 'https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png' }}')">
 
 <div id="story-viewer" onclick="closeSt()">
-    <div id="st-media-content" style="max-width: 90%; max-height: 80%;"></div>
+    <div id="st-media-content"></div>
     <audio id="st-audio" autoplay></audio>
-    <h3 id="st-user-name" style="color:white; margin-top:10px;"></h3>
 </div>
 
 <div id="side">
-    <div style="padding:15px; background:#ededed; display:flex; justify-content:space-between; align-items:center;">
-        <img src="{{ user.avatar }}" id="my-ava" onclick="document.getElementById('p-file').click()" style="width:40px; height:40px; border-radius:50%; object-fit:cover; cursor:pointer">
+    <div style="padding:10px; background:#ededed; display:flex; justify-content:space-between;">
+        <img src="{{ user.avatar }}" onclick="document.getElementById('p-file').click()" style="width:40px; height:40px; border-radius:50%; object-fit:cover; cursor:pointer">
         <div>
-            <button class="btn" title="Görüntülü Arama" onclick="location.href='/live'">📹</button>
-            <button class="btn" title="Arka Plan" onclick="document.getElementById('bg-file').click()">🎨</button>
-            <button class="btn" title="Çıkış" onclick="location.href='/logout'">🚪</button>
+            <button class="btn" onclick="location.href='/live'">📹</button>
+            <button class="btn" onclick="document.getElementById('bg-file').click()">🎨</button>
+            <button class="btn" onclick="resetBg()" title="Arka Planı Sıfırla">🔄</button>
+            <button class="btn" onclick="location.href='/logout'">🚪</button>
         </div>
     </div>
-    <div id="online-list" style="overflow-y:auto; flex:1;"></div>
+    <div style="padding:15px; font-weight:bold; color:#075e54;">Sohbetler</div>
 </div>
 
 <div id="main">
     <div id="story-bar">
         <div class="st-item" onclick="document.getElementById('st-file').click()">
-            <div class="st-ava" style="display:flex; align-items:center; justify-content:center; background:#eee; font-size:24px">+</div>
-            <div style="font-size:12px">Ekle</div>
+            <div class="st-ava" style="background:#eee; display:flex; align-items:center; justify-content:center; font-size:20px;">+</div>
+            <div style="font-size:10px">Durumum</div>
         </div>
-        <div id="st-list" style="display:flex; gap:15px"></div>
+        <div id="st-list" style="display:flex; gap:10px"></div>
     </div>
     <div id="chat-box">
         {% for m in initial_msgs %}
         <div class="msg {{ 'me' if m.username == user.username else '' }}">
             <img src="{{ m.user_avatar }}" class="m-ava">
-            <div class="bubble"><b>{{ m.username }}</b><br>
+            <div class="bubble">
                 {% if m.msg_type == 'file' %}<a href="{{ m.content }}" download="{{ m.file_name }}">📂 {{ m.file_name }}</a>{% else %}{{ m.content }}{% endif %}
             </div>
         </div>
@@ -68,7 +82,6 @@
     </div>
 </div>
 
-<input type="file" id="p-file" style="display:none" onchange="upPro(this)">
 <input type="file" id="bg-file" style="display:none" onchange="upBg(this)">
 <input type="file" id="f-file" style="display:none" onchange="upFile(this)">
 <input type="file" id="st-file" style="display:none" accept="image/*,video/*" onchange="upSt(this)">
@@ -76,40 +89,68 @@
 
 <script>
     const socket = io();
-    const myName = "{{ user.username }}";
     const box = document.getElementById('chat-box');
     box.scrollTop = box.scrollHeight;
     let tempSt = { content: "", type: "" };
 
     function send() {
         const i = document.getElementById('mIn');
-        if(i.value.trim()) { socket.emit('message', {content: i.value, type: 'text'}); i.value = ''; }
+        if(i.value.trim()) { 
+            socket.emit('message', {content: i.value, type: 'text'}); 
+            i.value = ''; 
+        }
     }
 
     socket.on('new_message', d => {
-        const isMe = d.user === myName;
+        const isMe = d.user === "{{ user.username }}";
         const content = d.type === 'file' ? `<a href="${d.content}" download="${d.file_name}">📂 ${d.file_name}</a>` : d.content;
-        box.insertAdjacentHTML('beforeend', `<div class="msg ${isMe?'me':''}">
-            <img src="${d.avatar}" class="m-ava"><div class="bubble"><b>${d.user}</b><br>${content}</div>
-        </div>`);
+        box.insertAdjacentHTML('beforeend', `
+            <div class="msg ${isMe?'me':''}">
+                <img src="${d.avatar}" class="m-ava">
+                <div class="bubble">${content}</div>
+            </div>
+        `);
         box.scrollTop = box.scrollHeight;
-    });
-
-    socket.on('update_user_list', users => {
-        const list = document.getElementById('online-list');
-        list.innerHTML = "";
-        for(let u in users) list.innerHTML += `<div style="padding:15px; border-bottom:1px solid #eee; display:flex; align-items:center; gap:10px;"><img src="${users[u].avatar}" style="width:35px; height:35px; border-radius:50%; object-fit:cover;"> ${u} ${u===myName?'(Siz)':''}</div>`;
     });
 
     socket.on('receive_stories', grouped => {
         const list = document.getElementById('st-list');
         list.innerHTML = "";
         for(let u in grouped) {
-            list.innerHTML += `<div class="st-item" onclick='viewSt(${JSON.stringify(grouped[u])}, "${u}")'>
-                <img src="${grouped[u].avatar}" class="st-ava"><div style="font-size:11px">${u}</div>
-            </div>`;
+            list.innerHTML += `
+                <div class="st-item" onclick='viewSt(${JSON.stringify(grouped[u])})'>
+                    <img src="${grouped[u].avatar}" class="st-ava">
+                    <div style="font-size:10px">${u}</div>
+                </div>`;
         }
     });
+
+    function viewSt(data) {
+        const v = document.getElementById('story-viewer');
+        const content = document.getElementById('st-media-content');
+        const audio = document.getElementById('st-audio');
+        v.style.display = 'flex';
+        content.innerHTML = data.media_type === 'video' ? `<video src="${data.content}" autoplay></video>` : `<img src="${data.content}">`;
+        if(data.music) { audio.src = data.music; audio.play(); }
+        setTimeout(closeSt, 5000);
+    }
+
+    function closeSt() { document.getElementById('story-viewer').style.display = 'none'; document.getElementById('st-audio').pause(); }
+
+    function resetBg() {
+        const def = 'https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png';
+        document.getElementById('body').style.backgroundImage = `url(${def})`;
+        socket.emit('update_bg', {bg: ""});
+    }
+
+    function upBg(i) {
+        const r = new FileReader();
+        r.onload = e => {
+            document.getElementById('body').style.backgroundImage = `url(${e.target.result})`;
+            socket.emit('update_bg', {bg: e.target.result});
+        };
+        r.readAsDataURL(i.files[0]);
+    }
 
     function upSt(i) {
         const file = i.files[0];
@@ -117,7 +158,7 @@
         r.onload = e => {
             tempSt.content = e.target.result;
             tempSt.type = file.type.startsWith('video') ? 'video' : 'image';
-            if(confirm("Hikayeye müzik eklemek ister misiniz?")) document.getElementById('st-music').click();
+            if(confirm("Müzik eklensin mi?")) document.getElementById('st-music').click();
             else socket.emit('add_story', {content: tempSt.content, media_type: tempSt.type});
         };
         r.readAsDataURL(file);
@@ -129,32 +170,6 @@
         r.readAsDataURL(i.files[0]);
     }
 
-    function viewSt(data, user) {
-        const v = document.getElementById('story-viewer');
-        const box = document.getElementById('st-media-content');
-        const audio = document.getElementById('st-audio');
-        v.style.display = 'flex';
-        document.getElementById('st-user-name').innerText = user;
-        box.innerHTML = data.media_type === 'video' ? `<video src="${data.content}" autoplay style="width:100%; border-radius:10px;"></video>` : `<img src="${data.content}" style="width:100%; border-radius:10px;">`;
-        if(data.music) { audio.src = data.music; audio.play(); }
-        setTimeout(closeSt, 6000);
-    }
-
-    function closeSt() {
-        document.getElementById('story-viewer').style.display = 'none';
-        document.getElementById('st-audio').pause();
-    }
-
-    function upPro(i) {
-        const r = new FileReader();
-        r.onload = e => { socket.emit('update_profile', {avatar: e.target.result}); location.reload(); };
-        r.readAsDataURL(i.files[0]);
-    }
-    function upBg(i) {
-        const r = new FileReader();
-        r.onload = e => { document.body.style.backgroundImage = `url(${e.target.result})`; socket.emit('update_bg', {bg: e.target.result}); };
-        r.readAsDataURL(i.files[0]);
-    }
     function upFile(i) {
         const file = i.files[0];
         const r = new FileReader();
