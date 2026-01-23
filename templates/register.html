@@ -2,39 +2,48 @@
 <html>
 <head>
     <title>Kayıt Ol</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
         body { font-family: sans-serif; background: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .box { background: white; padding: 30px; border-radius: 12px; width: 350px; text-align: center; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
+        .box { background: white; padding: 30px; border-radius: 12px; width: 350px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
         .ava-preview { width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid #25D366; cursor: pointer; }
-        input { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
+        input, select { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; }
         button { width: 100%; padding: 12px; background: #25D366; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
     </style>
 </head>
 <body>
     <div class="box">
-        <h2>Kayıt Ol</h2>
+        <h2>Yeni Hesap</h2>
         <form method="POST">
             <div onclick="document.getElementById('fileIn').click()">
-                <img src="https://www.w3schools.com/howto/img_avatar.png" id="view" class="ava-preview">
-                <p style="font-size: 12px; color: #666;">Fotoğraf Seç</p>
+                <img src="https://cdn-icons-png.flaticon.com/512/4140/4140037.png" id="view" class="ava-preview">
+                <p style="font-size:12px; color:gray">Profil Fotoğrafı Seç (Opsiyonel)</p>
             </div>
             <input type="hidden" name="avatar_data" id="avatar_data">
             <input type="text" name="username" placeholder="Kullanıcı Adı" required>
             <input type="password" name="password" placeholder="Şifre" required>
+            <select name="gender" id="gender" onchange="updateDefaultAva()">
+                <option value="Erkek">Erkek</option>
+                <option value="Kadın">Kadın</option>
+            </select>
             <button type="submit">Kayıt Ol</button>
         </form>
         <input type="file" id="fileIn" style="display:none" accept="image/*" onchange="process(this)">
-        <p>Hesabın var mı? <a href="/login">Giriş Yap</a></p>
     </div>
     <script>
-        function process(input) {
-            const reader = new FileReader();
-            reader.onload = e => {
+        function updateDefaultAva() {
+            const g = document.getElementById('gender').value;
+            const view = document.getElementById('view');
+            if(!document.getElementById('avatar_data').value) {
+                view.src = g === "Erkek" ? "https://cdn-icons-png.flaticon.com/512/4140/4140037.png" : "https://cdn-icons-png.flaticon.com/512/4140/4140047.png";
+            }
+        }
+        function process(i) {
+            const r = new FileReader();
+            r.onload = e => {
                 document.getElementById('view').src = e.target.result;
                 document.getElementById('avatar_data').value = e.target.result;
             };
-            reader.readAsDataURL(input.files[0]);
+            r.readAsDataURL(i.files[0]);
         }
     </script>
 </body>
