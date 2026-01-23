@@ -1,127 +1,145 @@
-from gevent import monkey
-monkey.patch_all()
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Sohbetimiz</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        :root { --wp-green: #25D366; --wp-dark: #075e54; }
+        body { margin:0; display:flex; height:100vh; font-family:sans-serif; overflow:hidden; }
+        #side { width:300px; background:white; border-right:1px solid #ddd; display:flex; flex-direction:column; }
+        #main { flex:1; display:flex; flex-direction:column; background:#e5ddd5; position:relative; }
+        #story-bar { height:100px; background:white; display:flex; align-items:center; padding:0 15px; gap:15px; border-bottom:1px solid #ddd; overflow-x:auto; z-index:10; }
+        .st-ring { width:60px; height:60px; border-radius:50%; border:3px solid var(--wp-green); padding:2px; cursor:pointer; object-fit:cover; }
+        #chat-box { flex:1; overflow-y:auto; padding:20px; display:flex; flex-direction:column; gap:10px; z-index:5; }
+        .msg { display:flex; align-items:flex-end; gap:8px; max-width:70%; }
+        .msg.me { align-self:flex-end; flex-direction:row-reverse; }
+        .bubble { background:white; padding:10px; border-radius:12px; position:relative; box-shadow:0 1px 1px rgba(0,0,0,0.1); }
+        .me .bubble { background:#dcf8c6; }
+        #st-viewer { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:black; z-index:2000; align-items:center; justify-content:center; }
+        #st-viewer img, #st-viewer video { max-width:90%; max-height:80vh; }
+        .cam-overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:3000; flex-direction:column; align-items:center; justify-content:center; }
+    </style>
+</head>
+<body>
 
-import os
-from flask import Flask, render_template, request, redirect, url_for
-from flask_sqlalchemy import SQLAlchemy
-from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
-from flask_socketio import SocketIO, emit
-from datetime import datetime
+<div id="st-viewer">
+    <div id="st-media-box"></div>
+    <button onclick="closeSt()" style="position:absolute; top:20px; right:20px; color:white; font-size:30px; background:none; border:none; cursor:pointer;">×</button>
+</div>
 
-app = Flask(__name__)
-app.config['SECRET_KEY'] = 'whatsapp_ultra_v4_2026'
-app.config['MAX_CONTENT_LENGTH'] = 200 * 1024 * 1024 
+<div id="cam-overlay" class="cam-overlay">
+    <video id="cam-video" autoplay style="width:80%; max-width:500px; border-radius:10px;"></video>
+    <div style="margin-top:20px;">
+        <button onclick="takeSnap()" style="padding:10px 20px; border-radius:50px; border:none; cursor:pointer;">📸 Çek</button>
+        <button onclick="closeCam()" style="padding:10px 20px; background:red; color:white; border-radius:50px; border:none; cursor:pointer;">İptal</button>
+    </div>
+</div>
 
-basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'database.db')
+<div id="side">
+    <div style="padding:15px; background:#ededed; font-weight:bold; display:flex; justify-content:space-between;">
+        <span>Aktifler</span>
+        <button onclick="location.href='/logout'">🚪</button>
+    </div>
+    <div id="online-list"></div>
+</div>
 
-db = SQLAlchemy(app)
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent', max_http_buffer_size=200 * 1024 * 1024)
+<div id="main">
+    <div id="story-bar">
+        <div onclick="openSource()" style="text-align:center; cursor:pointer;">
+            <div style="width:60px;height:60px;border-radius:50%;background:#eee;display:flex;align-items:center;justify-content:center;font-size:30px;">+</div>
+            <small>Ekle</small>
+        </div>
+        <div id="st-list" style="display:flex; gap:15px;"></div>
+    </div>
+    <div id="chat-box">
+        {% for m in initial_msgs %}
+        <div class="msg {{ 'me' if m.username == user.username else '' }}" id="m-{{m.id}}">
+            <img src="{{ m.user_avatar }}" class="user-ava-img-{{m.username}}" style="width:30px;height:30px;border-radius:50%;object-fit:cover">
+            <div class="bubble"><b>{{ m.username }}</b><br>{{ m.content }}</div>
+        </div>
+        {% endfor %}
+    </div>
+    <div style="padding:10px; background:#f0f0f0; display:flex; gap:10px;">
+        <input type="text" id="mIn" style="flex:1; padding:10px; border-radius:20px; border:none;" onkeypress="if(event.key==='Enter') send()">
+        <button onclick="send()">🚀</button>
+    </div>
+</div>
 
-class User(UserMixin, db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(50), unique=True)
-    password = db.Column(db.String(100))
-    gender = db.Column(db.String(10))
-    avatar = db.Column(db.Text)
-    bg_img = db.Column(db.Text, default="")
+<input type="file" id="st-file" style="display:none" onchange="uploadStory(this)">
 
-class Message(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(50))
-    user_avatar = db.Column(db.Text)
-    content = db.Column(db.Text)
-    timestamp = db.Column(db.String(20))
+<script>
+    const socket = io();
+    const myName = "{{ user.username }}";
+    let storyData = {};
 
-class Story(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(50))
-    user_avatar = db.Column(db.Text)
-    content = db.Column(db.Text)
-    media_type = db.Column(db.String(20))
-    music = db.Column(db.Text, default="")
+    function send() {
+        const i = document.getElementById('mIn');
+        if(i.value.trim()) { socket.emit('message', {content: i.value}); i.value=''; }
+    }
 
-with app.app_context():
-    db.create_all()
+    socket.on('new_message', d => {
+        const isMe = d.user === myName;
+        document.getElementById('chat-box').insertAdjacentHTML('beforeend', `
+            <div class="msg ${isMe?'me':''}">
+                <img src="${d.avatar}" class="user-ava-img-${d.user}" style="width:30px;height:30px;border-radius:50%;object-fit:cover">
+                <div class="bubble"><b>${d.user}</b><br>${d.content}</div>
+            </div>
+        `);
+        document.getElementById('chat-box').scrollTop = document.getElementById('chat-box').scrollHeight;
+    });
 
-login_manager = LoginManager(app)
-login_manager.login_view = 'login'
-@login_manager.user_loader
-def load_user(id): return db.session.get(User, int(id))
+    socket.on('user_status', users => {
+        let h = "";
+        for(let u in users) h += `<div style="padding:10px; border-bottom:1px solid #eee;">${u} ${u===myName?'<b>(Siz)</b>':''}</div>`;
+        document.getElementById('online-list').innerHTML = h;
+    });
 
-@app.route('/')
-def home():
-    if current_user.is_authenticated: return redirect(url_for('chat'))
-    return redirect(url_for('login'))
+    // Hikaye Kaynak Seçimi
+    function openSource() {
+        if(confirm("Kamerayı kullanmak için TAMAM, Dosya seçmek için İPTAL.")) openCam();
+        else document.getElementById('st-file').click();
+    }
 
-@app.route('/chat')
-@login_required
-def chat():
-    msgs = Message.query.all()
-    return render_template('chat.html', user=current_user, initial_msgs=msgs)
+    // Kamera
+    async function openCam() {
+        document.getElementById('cam-overlay').style.display='flex';
+        const s = await navigator.mediaDevices.getUserMedia({video:true});
+        document.getElementById('cam-video').srcObject = s;
+    }
+    function closeCam() {
+        document.getElementById('cam-video').srcObject.getTracks().forEach(t=>t.stop());
+        document.getElementById('cam-overlay').style.display='none';
+    }
+    function takeSnap() {
+        const v = document.getElementById('cam-video');
+        const c = document.createElement('canvas');
+        c.width=v.videoWidth; c.height=v.videoHeight;
+        c.getContext('2d').drawImage(v,0,0);
+        socket.emit('add_story', {content: c.toDataURL('image/jpeg'), type:'image'});
+        closeCam();
+    }
 
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    if request.method == 'POST':
-        user = User.query.filter_by(username=request.form['username']).first()
-        if user and user.password == request.form['password']:
-            login_user(user)
-            return redirect(url_for('chat'))
-    return render_template('login.html')
+    function uploadStory(i) {
+        const r = new FileReader();
+        r.onload = e => socket.emit('add_story', {content: e.target.result, type: i.files[0].type.split('/')[0]});
+        r.readAsDataURL(i.files[0]);
+    }
 
-@app.route('/logout')
-def logout(): logout_user(); return redirect(url_for('login'))
+    socket.on('all_stories', d => {
+        storyData = d;
+        let h = "";
+        for(let u in d) h += `<div onclick="viewSt('${u}')"><img src="${d[u].avatar}" class="st-ring"><br><small>${u}</small></div>`;
+        document.getElementById('st-list').innerHTML = h;
+    });
 
-# SOCKET ETKİLEŞİMLERİ
-online_users = {}
-
-@socketio.on('connect')
-def connect():
-    if current_user.is_authenticated:
-        online_users[current_user.username] = {"avatar": current_user.avatar}
-        emit('user_status', online_users, broadcast=True)
-        send_all_stories()
-
-@socketio.on('message')
-def handle_msg(data):
-    msg_time = datetime.now().strftime("%H:%M")
-    m = Message(username=current_user.username, user_avatar=current_user.avatar, content=data['content'], timestamp=msg_time)
-    db.session.add(m)
-    db.session.commit()
-    emit('new_message', {'id': m.id, 'user': m.username, 'avatar': m.user_avatar, 'content': m.content, 'time': m.timestamp}, broadcast=True)
-
-@socketio.on('delete_msg')
-def delete_msg(data):
-    msg = db.session.get(Message, data['id'])
-    if msg and msg.username == current_user.username:
-        db.session.delete(msg)
-        db.session.commit()
-        emit('msg_deleted', {'id': data['id']}, broadcast=True)
-
-@socketio.on('add_story')
-def add_story(data):
-    s = Story(username=current_user.username, user_avatar=current_user.avatar, 
-              content=data['content'], media_type=data['type'], music=data.get('music',''))
-    db.session.add(s)
-    db.session.commit()
-    send_all_stories()
-
-@socketio.on('delete_story')
-def delete_story(data):
-    s = db.session.get(Story, data['id'])
-    if s and s.username == current_user.username:
-        db.session.delete(s)
-        db.session.commit()
-        send_all_stories()
-
-def send_all_stories():
-    stories = Story.query.all()
-    output = {}
-    for s in stories:
-        if s.username not in output: output[s.username] = {"avatar": s.user_avatar, "items": []}
-        output[s.username]["items"].append({"id": s.id, "content": s.content, "type": s.media_type, "music": s.music})
-    emit('all_stories', output, broadcast=True)
-
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 10000))
-    socketio.run(app, host='0.0.0.0', port=port)
+    function viewSt(u) {
+        const item = storyData[u].items[0];
+        const box = document.getElementById('st-media-box');
+        document.getElementById('st-viewer').style.display='flex';
+        box.innerHTML = item.type === 'video' ? `<video src="${item.content}" autoplay></video>` : `<img src="${item.content}">`;
+        setTimeout(closeSt, 5000);
+    }
+    function closeSt() { document.getElementById('st-viewer').style.display='none'; }
+</script>
+</body>
+</html>
