@@ -4,80 +4,102 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kayıt Ol</title>
     <style>
-        body { font-family: sans-serif; background: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin:0; }
-        .card { background: white; padding: 25px; border-radius: 20px; width: 320px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
-        input, select { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 10px; }
+        body { font-family: sans-serif; background: #e5ddd5; display: flex; justify-content: center; align-items: center; height: 100vh; margin:0; }
+        .card { background: white; padding: 25px; border-radius: 15px; width: 90%; max-width: 350px; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+        input, select { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing:border-box; }
         #preview { width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid #25D366; margin: 10px auto; display: block; }
-        .cam-box { display:none; background: #000; border-radius: 10px; margin-top: 10px; overflow: hidden; }
-        video { width: 100%; }
+        .btn-group { display:flex; gap:5px; margin-bottom:10px; }
+        .btn-act { flex:1; padding:8px; border:none; border-radius:5px; cursor:pointer; background:#eee; }
+        #cam-area { display:none; background:#000; margin-bottom:10px; border-radius:10px; overflow:hidden; }
+        video { width:100%; }
+        .submit-btn { width:100%; padding:15px; background:#075e54; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer; }
     </style>
 </head>
 <body>
     <div class="card">
-        <h2>Yeni Hesap</h2>
+        <h2 style="color:#075e54;">SOHBET</h2>
         <form method="POST">
             <input type="text" name="username" placeholder="Kullanıcı Adı" required>
             <input type="password" name="password" placeholder="Şifre" required>
-            <select name="gender" id="gender" onchange="defAva()">
+            <select name="gender" id="gender" onchange="setDefaultAvatar()">
                 <option value="Erkek">Erkek</option>
                 <option value="Kadın">Kadın</option>
             </select>
+            
+            <p style="font-size:12px; color:gray;">Profil Fotoğrafı:</p>
             <img id="preview" src="">
             <input type="hidden" name="avatar_data" id="avatar_data">
-            <div style="display:flex; gap:5px;">
-                <button type="button" onclick="document.getElementById('fileIn').click()">Dosya</button>
-                <button type="button" onclick="startCam()">Kamera</button>
+            
+            <div class="btn-group">
+                <button type="button" class="btn-act" onclick="document.getElementById('fileIn').click()">📁 Dosya</button>
+                <button type="button" class="btn-act" onclick="openCam()">📷 Kamera</button>
             </div>
-            <div id="cam-ui" class="cam-box">
+
+            <div id="cam-area">
                 <video id="vid" autoplay playsinline></video>
-                <button type="button" onclick="capture()">Çek</button>
+                <button type="button" onclick="takePhoto()" style="width:100%; padding:10px; background:red; color:white; border:none;">ÇEK</button>
             </div>
-            <input type="file" id="fileIn" style="display:none" onchange="processFile(this.files[0])">
-            <button type="submit" style="width:100%; padding:15px; background:#075e54; color:white; border:none; border-radius:10px; margin-top:15px;">Kayıt Ol</button>
+
+            <input type="file" id="fileIn" style="display:none" accept="image/*" onchange="handleFile(this.files[0])">
+            <button type="submit" class="submit-btn">Kayıt Ol</button>
         </form>
     </div>
+
     <script>
-        const a = {"Erkek":"https://cdn-icons-png.flaticon.com/512/4128/4128176.png", "Kadın":"https://cdn-icons-png.flaticon.com/512/6997/6997662.png"};
-        function defAva() {
+        const avatars = {
+            "Erkek": "https://cdn-icons-png.flaticon.com/512/4128/4128176.png",
+            "Kadın": "https://cdn-icons-png.flaticon.com/512/6997/6997662.png"
+        };
+        
+        function setDefaultAvatar() {
             const g = document.getElementById('gender').value;
-            document.getElementById('preview').src = a[g];
-            document.getElementById('avatar_data').value = a[g];
-        }
-        defAva();
-
-        function processFile(f) {
-            const r = new FileReader();
-            r.onload = e => compress(e.target.result);
-            r.readAsDataURL(f);
-        }
-
-        function compress(s) {
-            const img = new Image();
-            img.src = s;
-            img.onload = () => {
-                const c = document.createElement('canvas');
-                c.width = 400; c.height = 400;
-                c.getContext('2d').drawImage(img, 0, 0, 400, 400);
-                const d = c.toDataURL('image/jpeg', 0.7);
-                document.getElementById('preview').src = d;
-                document.getElementById('avatar_data').value = d;
+            // Eğer kullanıcı henüz özel foto seçmediyse varsayılanı değiştir
+            if (!document.getElementById('avatar_data').value.startsWith('data:image')) {
+                document.getElementById('preview').src = avatars[g];
+                document.getElementById('avatar_data').value = avatars[g];
             }
         }
+        setDefaultAvatar();
 
-        async function startCam() {
-            document.getElementById('cam-ui').style.display='block';
-            const s = await navigator.mediaDevices.getUserMedia({video:true});
-            document.getElementById('vid').srcObject = s;
+        // 1. Dosya İşleme ve Sıkıştırma (Limit Hatasını Çözer)
+        function handleFile(file) {
+            const reader = new FileReader();
+            reader.onload = e => compressImage(e.target.result);
+            reader.readAsDataURL(file);
         }
 
-        function capture() {
-            const v = document.getElementById('vid');
-            const c = document.createElement('canvas');
-            c.width = v.videoWidth; c.height = v.videoHeight;
-            c.getContext('2d').drawImage(v, 0, 0);
-            compress(c.toDataURL('image/jpeg'));
-            v.srcObject.getTracks().forEach(t => t.stop());
-            document.getElementById('cam-ui').style.display='none';
+        function compressImage(base64Str) {
+            const img = new Image();
+            img.src = base64Str;
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                const MAX_SIZE = 300; 
+                canvas.width = MAX_SIZE;
+                canvas.height = MAX_SIZE;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, MAX_SIZE, MAX_SIZE);
+                const compressed = canvas.toDataURL('image/jpeg', 0.7); // Kalite %70
+                document.getElementById('preview').src = compressed;
+                document.getElementById('avatar_data').value = compressed;
+                document.getElementById('cam-area').style.display = 'none';
+            };
+        }
+
+        // 2. Kamera İşlemleri
+        async function openCam() {
+            document.getElementById('cam-area').style.display = 'block';
+            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" } });
+            document.getElementById('vid').srcObject = stream;
+        }
+
+        function takePhoto() {
+            const video = document.getElementById('vid');
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            compressImage(canvas.toDataURL('image/jpeg'));
+            video.srcObject.getTracks().forEach(track => track.stop());
         }
     </script>
 </body>
