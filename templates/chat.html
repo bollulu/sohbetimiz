@@ -2,174 +2,126 @@
 <html>
 <head>
     <title>SOHBETİMİZ</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <style>
-        :root { --green: #25D366; --bg-def: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); }
-        body { font-family: sans-serif; margin: 0; display: flex; height: 100vh; overflow: hidden; }
+        body { font-family: sans-serif; margin: 0; display: flex; height: 100vh; background-size: cover; background-position: center; }
+        #side { width: 300px; background: white; border-right: 1px solid #ddd; display: flex; flex-direction: column; }
+        #main { flex: 1; display: flex; flex-direction: column; position: relative; }
         
-        #side { width: 350px; background: white; border-right: 1px solid #ddd; display: flex; flex-direction: column; }
-        #main { flex: 1; display: flex; flex-direction: column; background-image: var(--bg-def); background-size: cover; }
+        #story-bar { height: 110px; background: rgba(255,255,255,0.8); border-bottom: 1px solid #ddd; display: flex; align-items: center; padding: 0 15px; gap: 15px; overflow-x: auto; }
+        .st-item { text-align: center; min-width: 70px; }
+        .st-ava { width: 60px; height: 60px; border-radius: 50%; border: 2px solid #25D366; object-fit: cover; }
 
-        /* Story Bar */
-        #story-bar { height: 110px; background: white; border-bottom: 1px solid #ddd; display: flex; align-items: center; padding: 0 15px; gap: 15px; overflow-x: auto; }
-        .st-circle { width: 60px; height: 60px; border-radius: 50%; object-fit: cover; border: 2px solid var(--green); padding: 2px; cursor: pointer; }
-        
-        /* Online List */
-        .user-row { display: flex; align-items: center; padding: 12px; border-bottom: 1px solid #f2f2f2; }
-        .user-row.me { background: #e3f2fd; border-left: 4px solid #2196F3; }
-        .u-ava { width: 45px; height: 45px; border-radius: 50%; object-fit: cover; margin-right: 12px; }
-
-        /* Messages */
-        #chat-box { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+        #chat-box { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
         .msg { display: flex; gap: 10px; max-width: 80%; }
         .msg.me { align-self: flex-end; flex-direction: row-reverse; }
-        .bubble { padding: 10px; border-radius: 12px; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        .bubble { padding: 10px; border-radius: 10px; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
         .me .bubble { background: #dcf8c6; }
-        .m-ava { width: 35px; height: 35px; border-radius: 50%; object-fit: cover; }
-        .m-user { font-size: 11px; font-weight: bold; color: #2e7d32; }
+        .m-ava { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; }
 
-        .footer { padding: 10px; background: #f0f0f0; display: flex; gap: 10px; }
-        #mIn { flex: 1; padding: 12px; border: none; border-radius: 25px; outline: none; }
-        .btn { border: none; background: none; font-size: 22px; cursor: pointer; }
+        .footer { padding: 15px; background: #eee; display: flex; gap: 10px; align-items: center; }
+        #mIn { flex: 1; padding: 10px; border-radius: 20px; border: 1px solid #ddd; outline: none; }
+        .btn { cursor: pointer; font-size: 20px; border: none; background: none; }
     </style>
 </head>
-<body onload="initBg()">
+<body id="body" style="background-image: url('{{ user.bg_img if user.bg_img else 'https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png' }}')">
 
 <div id="side">
-    <div style="padding:15px; background:#ededed; display:flex; justify-content:space-between; align-items:center;">
-        <div style="display:flex; align-items:center; gap:10px;">
-            <img src="{{ user.avatar }}" id="my-ava" onclick="document.getElementById('p-file').click()" style="width:40px; height:40px; border-radius:50%; cursor:pointer; object-fit:cover;">
-            <b>{{ user.username }}</b>
-        </div>
+    <div style="padding:15px; background:#ededed; display:flex; justify-content:space-between;">
+        <img src="{{ user.avatar }}" onclick="document.getElementById('p-file').click()" style="width:40px; height:40px; border-radius:50%; object-fit:cover; cursor:pointer">
         <div>
             <button class="btn" onclick="document.getElementById('bg-file').click()">🎨</button>
-            <button class="btn" onclick="resetBg()">🔄</button>
-            <button class="btn" onclick="location.href='/live'">📹</button>
+            <button class="btn" onclick="location.href='/logout'">🚪</button>
         </div>
     </div>
-    <div id="online-list" style="overflow-y:auto"></div>
+    <div id="online-list"></div>
 </div>
 
-<div id="main" id="main-area">
+<div id="main">
     <div id="story-bar">
-        <div style="text-align:center" onclick="document.getElementById('st-file').click()">
-            <div class="st-circle" style="display:flex; align-items:center; justify-content:center; border:2px dashed #999; color:#999">+</div>
-            <span style="font-size:12px">Ekle</span>
+        <div class="st-item" onclick="document.getElementById('st-file').click()" style="cursor:pointer">
+            <div class="st-ava" style="display:flex; align-items:center; justify-content:center; background:#eee">+</div>
+            <div style="font-size:12px">Ekle</div>
         </div>
         <div id="st-list" style="display:flex; gap:15px"></div>
     </div>
 
     <div id="chat-box">
         {% for m in initial_msgs %}
-        <div class="msg {{ 'me' if m.username == user.username else '' }}" id="msg-{{ m.id }}" data-u="{{ m.username }}">
+        <div class="msg {{ 'me' if m.username == user.username else '' }}">
             <img src="{{ m.user_avatar }}" class="m-ava">
             <div class="bubble">
-                <div class="m-user">{{ m.username }}</div>
-                {{ m.content }}
-                <div style="font-size:10px; color:#888; text-align:right; margin-top:4px">
-                    {{ m.timestamp }}
-                    {% if m.username == user.username %}<span style="color:red; cursor:pointer" onclick="del({{ m.id }})">🗑️</span>{% endif %}
-                </div>
+                <div style="font-size:10px; color:green; font-weight:bold">{{ m.username }}</div>
+                {% if m.msg_type == 'file' %}
+                    <a href="{{ m.content }}" download="{{ m.file_name }}">📂 {{ m.file_name }}</a>
+                {% else %}
+                    {{ m.content }}
+                {% endif %}
             </div>
         </div>
         {% endfor %}
     </div>
 
     <div class="footer">
-        <input type="text" id="mIn" placeholder="Mesaj yaz..." autocomplete="off">
+        <button class="btn" onclick="document.getElementById('f-file').click()">📎</button>
+        <input type="text" id="mIn" placeholder="Mesaj yaz...">
         <button class="btn" onclick="send()">🚀</button>
     </div>
 </div>
 
-<input type="file" id="p-file" style="display:none" onchange="upPro(this)" accept="image/*">
-<input type="file" id="st-file" style="display:none" onchange="upSt(this)" accept="image/*">
-<input type="file" id="bg-file" style="display:none" onchange="upBg(this)" accept="image/*">
+<input type="file" id="p-file" style="display:none" onchange="upPro(this)">
+<input type="file" id="st-file" style="display:none" onchange="upSt(this)">
+<input type="file" id="bg-file" style="display:none" onchange="upBg(this)">
+<input type="file" id="f-file" style="display:none" onchange="upFile(this)">
 
 <script>
     const socket = io();
     const myName = "{{ user.username }}";
     const box = document.getElementById('chat-box');
-    const main = document.getElementById('main');
     box.scrollTop = box.scrollHeight;
 
-    // --- Arka Plan ---
-    function initBg() {
-        const savedBg = "{{ user.bg_img }}";
-        if(savedBg && savedBg !== "None") main.style.backgroundImage = `url(${savedBg})`;
-    }
-    function upBg(i) {
-        const r = new FileReader();
-        r.onload = e => {
-            main.style.backgroundImage = `url(${e.target.result})`;
-            socket.emit('update_bg', {bg: e.target.result});
-        };
-        r.readAsDataURL(i.files[0]);
-    }
-    function resetBg() {
-        main.style.backgroundImage = 'var(--bg-def)';
-        socket.emit('update_bg', {bg: null});
-    }
-
-    // --- Mesaj Gönder ---
-    document.getElementById('mIn').onkeypress = e => { if(e.key==='Enter') send(); };
     function send() {
         const i = document.getElementById('mIn');
-        if(i.value.trim()) {
-            socket.emit('message', {msg: i.value});
-            i.value = '';
-        }
+        if(i.value) { socket.emit('message', {content: i.value, type: 'text'}); i.value = ''; }
     }
 
     socket.on('new_message', d => {
         const isMe = d.user === myName;
-        const html = `
-            <div class="msg ${isMe?'me':''}" id="msg-${d.id}" data-u="${d.user}">
-                <img src="${d.avatar}" class="m-ava">
-                <div class="bubble">
-                    <div class="m-user">${d.user}</div>
-                    ${d.msg}
-                    <div style="font-size:10px; color:#888; text-align:right; margin-top:4px">
-                        ${d.time} ${isMe ? `<span style="color:red; cursor:pointer" onclick="del(${d.id})">🗑️</span>`:''}
-                    </div>
-                </div>
-            </div>`;
+        const content = d.type === 'file' ? `<a href="${d.content}" download="${d.file_name}">📂 ${d.file_name}</a>` : d.content;
+        const html = `<div class="msg ${isMe?'me':''}">
+            <img src="${d.avatar}" class="m-ava">
+            <div class="bubble"><div style="font-size:10px; color:green; font-weight:bold">${d.user}</div>${content}</div>
+        </div>`;
         box.insertAdjacentHTML('beforeend', html);
         box.scrollTop = box.scrollHeight;
     });
 
-    // --- Online Listesi ---
     socket.on('update_user_list', users => {
         const list = document.getElementById('online-list');
         list.innerHTML = "";
-        // Önce Sen
-        if(users[myName]) list.innerHTML += `<div class="user-row me"><img src="${users[myName].avatar}" class="u-ava"> <b>Siz (Çevrimiçi)</b></div>`;
-        for(let u in users) {
-            if(u !== myName) list.innerHTML += `<div class="user-row"><img src="${users[u].avatar}" class="u-ava"> ${u}</div>`;
-        }
+        for(let u in users) list.innerHTML += `<div style="padding:10px; border-bottom:1px solid #eee; display:flex; align-items:center; gap:10px;"><img src="${users[u].avatar}" style="width:30px; height:30px; border-radius:50%; object-fit:cover;"> ${u} ${u===myName?'(Siz)':''}</div>`;
     });
 
-    // --- Hikayeler ---
     socket.on('receive_stories', grouped => {
         const list = document.getElementById('st-list');
         list.innerHTML = "";
         for(let user in grouped) {
-            list.innerHTML += `
-                <div style="text-align:center">
-                    <img src="${grouped[user].avatar}" class="st-circle">
-                    <div style="font-size:11px">${user === myName ? 'Sen' : user}</div>
-                </div>`;
+            list.innerHTML += `<div class="st-item"><img src="${grouped[user].avatar}" class="st-ava"><div style="font-size:11px">${user}</div></div>`;
         }
     });
 
-    function del(id) { socket.emit('delete_message', {id: id}); }
-    socket.on('message_deleted', d => document.getElementById('msg-'+d.id)?.remove());
-
     function upPro(i) {
         const r = new FileReader();
+        r.onload = e => { socket.emit('update_profile', {avatar: e.target.result}); location.reload(); };
+        r.readAsDataURL(i.files[0]);
+    }
+
+    function upBg(i) {
+        const r = new FileReader();
         r.onload = e => {
-            socket.emit('update_profile', {avatar: e.target.result});
-            document.getElementById('my-ava').src = e.target.result;
+            document.body.style.backgroundImage = `url(${e.target.result})`;
+            socket.emit('update_bg', {bg: e.target.result});
         };
         r.readAsDataURL(i.files[0]);
     }
@@ -180,9 +132,12 @@
         r.readAsDataURL(i.files[0]);
     }
 
-    socket.on('profile_sync', d => {
-        document.querySelectorAll(`.msg[data-u="${d.username}"] .m-ava`).forEach(img => img.src = d.avatar);
-    });
+    function upFile(i) {
+        const file = i.files[0];
+        const r = new FileReader();
+        r.onload = e => socket.emit('message', {content: e.target.result, type: 'file', file_name: file.name});
+        r.readAsDataURL(file);
+    }
 </script>
 </body>
 </html>
