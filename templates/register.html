@@ -1,51 +1,42 @@
 <!DOCTYPE html>
-<html lang="tr">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kayıt Ol</title>
     <style>
-        :root { --wp-green: #25D366; --wp-dark: #075e54; }
-        body { 
-            margin: 0; padding: 0; height: 100vh; display: flex; 
-            justify-content: center; align-items: center; 
-            background: #f0f2f5; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        }
-        .container { 
-            background: white; padding: 30px; border-radius: 20px; 
-            width: 85%; max-width: 380px; text-align: center; 
-            box-shadow: 0 10px 30px rgba(0,0,0,0.08); 
-        }
-        h2 { color: var(--wp-dark); margin-bottom: 25px; font-size: 24px; }
-        input { 
-            width: 100%; padding: 14px; margin: 10px 0; 
-            border: 1px solid #ddd; border-radius: 10px; 
-            box-sizing: border-box; font-size: 16px; outline: none;
-            transition: border 0.3s;
-        }
-        input:focus { border-color: var(--wp-green); }
-        button { 
-            width: 100%; padding: 14px; background: var(--wp-green); 
-            color: white; border: none; border-radius: 10px; 
-            font-weight: bold; font-size: 16px; cursor: pointer; 
-            margin-top: 15px; transition: background 0.3s;
-        }
-        button:hover { background: #20bd5a; }
-        .footer-text { margin-top: 20px; font-size: 14px; color: #666; }
-        .footer-text a { color: var(--wp-dark); text-decoration: none; font-weight: bold; }
+        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background: #f0f2f5; margin:0; }
+        .card { background: white; padding: 25px; border-radius: 15px; width: 90%; max-width: 400px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        input, select { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; }
+        .avatar-preview { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; margin: 10px auto; display: block; background: #eee; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h2>Yeni Hesap Aç</h2>
-        <form method="POST" action="/register">
-            <input type="text" name="username" placeholder="Kullanıcı Adı" required autofocus>
+    <div class="card">
+        <h2>Kayıt Ol</h2>
+        <form method="POST">
+            <input type="text" name="username" placeholder="Kullanıcı Adı" required>
             <input type="password" name="password" placeholder="Şifre" required>
-            <button type="submit">Kayıt Ol</button>
+            <select name="gender">
+                <option value="Erkek">Erkek</option>
+                <option value="Kadın">Kadın</option>
+                <option value="Belirtmek İstemiyorum">Belirtmek İstemiyorum</option>
+            </select>
+            <label>Profil Fotoğrafı Seç:</label>
+            <input type="file" id="fileIn" accept="image/*" onchange="preview(this)">
+            <img id="p-prev" class="avatar-preview" src="">
+            <input type="hidden" name="avatar_data" id="avatar_data">
+            <button type="submit" style="width:100%; padding:12px; background:#25D366; color:white; border:none; border-radius:8px; cursor:pointer;">Kayıt Tamamla</button>
         </form>
-        <div class="footer-text">
-            Zaten hesabın var mı? <a href="{{ url_for('login') }}">Giriş Yap</a>
-        </div>
     </div>
+    <script>
+        function preview(i) {
+            const r = new FileReader();
+            r.onload = e => { 
+                document.getElementById('p-prev').src = e.target.result;
+                document.getElementById('avatar_data').value = e.target.result;
+            };
+            r.readAsDataURL(i.files[0]);
+        }
+    </script>
 </body>
 </html>
