@@ -1,213 +1,166 @@
-from gevent import monkey
-monkey.patch_all()
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WhatsApp</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        body { font-family: sans-serif; margin: 0; display: flex; height: 100vh; background-size: cover; background-attachment: fixed; }
+        #side { width: 300px; background: white; border-right: 1px solid #ddd; display: flex; flex-direction: column; }
+        #main { flex: 1; display: flex; flex-direction: column; position: relative; }
+        #story-bar { height: 110px; background: rgba(255,255,255,0.9); border-bottom: 1px solid #ddd; display: flex; align-items: center; padding: 0 15px; gap: 15px; overflow-x: auto; }
+        .st-item { text-align: center; min-width: 75px; cursor: pointer; }
+        .st-ava { width: 60px; height: 60px; border-radius: 50%; border: 3px solid #25D366; object-fit: cover; }
+        #story-viewer { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 2000; justify-content: center; align-items: center; flex-direction: column; }
+        #chat-box { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
+        .msg { display: flex; gap: 10px; max-width: 80%; }
+        .msg.me { align-self: flex-end; flex-direction: row-reverse; }
+        .bubble { padding: 10px; border-radius: 10px; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+        .me .bubble { background: #dcf8c6; }
+        .m-ava { width: 35px; height: 35px; border-radius: 50%; object-fit: cover; }
+        .footer { padding: 15px; background: #eee; display: flex; gap: 10px; align-items: center; }
+        #mIn { flex: 1; padding: 10px; border-radius: 20px; border: 1px solid #ddd; outline: none; }
+        .btn { cursor: pointer; font-size: 20px; border: none; background: none; }
+    </style>
+</head>
+<body id="body" style="background-image: url('{{ user.bg_img if user.bg_img else 'https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png' }}')">
 
-import os
-from flask import Flask, render_template, request, redirect, url_for
-from flask_sqlalchemy import SQLAlchemy
-from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
-from flask_socketio import SocketIO, emit
-from datetime import datetime
+<div id="story-viewer" onclick="closeSt()">
+    <div id="st-media-content" style="max-width: 90%; max-height: 80%;"></div>
+    <audio id="st-audio" autoplay></audio>
+    <h3 id="st-user-name" style="color:white; margin-top:10px;"></h3>
+</div>
 
-app = Flask(__name__)
-app.config['SECRET_KEY'] = 'master_whatsapp_2026'
+<div id="side">
+    <div style="padding:15px; background:#ededed; display:flex; justify-content:space-between; align-items:center;">
+        <img src="{{ user.avatar }}" id="my-ava" onclick="document.getElementById('p-file').click()" style="width:40px; height:40px; border-radius:50%; object-fit:cover; cursor:pointer">
+        <div>
+            <button class="btn" title="Görüntülü Arama" onclick="location.href='/live'">📹</button>
+            <button class="btn" title="Arka Plan" onclick="document.getElementById('bg-file').click()">🎨</button>
+            <button class="btn" title="Çıkış" onclick="location.href='/logout'">🚪</button>
+        </div>
+    </div>
+    <div id="online-list" style="overflow-y:auto; flex:1;"></div>
+</div>
 
-# Veritabanı Yolu
-basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'database.db')
+<div id="main">
+    <div id="story-bar">
+        <div class="st-item" onclick="document.getElementById('st-file').click()">
+            <div class="st-ava" style="display:flex; align-items:center; justify-content:center; background:#eee; font-size:24px">+</div>
+            <div style="font-size:12px">Ekle</div>
+        </div>
+        <div id="st-list" style="display:flex; gap:15px"></div>
+    </div>
+    <div id="chat-box">
+        {% for m in initial_msgs %}
+        <div class="msg {{ 'me' if m.username == user.username else '' }}">
+            <img src="{{ m.user_avatar }}" class="m-ava">
+            <div class="bubble"><b>{{ m.username }}</b><br>
+                {% if m.msg_type == 'file' %}<a href="{{ m.content }}" download="{{ m.file_name }}">📂 {{ m.file_name }}</a>{% else %}{{ m.content }}{% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    <div class="footer">
+        <button class="btn" onclick="document.getElementById('f-file').click()">📎</button>
+        <input type="text" id="mIn" placeholder="Mesaj yaz..." onkeypress="if(event.key==='Enter') send()">
+        <button class="btn" onclick="send()">🚀</button>
+    </div>
+</div>
 
-# Dosya Boyutu Sınırı (Resim, Video ve Müzik için 500MB)
-app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024 
+<input type="file" id="p-file" style="display:none" onchange="upPro(this)">
+<input type="file" id="bg-file" style="display:none" onchange="upBg(this)">
+<input type="file" id="f-file" style="display:none" onchange="upFile(this)">
+<input type="file" id="st-file" style="display:none" accept="image/*,video/*" onchange="upSt(this)">
+<input type="file" id="st-music" style="display:none" accept="audio/*" onchange="upMusic(this)">
 
-db = SQLAlchemy(app)
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent', max_http_buffer_size=500 * 1024 * 1024)
+<script>
+    const socket = io();
+    const myName = "{{ user.username }}";
+    const box = document.getElementById('chat-box');
+    box.scrollTop = box.scrollHeight;
+    let tempSt = { content: "", type: "" };
 
-# --- VERİTABANI MODELLERİ ---
+    function send() {
+        const i = document.getElementById('mIn');
+        if(i.value.trim()) { socket.emit('message', {content: i.value, type: 'text'}); i.value = ''; }
+    }
 
-class User(UserMixin, db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(50), unique=True, nullable=False)
-    password = db.Column(db.String(100), nullable=False)
-    gender = db.Column(db.String(10))     # Erkek / Kadın
-    avatar = db.Column(db.Text)          # Kalıcı Profil (Base64)
-    bg_img = db.Column(db.Text)          # Kalıcı Arka Plan (Base64)
+    socket.on('new_message', d => {
+        const isMe = d.user === myName;
+        const content = d.type === 'file' ? `<a href="${d.content}" download="${d.file_name}">📂 ${d.file_name}</a>` : d.content;
+        box.insertAdjacentHTML('beforeend', `<div class="msg ${isMe?'me':''}">
+            <img src="${d.avatar}" class="m-ava"><div class="bubble"><b>${d.user}</b><br>${content}</div>
+        </div>`);
+        box.scrollTop = box.scrollHeight;
+    });
 
-class Message(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(50))
-    user_avatar = db.Column(db.Text)
-    content = db.Column(db.Text)         # Mesaj metni veya Dosya Base64
-    msg_type = db.Column(db.String(20))   # text / file
-    file_name = db.Column(db.String(100))
-    timestamp = db.Column(db.String(20))
+    socket.on('update_user_list', users => {
+        const list = document.getElementById('online-list');
+        list.innerHTML = "";
+        for(let u in users) list.innerHTML += `<div style="padding:15px; border-bottom:1px solid #eee; display:flex; align-items:center; gap:10px;"><img src="${users[u].avatar}" style="width:35px; height:35px; border-radius:50%; object-fit:cover;"> ${u} ${u===myName?'(Siz)':''}</div>`;
+    });
 
-class Story(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(50))
-    user_avatar = db.Column(db.Text)
-    content = db.Column(db.Text)         # Resim veya Video Base64
-    music = db.Column(db.Text)           # Müzik Base64 (Opsiyonel)
-    media_type = db.Column(db.String(20)) # image / video
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-# Veritabanını oluştur
-with app.app_context():
-    db.create_all()
-
-# --- OTURUM YÖNETİMİ ---
-
-login_manager = LoginManager(app)
-login_manager.login_view = 'login'
-
-@login_manager.user_loader
-def load_user(id):
-    return db.session.get(User, int(id))
-
-# --- ANA ROUTLAR ---
-
-@app.route('/')
-def index():
-    return redirect(url_for('login'))
-
-@app.route('/register', methods=['GET', 'POST'])
-def register():
-    if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
-        gender = request.form.get('gender')
-        avatar_data = request.form.get('avatar_data')
-        
-        # Cinsiyete göre varsayılan avatar mantığı
-        if not avatar_data or len(avatar_data) < 100:
-            if gender == "Erkek":
-                avatar_data = "https://cdn-icons-png.flaticon.com/512/4140/4140037.png"
-            else:
-                avatar_data = "https://cdn-icons-png.flaticon.com/512/4140/4140047.png"
-
-        new_user = User(
-            username=username, 
-            password=password, 
-            gender=gender, 
-            avatar=avatar_data,
-            bg_img=""
-        )
-        try:
-            db.session.add(new_user)
-            db.session.commit()
-            return redirect(url_for('login'))
-        except:
-            db.session.rollback()
-            return "Hata: Kullanıcı adı zaten mevcut!"
-    return render_template('register.html')
-
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    if request.method == 'POST':
-        user = User.query.filter_by(username=request.form['username']).first()
-        if user and user.password == request.form['password']:
-            login_user(user)
-            return redirect(url_for('chat'))
-    return render_template('login.html')
-
-@app.route('/chat')
-@login_required
-def chat():
-    # Son 100 mesajı getir
-    msgs = Message.query.order_by(Message.id.desc()).limit(100).all()
-    return render_template('chat.html', user=current_user, initial_msgs=reversed(list(msgs)))
-
-@app.route('/live')
-@login_required
-def live():
-    return render_template('live.html', user=current_user)
-
-@app.route('/logout')
-def logout():
-    logout_user()
-    return redirect(url_for('login'))
-
-# --- SOCKET.IO ETKİLEŞİMLERİ ---
-
-online_users = {}
-
-@socketio.on('connect')
-def handle_connect():
-    if current_user.is_authenticated:
-        # Online listesine ekle ve yayınla
-        online_users[current_user.username] = {"avatar": current_user.avatar}
-        emit('update_user_list', online_users, broadcast=True)
-        # Mevcut hikayeleri gönder
-        send_stories()
-
-@socketio.on('message')
-def handle_message(data):
-    # Mesajı veritabanına kaydet
-    msg = Message(
-        username=current_user.username,
-        user_avatar=current_user.avatar,
-        content=data['content'],
-        msg_type=data.get('type', 'text'),
-        file_name=data.get('file_name', ''),
-        timestamp=datetime.now().strftime("%H:%M")
-    )
-    db.session.add(msg)
-    db.session.commit()
-    
-    # Herkese yayınla
-    emit('new_message', {
-        'user': msg.username,
-        'avatar': msg.user_avatar,
-        'content': msg.content,
-        'type': msg.msg_type,
-        'file_name': msg.file_name,
-        'time': msg.timestamp
-    }, broadcast=True)
-
-@socketio.on('add_story')
-def handle_story(data):
-    # Hikayeyi kaydet
-    new_story = Story(
-        username=current_user.username,
-        user_avatar=current_user.avatar,
-        content=data['content'],
-        music=data.get('music'),
-        media_type=data.get('media_type', 'image')
-    )
-    db.session.add(new_story)
-    db.session.commit()
-    send_stories()
-
-def send_stories():
-    # Tüm hikayeleri kullanıcı bazlı grupla
-    stories = Story.query.all()
-    grouped = {}
-    for s in stories:
-        grouped[s.username] = {
-            'avatar': s.user_avatar,
-            'content': s.content,
-            'music': s.music,
-            'media_type': s.media_type
+    socket.on('receive_stories', grouped => {
+        const list = document.getElementById('st-list');
+        list.innerHTML = "";
+        for(let u in grouped) {
+            list.innerHTML += `<div class="st-item" onclick='viewSt(${JSON.stringify(grouped[u])}, "${u}")'>
+                <img src="${grouped[u].avatar}" class="st-ava"><div style="font-size:11px">${u}</div>
+            </div>`;
         }
-    emit('receive_stories', grouped, broadcast=True)
+    });
 
-@socketio.on('update_profile')
-def handle_profile_update(data):
-    user = db.session.get(User, current_user.id)
-    user.avatar = data['avatar']
-    db.session.commit()
-    # Online listesini güncelle
-    online_users[user.username]['avatar'] = data['avatar']
-    emit('update_user_list', online_users, broadcast=True)
+    function upSt(i) {
+        const file = i.files[0];
+        const r = new FileReader();
+        r.onload = e => {
+            tempSt.content = e.target.result;
+            tempSt.type = file.type.startsWith('video') ? 'video' : 'image';
+            if(confirm("Hikayeye müzik eklemek ister misiniz?")) document.getElementById('st-music').click();
+            else socket.emit('add_story', {content: tempSt.content, media_type: tempSt.type});
+        };
+        r.readAsDataURL(file);
+    }
 
-@socketio.on('update_bg')
-def handle_bg_update(data):
-    user = db.session.get(User, current_user.id)
-    user.bg_img = data['bg']
-    db.session.commit()
+    function upMusic(i) {
+        const r = new FileReader();
+        r.onload = e => socket.emit('add_story', {content: tempSt.content, media_type: tempSt.type, music: e.target.result});
+        r.readAsDataURL(i.files[0]);
+    }
 
-@socketio.on('signal')
-def handle_webrtc_signal(data):
-    # Görüntülü arama sinyallerini diğer kullanıcıya ilet
-    emit('signal', data, broadcast=True, include_self=False)
+    function viewSt(data, user) {
+        const v = document.getElementById('story-viewer');
+        const box = document.getElementById('st-media-content');
+        const audio = document.getElementById('st-audio');
+        v.style.display = 'flex';
+        document.getElementById('st-user-name').innerText = user;
+        box.innerHTML = data.media_type === 'video' ? `<video src="${data.content}" autoplay style="width:100%; border-radius:10px;"></video>` : `<img src="${data.content}" style="width:100%; border-radius:10px;">`;
+        if(data.music) { audio.src = data.music; audio.play(); }
+        setTimeout(closeSt, 6000);
+    }
 
-if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=10000, debug=True)
+    function closeSt() {
+        document.getElementById('story-viewer').style.display = 'none';
+        document.getElementById('st-audio').pause();
+    }
+
+    function upPro(i) {
+        const r = new FileReader();
+        r.onload = e => { socket.emit('update_profile', {avatar: e.target.result}); location.reload(); };
+        r.readAsDataURL(i.files[0]);
+    }
+    function upBg(i) {
+        const r = new FileReader();
+        r.onload = e => { document.body.style.backgroundImage = `url(${e.target.result})`; socket.emit('update_bg', {bg: e.target.result}); };
+        r.readAsDataURL(i.files[0]);
+    }
+    function upFile(i) {
+        const file = i.files[0];
+        const r = new FileReader();
+        r.onload = e => socket.emit('message', {content: e.target.result, type: 'file', file_name: file.name});
+        r.readAsDataURL(file);
+    }
+</script>
+</body>
+</html>
