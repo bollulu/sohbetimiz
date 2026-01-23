@@ -9,8 +9,7 @@ from flask_socketio import SocketIO, emit
 from datetime import datetime
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'ultra_final_v2026'
-# Sunucu limitini artırıyoruz ama asıl işi client tarafında sıkıştırma yapacak
+app.config['SECRET_KEY'] = 'ultra_final_v2026_pro'
 app.config['MAX_CONTENT_LENGTH'] = 200 * 1024 * 1024 
 
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -24,9 +23,9 @@ class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True)
     password = db.Column(db.String(100))
-    avatar = db.Column(db.Text) # Base64 resim
+    avatar = db.Column(db.Text) 
     gender = db.Column(db.String(20))
-    blocked_list = db.Column(db.Text, default="") # "ahmet,mehmet"
+    blocked_list = db.Column(db.Text, default="") 
 
 class Message(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -39,10 +38,10 @@ class Message(db.Model):
 class Story(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50))
-    avatar = db.Column(db.Text)
-    content = db.Column(db.Text)
-    media_type = db.Column(db.String(10)) # image/video
-    views = db.Column(db.Text, default="")
+    avatar = db.Column(db.Text) # Paylaşan kişinin o anki avatarı
+    content = db.Column(db.Text) # Hikaye resmi/videosu
+    media_type = db.Column(db.String(10)) 
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
 with app.app_context():
     db.create_all()
@@ -87,7 +86,6 @@ def logout(): logout_user(); return redirect(url_for('login'))
 @login_required
 def delete_acc():
     if current_user.password == request.form.get('password'):
-        # Kullanıcıya ait mesajları silmeyelim, sadece hesabı silelim (WP mantığı)
         db.session.delete(current_user); db.session.commit()
         logout_user(); return "OK"
     return "FAIL", 403
@@ -98,11 +96,10 @@ online_users = {}
 @socketio.on('connect')
 def on_connect():
     if current_user.is_authenticated:
-        # 1. Kullanıcıyı online listesine ekle
-        online_users[current_user.username] = {"avatar": current_user.avatar, "gender": current_user.gender}
+        online_users[current_user.username] = {"avatar": current_user.avatar}
         emit('update_online', online_users, broadcast=True)
         
-        # 2. Geçmiş Mesajları Yükle (Sayfa yenilenince silinmemesi için)
+        # Geçmiş Mesajlar
         messages = Message.query.all()
         history = []
         for m in messages:
@@ -112,7 +109,6 @@ def on_connect():
             })
         emit('load_history', history)
         
-        # 3. Hikayeleri Yükle
         send_stories()
 
 @socketio.on('disconnect')
@@ -123,7 +119,6 @@ def on_disconnect():
 
 @socketio.on('send_msg')
 def handle_msg(data):
-    # Veritabanına kaydet
     m = Message(
         sender=current_user.username, 
         avatar=current_user.avatar, 
@@ -132,8 +127,6 @@ def handle_msg(data):
         timestamp=datetime.now().strftime("%H:%M")
     )
     db.session.add(m); db.session.commit()
-    
-    # Herkese gönder
     emit('new_msg', {
         'id': m.id, 'sender': m.sender, 'avatar': m.avatar, 
         'content': m.content, 'type': m.msg_type, 'time': m.timestamp
@@ -153,6 +146,13 @@ def add_story(data):
     db.session.add(s); db.session.commit()
     send_stories()
 
+@socketio.on('delete_story')
+def delete_story(data):
+    s = db.session.get(Story, data['id'])
+    if s and s.username == current_user.username:
+        db.session.delete(s); db.session.commit()
+        send_stories()
+
 @socketio.on('update_avatar')
 def update_avatar_func(data):
     current_user.avatar = data['avatar']
@@ -162,11 +162,15 @@ def update_avatar_func(data):
 
 def send_stories():
     stories = Story.query.all()
-    # Listeyi düzenle
-    out = []
+    # Hikayeleri Kullanıcıya Göre Grupla
+    grouped = {}
     for s in stories:
-        out.append({'id': s.id, 'username': s.username, 'avatar': s.avatar, 'content': s.content, 'type': s.media_type})
-    emit('all_stories', out, broadcast=True)
+        if s.username not in grouped: grouped[s.username] = []
+        grouped[s.username].append({
+            'id': s.id, 'username': s.username, 'avatar': s.avatar, 
+            'content': s.content, 'type': s.media_type
+        })
+    emit('all_stories', grouped, broadcast=True)
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=10000)
