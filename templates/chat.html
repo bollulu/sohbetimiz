@@ -1,44 +1,36 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>SOHBETİMİZ</title>
+    <title>WhatsApp</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <style>
         body { font-family: sans-serif; margin: 0; display: flex; height: 100vh; background-size: cover; background-attachment: fixed; }
         #side { width: 300px; background: white; border-right: 1px solid #ddd; display: flex; flex-direction: column; }
         #main { flex: 1; display: flex; flex-direction: column; }
+        
         #story-bar { height: 110px; background: rgba(255,255,255,0.9); border-bottom: 1px solid #ddd; display: flex; align-items: center; padding: 0 15px; gap: 15px; overflow-x: auto; }
-        .st-item { text-align: center; min-width: 75px; cursor: pointer; }
-        .st-ava { width: 60px; height: 60px; border-radius: 50%; border: 3px solid #25D366; object-fit: cover; }
-        
-        /* Hikaye İzleyici */
-        #story-viewer { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 1000; justify-content: center; align-items: center; }
-        #st-media-box { max-width: 90%; max-height: 80%; }
-        
+        .st-item { text-align: center; min-width: 75px; }
+        .st-ava { width: 60px; height: 60px; border-radius: 50%; border: 2px solid #25D366; object-fit: cover; }
+
         #chat-box { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
         .msg { display: flex; gap: 10px; max-width: 80%; }
         .msg.me { align-self: flex-end; flex-direction: row-reverse; }
-        .bubble { padding: 10px; border-radius: 10px; background: white; }
+        .bubble { padding: 10px; border-radius: 10px; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
         .me .bubble { background: #dcf8c6; }
         .m-ava { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; }
-        .footer { padding: 15px; background: #eee; display: flex; gap: 10px; }
+
+        .footer { padding: 15px; background: #eee; display: flex; gap: 10px; align-items: center; }
         #mIn { flex: 1; padding: 10px; border-radius: 20px; border: 1px solid #ddd; outline: none; }
         .btn { cursor: pointer; font-size: 20px; border: none; background: none; }
     </style>
 </head>
 <body id="body" style="background-image: url('{{ user.bg_img if user.bg_img else 'https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png' }}')">
 
-<div id="story-viewer" onclick="closeSt()">
-    <div id="st-media-box"></div>
-    <audio id="st-audio" autoplay></audio>
-</div>
-
 <div id="side">
     <div style="padding:15px; background:#ededed; display:flex; justify-content:space-between; align-items:center;">
-        <img src="{{ user.avatar }}" onclick="document.getElementById('p-file').click()" style="width:40px; height:40px; border-radius:50%; object-fit:cover; cursor:pointer">
+        <img src="{{ user.avatar }}" id="my-ava" onclick="document.getElementById('p-file').click()" style="width:40px; height:40px; border-radius:50%; object-fit:cover; cursor:pointer">
         <div>
-            <button class="btn" onclick="location.href='/live'">📹</button>
             <button class="btn" onclick="document.getElementById('bg-file').click()">🎨</button>
             <button class="btn" onclick="location.href='/logout'">🚪</button>
         </div>
@@ -48,22 +40,29 @@
 
 <div id="main">
     <div id="story-bar">
-        <div class="st-item" onclick="openStoryUpload()">
+        <div class="st-item" onclick="document.getElementById('st-file').click()" style="cursor:pointer">
             <div class="st-ava" style="display:flex; align-items:center; justify-content:center; background:#eee; font-size:24px">+</div>
             <div style="font-size:12px">Ekle</div>
         </div>
         <div id="st-list" style="display:flex; gap:15px"></div>
     </div>
+
     <div id="chat-box">
         {% for m in initial_msgs %}
         <div class="msg {{ 'me' if m.username == user.username else '' }}">
             <img src="{{ m.user_avatar }}" class="m-ava">
-            <div class="bubble"><b>{{ m.username }}</b><br>
-                {% if m.msg_type == 'file' %}<a href="{{ m.content }}" download="{{ m.file_name }}">📂 {{ m.file_name }}</a>{% else %}{{ m.content }}{% endif %}
+            <div class="bubble">
+                <div style="font-size:10px; color:green; font-weight:bold">{{ m.username }}</div>
+                {% if m.msg_type == 'file' %}
+                    <a href="{{ m.content }}" download="{{ m.file_name }}">📂 {{ m.file_name }}</a>
+                {% else %}
+                    {{ m.content }}
+                {% endif %}
             </div>
         </div>
         {% endfor %}
     </div>
+
     <div class="footer">
         <button class="btn" onclick="document.getElementById('f-file').click()">📎</button>
         <input type="text" id="mIn" placeholder="Mesaj yaz..." onkeypress="if(event.key==='Enter') send()">
@@ -71,18 +70,16 @@
     </div>
 </div>
 
-<input type="file" id="p-file" style="display:none" onchange="upPro(this)">
-<input type="file" id="bg-file" style="display:none" onchange="upBg(this)">
+<input type="file" id="p-file" style="display:none" onchange="upPro(this)" accept="image/*">
+<input type="file" id="st-file" style="display:none" onchange="upSt(this)" accept="image/*">
+<input type="file" id="bg-file" style="display:none" onchange="upBg(this)" accept="image/*">
 <input type="file" id="f-file" style="display:none" onchange="upFile(this)">
-<input type="file" id="st-file" style="display:none" accept="image/*,video/*" onchange="processStory(this)">
-<input type="file" id="st-music" style="display:none" accept="audio/*" onchange="processMusic(this)">
 
 <script>
     const socket = io();
     const myName = "{{ user.username }}";
     const box = document.getElementById('chat-box');
     box.scrollTop = box.scrollHeight;
-    let tempStory = { content: "", type: "", music: null };
 
     function send() {
         const i = document.getElementById('mIn');
@@ -92,80 +89,53 @@
     socket.on('new_message', d => {
         const isMe = d.user === myName;
         const content = d.type === 'file' ? `<a href="${d.content}" download="${d.file_name}">📂 ${d.file_name}</a>` : d.content;
-        box.insertAdjacentHTML('beforeend', `<div class="msg ${isMe?'me':''}">
-            <img src="${d.avatar}" class="m-ava"><div class="bubble"><b>${d.user}</b><br>${content}</div>
-        </div>`);
+        const html = `<div class="msg ${isMe?'me':''}">
+            <img src="${d.avatar}" class="m-ava">
+            <div class="bubble"><div style="font-size:10px; color:green; font-weight:bold">${d.user}</div>${content}</div>
+        </div>`;
+        box.insertAdjacentHTML('beforeend', html);
         box.scrollTop = box.scrollHeight;
     });
 
     socket.on('update_user_list', users => {
         const list = document.getElementById('online-list');
         list.innerHTML = "";
-        for(let u in users) list.innerHTML += `<div style="padding:10px; display:flex; align-items:center; gap:10px;"><img src="${users[u].avatar}" style="width:30px; height:30px; border-radius:50%; object-fit:cover;"> ${u}</div>`;
+        for(let u in users) list.innerHTML += `<div style="padding:10px; border-bottom:1px solid #eee; display:flex; align-items:center; gap:10px;"><img src="${users[u].avatar}" style="width:30px; height:30px; border-radius:50%; object-fit:cover;"> ${u} ${u===myName?'(Siz)':''}</div>`;
     });
 
     socket.on('receive_stories', grouped => {
         const list = document.getElementById('st-list');
         list.innerHTML = "";
-        for(let u in grouped) {
-            list.innerHTML += `<div class="st-item" onclick="viewSt(${JSON.stringify(grouped[u])})">
-                <img src="${grouped[u].avatar}" class="st-ava"><div style="font-size:11px">${u}</div>
-            </div>`;
+        for(let user in grouped) {
+            list.innerHTML += `<div class="st-item"><img src="${grouped[user].avatar}" class="st-ava"><div style="font-size:11px; font-weight:bold">${user}</div></div>`;
         }
     });
 
-    // Hikaye Yükleme Mantığı
-    function openStoryUpload() { document.getElementById('st-file').click(); }
-
-    function processStory(i) {
-        const file = i.files[0];
-        const r = new FileReader();
-        r.onload = e => {
-            tempStory.content = e.target.result;
-            tempStory.type = file.type.startsWith('video') ? 'video' : 'image';
-            if(confirm("Hikayeye müzik eklemek ister misiniz?")) {
-                document.getElementById('st-music').click();
-            } else {
-                socket.emit('add_story', {content: tempStory.content, media_type: tempStory.type});
-            }
-        };
-        r.readAsDataURL(file);
-    }
-
-    function processMusic(i) {
-        const r = new FileReader();
-        r.onload = e => {
-            socket.emit('add_story', {content: tempStory.content, media_type: tempStory.type, music: e.target.result});
-        };
-        r.readAsDataURL(i.files[0]);
-    }
-
-    function viewSt(data) {
-        const viewer = document.getElementById('story-viewer');
-        const box = document.getElementById('st-media-box');
-        const audio = document.getElementById('st-audio');
-        viewer.style.display = 'flex';
-        box.innerHTML = data.media_type === 'video' ? `<video src="${data.content}" autoplay style="max-width:100%; border-radius:10px;"></video>` : `<img src="${data.content}" style="max-width:100%; border-radius:10px;">`;
-        if(data.music) { audio.src = data.music; audio.play(); }
-        setTimeout(closeSt, 5000);
-    }
-
-    function closeSt() {
-        document.getElementById('story-viewer').style.display = 'none';
-        document.getElementById('st-audio').pause();
-        document.getElementById('st-media-box').innerHTML = "";
-    }
-
     function upPro(i) {
         const r = new FileReader();
-        r.onload = e => { socket.emit('update_profile', {avatar: e.target.result}); location.reload(); };
+        r.onload = e => {
+            socket.emit('update_profile', {avatar: e.target.result});
+            document.getElementById('my-ava').src = e.target.result;
+            setTimeout(() => location.reload(), 500); // F5 yaparak her şeyi tazele
+        };
         r.readAsDataURL(i.files[0]);
     }
+
     function upBg(i) {
         const r = new FileReader();
-        r.onload = e => { document.getElementById('body').style.backgroundImage = `url(${e.target.result})`; socket.emit('update_bg', {bg: e.target.result}); };
+        r.onload = e => {
+            document.getElementById('body').style.backgroundImage = `url(${e.target.result})`;
+            socket.emit('update_bg', {bg: e.target.result});
+        };
         r.readAsDataURL(i.files[0]);
     }
+
+    function upSt(i) {
+        const r = new FileReader();
+        r.onload = e => socket.emit('add_story', {content: e.target.result});
+        r.readAsDataURL(i.files[0]);
+    }
+
     function upFile(i) {
         const file = i.files[0];
         const r = new FileReader();
