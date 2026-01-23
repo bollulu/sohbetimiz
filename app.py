@@ -9,7 +9,7 @@ from flask_socketio import SocketIO, emit
 from datetime import datetime
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'wp_ultra_final_2026'
+app.config['SECRET_KEY'] = 'whatsapp_story_master_2026'
 app.config['MAX_CONTENT_LENGTH'] = 200 * 1024 * 1024 
 
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -38,8 +38,9 @@ class Story(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50))
     user_avatar = db.Column(db.Text)
-    content = db.Column(db.Text)
-    media_type = db.Column(db.String(20))
+    content = db.Column(db.Text) # Resim/Video Base64
+    media_type = db.Column(db.String(20)) # 'image' veya 'video'
+    music = db.Column(db.Text, default="") # Müzik Base64 (opsiyonel)
 
 with app.app_context():
     db.create_all()
@@ -91,6 +92,12 @@ def connect():
         emit('user_status', online_users, broadcast=True)
         send_all_stories()
 
+@socketio.on('disconnect')
+def disconnect():
+    if current_user.is_authenticated:
+        online_users.pop(current_user.username, None)
+        emit('user_status', online_users, broadcast=True)
+
 @socketio.on('message')
 def handle_msg(data):
     msg_time = datetime.now().strftime("%H:%M")
@@ -116,25 +123,46 @@ def up_profile(data):
     emit('profile_updated', {'user': user.username, 'avatar': data['avatar']}, broadcast=True)
     emit('user_status', online_users, broadcast=True)
 
-@socketio.on('add_story')
-def add_story(data):
-    s = Story(username=current_user.username, user_avatar=current_user.avatar, content=data['content'], media_type=data['type'])
-    db.session.add(s)
-    db.session.commit()
-    send_all_stories()
-
 @socketio.on('update_bg')
 def update_bg(data):
     user = db.session.get(User, current_user.id)
     user.bg_img = data['bg']
     db.session.commit()
 
+@socketio.on('add_story')
+def add_story(data):
+    new_story = Story(
+        username=current_user.username,
+        user_avatar=current_user.avatar,
+        content=data['content'],
+        media_type=data['type'],
+        music=data.get('music', '') # Müzik alanı eklendi
+    )
+    db.session.add(new_story)
+    db.session.commit()
+    send_all_stories()
+
+@socketio.on('delete_story')
+def delete_story(data):
+    story_id = data['id']
+    story = db.session.get(Story, story_id)
+    if story and story.username == current_user.username:
+        db.session.delete(story)
+        db.session.commit()
+        send_all_stories() # Hikayeleri güncellenmiş olarak tekrar gönder
+
 def send_all_stories():
-    stories = Story.query.all()
+    stories = Story.query.order_by(Story.id.asc()).all() # Hikayeler eklenme sırasına göre gelsin
     output = {}
     for s in stories:
-        if s.username not in output: output[s.username] = {"avatar": s.user_avatar, "items": []}
-        output[s.username]["items"].append({"content": s.content, "type": s.media_type})
+        if s.username not in output:
+            output[s.username] = {"avatar": s.user_avatar, "items": []}
+        output[s.username]["items"].append({
+            "id": s.id, # Hikaye silmek için id eklendi
+            "content": s.content, 
+            "type": s.media_type, 
+            "music": s.music
+        })
     emit('all_stories', output, broadcast=True)
 
 if __name__ == '__main__':
