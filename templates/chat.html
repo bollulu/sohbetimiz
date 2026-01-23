@@ -1,186 +1,142 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>SOHBETİMİZ</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <style>
-        :root { --bg: #e5ddd5; }
-        body { margin:0; display:flex; height:100vh; font-family:sans-serif; background: var(--bg); }
+        body { margin:0; display:flex; height:100vh; font-family:sans-serif; overflow:hidden; }
+        #side { width:280px; background:white; border-right:1px solid #ddd; display:flex; flex-direction:column; }
+        #main { flex:1; display:flex; flex-direction:column; position:relative; background-size: cover; background-position: center; }
         
-        /* Sol Panel */
-        #left { width:300px; background:white; border-right:1px solid #ddd; display:flex; flex-direction:column; }
-        .panel-title { padding:15px; background:#075e54; color:white; font-weight:bold; }
-        .user-item { padding:10px; border-bottom:1px solid #eee; cursor:pointer; display:flex; align-items:center; gap:10px; }
-        .user-item img { width:40px; height:40px; border-radius:50%; }
-
-        /* Orta Panel */
-        #mid { flex:1; display:flex; flex-direction:column; position:relative; }
-        #top-info { position:absolute; top:10px; right:20px; font-size:12px; color:white; background:rgba(0,0,0,0.5); padding:5px 10px; border-radius:15px; z-index:10; }
-        
-        /* Hikaye Barı */
-        #story-bar { height:100px; background:white; border-bottom:1px solid #ddd; display:flex; align-items:center; padding:0 15px; gap:15px; overflow-x:auto; }
-        .story-node { width:60px; text-align:center; cursor:pointer; }
-        .story-node img { width:55px; height:55px; border-radius:50%; border:2px solid #25D366; }
+        /* Hikaye */
+        #story-bar { height:100px; background:white; display:flex; align-items:center; padding:0 15px; gap:15px; border-bottom:1px solid #ddd; overflow-x:auto; }
+        .st-node { min-width:65px; text-align:center; cursor:pointer; }
+        .st-node img { width:55px; height:55px; border-radius:50%; border:2px solid #25D366; }
 
         /* Mesajlar */
-        #chat-box { flex:1; overflow-y:auto; padding:20px; display:flex; flex-direction:column; gap:10px; }
-        .msg { display:flex; gap:10px; max-width:70%; }
+        #chat-window { flex:1; overflow-y:auto; padding:15px; display:flex; flex-direction:column; gap:12px; }
+        .msg { display:flex; gap:10px; max-width:80%; }
         .msg.me { align-self:flex-end; flex-direction:row-reverse; }
-        .bubble { background:white; padding:10px; border-radius:10px; position:relative; box-shadow:0 1px 2px rgba(0,0,0,0.1); }
+        .bubble { background:white; padding:10px; border-radius:12px; box-shadow:0 1px 2px rgba(0,0,0,0.1); }
         .me .bubble { background:#dcf8c6; }
-        .delete-btn { font-size:10px; color:red; cursor:pointer; display:block; margin-top:5px; }
-
-        /* Alt Bar */
+        
+        /* Footer */
         footer { padding:10px; background:#f0f0f0; display:flex; gap:10px; align-items:center; }
-        #mIn { flex:1; padding:10px; border-radius:20px; border:none; outline:none; }
+        #mIn { flex:1; padding:12px; border:none; border-radius:25px; outline:none; }
     </style>
 </head>
 <body>
 
-<div id="left">
-    <div class="panel-title">Aktif Üyeler</div>
-    <div id="active-list"></div>
-    <hr>
-    <div style="padding:10px;">
-        <button onclick="changeBg()" style="width:100%;">Arka Plan Değiştir</button>
-        <button onclick="resetBg()" style="width:100%; margin-top:5px;">Eski Haline Dön</button>
-        <button onclick="showDeleteAcc()" style="width:100%; margin-top:5px; background:red; color:white; border:none;">Hesabı Sil</button>
+<div id="side">
+    <div style="padding:15px; background:#075e54; color:white; display:flex; justify-content:space-between;">
+        <b>Aktif Üyeler</b>
+        <button onclick="location.href='/logout'" style="border:none; background:none; color:white; cursor:pointer;">🚪</button>
+    </div>
+    <div id="online-list" style="flex:1;"></div>
+    <div style="padding:10px; border-top:1px solid #eee;">
+        <button onclick="document.getElementById('bg-input').click()" style="width:100%;">🖼️ Arka Plan Seç</button>
+        <button onclick="document.getElementById('main').style.backgroundImage='none'" style="width:100%; margin-top:5px;">🔄 Sıfırla</button>
     </div>
 </div>
 
-<div id="mid">
-    <div id="top-info"><span id="live-clock"></span></div>
+<div id="main">
+    <div id="dt-box" style="position:absolute; top:10px; right:20px; color:#555; font-size:12px; font-weight:bold;"></div>
     
     <div id="story-bar">
-        <div class="story-node" onclick="addStory()">
+        <div class="st-node" onclick="triggerStory()">
             <div style="width:55px;height:55px;background:#eee;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:30px;">+</div>
             <small>Ekle</small>
         </div>
-        <div id="story-list" style="display:flex; gap:10px;"></div>
+        <div id="st-list" style="display:flex; gap:15px;"></div>
     </div>
 
-    <div id="chat-box"></div>
+    <div id="chat-window"></div>
 
     <footer>
-        <button onclick="document.getElementById('fileIn').click()">📁</button>
-        <button id="recBtn" onclick="toggleRecord()">🎤</button>
-        <input type="text" id="mIn" placeholder="Bir mesaj yazın..." onkeypress="if(event.key==='Enter') send()">
+        <button onclick="document.getElementById('file-in').click()">📎</button>
+        <button id="v-btn" onclick="toggleVoice()">🎤</button>
+        <input type="text" id="mIn" placeholder="Mesaj yaz..." onkeypress="if(event.key==='Enter') send()">
         <button onclick="send()">🚀</button>
     </footer>
 </div>
 
-<input type="file" id="fileIn" style="display:none" onchange="sendFile(this)">
+<input type="file" id="bg-input" style="display:none" onchange="changeBg(this)">
+<input type="file" id="file-in" style="display:none" onchange="uploadFile(this)">
+<input type="file" id="st-in" style="display:none" accept="image/*,video/*" onchange="uploadStory(this)">
 
 <script>
     const socket = io();
     const myName = "{{ user.username }}";
-    
-    // Saat Güncelleme
-    setInterval(() => {
-        document.getElementById('live-clock').innerText = new Date().toLocaleString();
-    }, 1000);
+    let mediaRec; let chunks = [];
 
-    // Mesaj Gönderme
+    // Saat
+    setInterval(() => { document.getElementById('dt-box').innerText = new Date().toLocaleString(); }, 1000);
+
+    // Mesajlaşma
     function send() {
         const i = document.getElementById('mIn');
-        if(i.value.trim()){
-            socket.emit('send_msg', {content: i.value, type: 'text'});
-            i.value = '';
-        }
+        if(i.value.trim()){ socket.emit('send_msg', {content: i.value, type:'text'}); i.value=''; }
     }
 
     socket.on('new_msg', d => {
         const isMe = d.sender === myName;
-        const html = `
-            <div class="msg ${isMe?'me':''}" id="msg-${d.id}">
-                <img src="${d.avatar}" style="width:30px;height:30px;border-radius:50%">
-                <div class="bubble">
-                    <small><b>${d.sender}</b></small><br>
-                    ${renderContent(d)}
-                    <small style="font-size:9px; color:#888;">${d.time}</small>
-                    ${isMe ? `<span class="delete-btn" onclick="deleteMsg(${d.id})">Sil</span>` : ''}
-                </div>
-            </div>`;
-        document.getElementById('chat-box').insertAdjacentHTML('beforeend', html);
-        document.getElementById('chat-box').scrollTop = document.getElementById('chat-box').scrollHeight;
+        let cHtml = d.content;
+        if(d.type==='file') cHtml = `<a href="${d.content}" target="_blank">📄 Dosya Gönderildi</a>`;
+        if(d.type==='audio') cHtml = `<audio src="${d.content}" controls></audio>`;
+
+        const html = `<div class="msg ${isMe?'me':''}">
+            <img src="${d.avatar}" style="width:35px;height:35px;border-radius:50%">
+            <div class="bubble">
+                <small><b>${d.sender}</b></small><br>${cHtml}<br>
+                <small style="font-size:10px;color:gray">${d.time}</small>
+                ${isMe ? `<span onclick="this.parentElement.parentElement.remove()" style="color:red;cursor:pointer;font-size:10px;margin-left:5px;">Sil</span>`:''}
+            </div>
+        </div>`;
+        document.getElementById('chat-window').insertAdjacentHTML('beforeend', html);
+        document.getElementById('chat-window').scrollTop = document.getElementById('chat-window').scrollHeight;
     });
-
-    function renderContent(d) {
-        if(d.type === 'file') return `<a href="${d.content}" target="_blank">📄 Dosyayı Görüntüle</a>`;
-        if(d.type === 'audio') return `<audio src="${d.content}" controls></audio>`;
-        return d.content;
-    }
-
-    // Aktif Listesi ve Engelleme
-    socket.on('update_users', users => {
-        let html = "";
-        for(let u in users) {
-            const label = (u === myName) ? `${u} (Siz)` : u;
-            html += `<div class="user-item" onclick="showUserOptions('${u}')">
-                <img src="${users[u].avatar}">
-                <span>${label}</span>
-            </div>`;
-        }
-        document.getElementById('active-list').innerHTML = html;
-    });
-
-    function showUserOptions(target) {
-        if(target === myName) return;
-        if(confirm(`${target} adlı kullanıcıyı engellemek istiyor musunuz?`)) {
-            // Engelleme sinyali gönder...
-        }
-    }
-
-    // Arka Plan
-    function changeBg() { 
-        const url = prompt("Resim URL'si girin:");
-        if(url) document.getElementById('mid').style.backgroundImage = `url(${url})`; 
-    }
-    function resetBg() { document.getElementById('mid').style.backgroundImage = 'none'; }
-
-    // Kamera (Telefon/PC Ayrımı)
-    async function openCam() {
-        const constraints = {
-            video: {
-                facingMode: (navigator.userAgent.match(/iPhone|Android/i)) ? "user" : "environment"
-            },
-            audio: true
-        };
-        // WebRTC işlemleri...
-    }
 
     // Ses Kaydı
-    let mediaRecorder;
-    let audioChunks = [];
-    async function toggleRecord() {
-        const btn = document.getElementById('recBtn');
-        if(!mediaRecorder || mediaRecorder.state === "inactive") {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaRecorder = new MediaRecorder(stream);
-            mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
-            mediaRecorder.onstop = () => {
-                const blob = new Blob(audioChunks, { type: 'audio/ogg' });
-                const reader = new FileReader();
-                reader.onload = e => socket.emit('send_msg', {content: e.target.result, type: 'audio'});
-                reader.readAsDataURL(blob);
-                audioChunks = [];
+    async function toggleVoice() {
+        if(!mediaRec || mediaRec.state === "inactive") {
+            const s = await navigator.mediaDevices.getUserMedia({audio:true});
+            mediaRec = new MediaRecorder(s);
+            mediaRec.ondataavailable = e => chunks.push(e.data);
+            mediaRec.onstop = () => {
+                const b = new Blob(chunks, {type:'audio/ogg'});
+                const r = new FileReader();
+                r.onload = e => socket.emit('send_msg', {content:e.target.result, type:'audio'});
+                r.readAsDataURL(b); chunks = [];
             };
-            mediaRecorder.start();
-            btn.innerText = "🛑";
-        } else {
-            mediaRecorder.stop();
-            btn.innerText = "🎤";
-        }
+            mediaRec.start(); document.getElementById('v-btn').innerText="🛑";
+        } else { mediaRec.stop(); document.getElementById('v-btn').innerText="🎤"; }
+    }
+
+    // Arka Plan & Dosya
+    function changeBg(i) {
+        const r = new FileReader();
+        r.onload = e => document.getElementById('main').style.backgroundImage = `url(${e.target.result})`;
+        r.readAsDataURL(i.files[0]);
     }
     
-    function showDeleteAcc() {
-        if(confirm("Hesabınızı silmek istediğinize emin misiniz? Tüm veriler yok olacak.")){
-            const pass = prompt("Güvenlik için şifrenizi girin:");
-            if(pass) {
-                // Formu post et...
-            }
-        }
+    function uploadFile(i) {
+        const r = new FileReader();
+        r.onload = e => socket.emit('send_msg', {content:e.target.result, type:'file'});
+        r.readAsDataURL(i.files[0]);
+    }
+
+    // Hikaye
+    function triggerStory() {
+        if(confirm("Kameradan çekmek için TAMAM, Dosyadan seçmek için İPTAL")) {
+            // Kamera açma mantığı buraya
+        } else { document.getElementById('st-in').click(); }
+    }
+
+    function uploadStory(i) {
+        const r = new FileReader();
+        r.onload = e => socket.emit('add_story', {content:e.target.result, type: i.files[0].type.split('/')[0]});
+        r.readAsDataURL(i.files[0]);
     }
 </script>
 </body>
