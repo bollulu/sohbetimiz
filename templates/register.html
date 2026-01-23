@@ -4,10 +4,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Kayıt Ol</title>
     <style>
-        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background: #f0f2f5; margin:0; }
-        .card { background: white; padding: 25px; border-radius: 15px; width: 90%; max-width: 400px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-        input, select { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ccc; border-radius: 8px; box-sizing: border-box; }
-        .avatar-preview { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; margin: 10px auto; display: block; background: #eee; }
+        body { font-family: sans-serif; background: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin:0; }
+        .card { background: white; padding: 25px; border-radius: 15px; width: 320px; text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        input, select { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; }
+        #p-prev { width: 80px; height: 80px; border-radius: 50%; object-fit: cover; margin: 10px auto; display: block; background: #eee; border: 2px solid #25D366; }
     </style>
 </head>
 <body>
@@ -16,26 +16,47 @@
         <form method="POST">
             <input type="text" name="username" placeholder="Kullanıcı Adı" required>
             <input type="password" name="password" placeholder="Şifre" required>
-            <select name="gender">
+            <select name="gender" id="gender" onchange="updateDefaultAvatar()">
                 <option value="Erkek">Erkek</option>
                 <option value="Kadın">Kadın</option>
-                <option value="Belirtmek İstemiyorum">Belirtmek İstemiyorum</option>
             </select>
-            <label>Profil Fotoğrafı Seç:</label>
-            <input type="file" id="fileIn" accept="image/*" onchange="preview(this)">
-            <img id="p-prev" class="avatar-preview" src="">
+            <img id="p-prev" src="https://cdn-icons-png.flaticon.com/512/4128/4128176.png">
+            <input type="file" accept="image/*" onchange="processImage(this)">
             <input type="hidden" name="avatar_data" id="avatar_data">
-            <button type="submit" style="width:100%; padding:12px; background:#25D366; color:white; border:none; border-radius:8px; cursor:pointer;">Kayıt Tamamla</button>
+            <button type="submit" style="width:100%; padding:12px; background:#25D366; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">Kayıt Ol</button>
         </form>
     </div>
     <script>
-        function preview(i) {
-            const r = new FileReader();
-            r.onload = e => { 
-                document.getElementById('p-prev').src = e.target.result;
-                document.getElementById('avatar_data').value = e.target.result;
+        const avatars = {
+            "Erkek": "https://cdn-icons-png.flaticon.com/512/4128/4128176.png",
+            "Kadın": "https://cdn-icons-png.flaticon.com/512/6997/6997662.png"
+        };
+        
+        function updateDefaultAvatar() {
+            const gen = document.getElementById('gender').value;
+            const prev = document.getElementById('p-prev');
+            prev.src = avatars[gen];
+            document.getElementById('avatar_data').value = avatars[gen];
+        }
+        updateDefaultAvatar();
+
+        function processImage(input) {
+            const file = input.files[0];
+            const reader = new FileReader();
+            reader.onload = e => {
+                const img = new Image();
+                img.src = e.target.result;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const size = 300; // 300x300 profil için ideal
+                    canvas.width = size; canvas.height = size;
+                    canvas.getContext('2d').drawImage(img, 0, 0, size, size);
+                    const compressed = canvas.toDataURL('image/jpeg', 0.7);
+                    document.getElementById('p-prev').src = compressed;
+                    document.getElementById('avatar_data').value = compressed;
+                };
             };
-            r.readAsDataURL(i.files[0]);
+            reader.readAsDataURL(file);
         }
     </script>
 </body>
