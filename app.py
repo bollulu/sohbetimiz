@@ -1,159 +1,114 @@
 from gevent import monkey
-monkey.patch_all() # Ağ bağlantıları için kritik
+monkey.patch_all()
 
 import os
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from flask_socketio import SocketIO, emit
 from datetime import datetime
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'whatsapp_ultra_v5_2026'
-app.config['MAX_CONTENT_LENGTH'] = 200 * 1024 * 1024 # Dosya yükleme limiti (200MB)
+app.config['SECRET_KEY'] = 'ultra_secret_2026'
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024 # 50MB Limit
 
-# Veritabanı Yapılandırması
 basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'database.db')
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 
-# --- VERİTABANI MODELLERİ ---
+# --- MODELLER ---
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True, nullable=False)
     password = db.Column(db.String(100), nullable=False)
-    avatar = db.Column(db.Text, default="https://www.w3schools.com/howto/img_avatar.png")
+    avatar = db.Column(db.Text) # Base64
+    gender = db.Column(db.String(10))
+    blocked_users = db.Column(db.Text, default="") # Virgülle ayrılmış kullanıcı adları
 
 class Message(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(50))
-    user_avatar = db.Column(db.Text)
+    sender = db.Column(db.String(50))
     content = db.Column(db.Text)
+    msg_type = db.Column(db.String(20), default="text") # text, file, audio
     timestamp = db.Column(db.String(20))
 
 class Story(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50))
-    user_avatar = db.Column(db.Text)
-    content = db.Column(db.Text) # Base64 Medya
-    media_type = db.Column(db.String(20)) # image/video
-    music = db.Column(db.Text, default="") # Base64 Müzik
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    content = db.Column(db.Text)
+    media_type = db.Column(db.String(10)) # image/video
+    views = db.Column(db.Text, default="") # Gördü listesi
 
 with app.app_context():
     db.create_all()
 
-# --- LOGIN YÖNETİMİ ---
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
 @login_manager.user_loader
-def load_user(id):
-    return db.session.get(User, int(id))
+def load_user(id): return db.session.get(User, int(id))
 
-# --- SAYFA ROTALARI (ROUTES) ---
-@app.route('/')
-def index():
-    if current_user.is_authenticated:
-        return redirect(url_for('chat'))
-    return redirect(url_for('login'))
-
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    if request.method == 'POST':
-        u = request.form.get('username')
-        p = request.form.get('password')
-        user = User.query.filter_by(username=u).first()
-        if user and user.password == p:
-            login_user(user)
-            return redirect(url_for('chat'))
-    return render_template('login.html')
-
+# --- ROTALAR ---
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
         u = request.form.get('username')
-        p = request.form.get('password')
-        if not User.query.filter_by(username=u).first():
-            new_user = User(username=u, password=p)
-            db.session.add(new_user)
-            db.session.commit()
-            return redirect(url_for('login'))
+        if User.query.filter_by(username=u).first(): return "Bu kullanıcı adı alınmış!", 400
+        new_u = User(
+            username=u,
+            password=request.form.get('password'),
+            gender=request.form.get('gender'),
+            avatar=request.form.get('avatar_data')
+        )
+        db.session.add(new_u); db.session.commit()
+        return redirect(url_for('login'))
     return render_template('register.html')
 
+@app.route('/delete_account', methods=['POST'])
+@login_required
+def delete_account():
+    pw = request.form.get('password')
+    if current_user.password == pw:
+        db.session.delete(current_user)
+        db.session.commit()
+        logout_user()
+        return redirect(url_for('register'))
+    return "Şifre yanlış!", 403
+
+# Diğer login/logout/chat rotaları standart...
 @app.route('/chat')
 @login_required
-def chat():
-    # Sayfa yüklenince eski mesajları çekmek için
-    initial_msgs = Message.query.all()
-    return render_template('chat.html', user=current_user, initial_msgs=initial_msgs)
+def chat(): return render_template('chat.html', user=current_user)
 
-@app.route('/logout')
-def logout():
-    logout_user()
-    return redirect(url_for('login'))
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        user = User.query.filter_by(username=request.form.get('username')).first()
+        if user and user.password == request.form.get('password'):
+            login_user(user); return redirect(url_for('chat'))
+    return render_template('login.html')
 
-# --- SOCKET.IO ETKİLEŞİMLERİ ---
-@socketio.on('message')
-def handle_msg(data):
-    time_now = datetime.now().strftime("%H:%M")
-    m = Message(username=current_user.username, user_avatar=current_user.avatar, content=data['content'], timestamp=time_now)
-    db.session.add(m)
-    db.session.commit()
-    emit('new_message', {'user': m.username, 'avatar': m.user_avatar, 'content': m.content, 'time': m.timestamp}, broadcast=True)
-
-@socketio.on('add_story')
-def handle_story(data):
-    s = Story(
-        username=current_user.username,
-        user_avatar=current_user.avatar,
-        content=data['content'],
-        media_type=data['type'],
-        music=data.get('music', '')
-    )
-    db.session.add(s)
-    db.session.commit()
-    broadcast_stories()
-
-@socketio.on('delete_story')
-def delete_story(data):
-    s = db.session.get(Story, data['id'])
-    if s and s.username == current_user.username:
-        db.session.delete(s)
-        db.session.commit()
-        broadcast_stories()
-
-def broadcast_stories():
-    stories = Story.query.order_by(Story.timestamp.asc()).all()
-    output = {}
-    for s in stories:
-        if s.username not in output:
-            output[s.username] = {"avatar": s.user_avatar, "items": []}
-        output[s.username]["items"].append({
-            "id": s.id, "content": s.content, "type": s.media_type, "music": s.music
-        })
-    emit('all_stories', output, broadcast=True)
-
-# --- VİDEO CHAT SİNYALLEŞME (WebRTC) ---
-@socketio.on('video-offer')
-def handle_offer(data):
-    emit('video-offer', data, broadcast=True, include_self=False)
-
-@socketio.on('video-answer')
-def handle_answer(data):
-    emit('video-answer', data, broadcast=True, include_self=False)
-
-@socketio.on('new-ice-candidate')
-def handle_candidate(data):
-    emit('new-ice-candidate', data, broadcast=True, include_self=False)
+# --- SOCKET OLAYLARI ---
+active_users = {}
 
 @socketio.on('connect')
-def on_connect():
-    broadcast_stories() # Bağlanan herkese hikayeleri yolla
+def connect():
+    if current_user.is_authenticated:
+        active_users[current_user.username] = {"avatar": current_user.avatar, "gender": current_user.gender}
+        emit('update_users', active_users, broadcast=True)
+
+@socketio.on('send_msg')
+def handle_msg(data):
+    # Engelleme kontrolü
+    target_user = User.query.filter_by(username=data.get('to')).first()
+    if target_user and current_user.username in (target_user.blocked_users or "").split(','):
+        return # Engellenmişse gönderme
+    
+    m = Message(sender=current_user.username, content=data['content'], msg_type=data.get('type', 'text'), timestamp=datetime.now().strftime("%H:%M"))
+    db.session.add(m); db.session.commit()
+    emit('new_msg', {'id': m.id, 'sender': m.sender, 'content': m.content, 'type': m.msg_type, 'avatar': current_user.avatar, 'time': m.timestamp}, broadcast=True)
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 10000))
-    socketio.run(app, host='0.0.0.0', port=port)
+    socketio.run(app, host='0.0.0.0', port=10000)
