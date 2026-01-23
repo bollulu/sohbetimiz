@@ -9,24 +9,22 @@ from flask_socketio import SocketIO, emit
 from datetime import datetime
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'ultra_safe_key_2026'
-app.config['MAX_CONTENT_LENGTH'] = 1024 * 1024 * 1024  # 1GB Limit
+app.config['SECRET_KEY'] = 'whatsapp_speed_v2'
+app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024 # 100MB yeterlidir
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'database.db')
 
 db = SQLAlchemy(app)
-# Socket verisi için de 1GB limit tanımlandı
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent', max_http_buffer_size=1024 * 1024 * 1024)
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent', max_http_buffer_size=100 * 1024 * 1024)
 
-# --- MODELLER ---
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(50), unique=True, nullable=False)
-    password = db.Column(db.String(100), nullable=False)
+    username = db.Column(db.String(50), unique=True)
+    password = db.Column(db.String(100))
     gender = db.Column(db.String(10))
     avatar = db.Column(db.Text)
-    bg_img = db.Column(db.Text)
+    bg_img = db.Column(db.Text, default="")
 
 class Message(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -53,10 +51,6 @@ login_manager.login_view = 'login'
 @login_manager.user_loader
 def load_user(id): return db.session.get(User, int(id))
 
-# --- ROUTLAR ---
-@app.route('/')
-def home(): return redirect(url_for('login'))
-
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
@@ -64,7 +58,6 @@ def register():
         gender = request.form.get('gender')
         if not avatar:
             avatar = "https://cdn-icons-png.flaticon.com/512/4140/4140037.png" if gender == "Erkek" else "https://cdn-icons-png.flaticon.com/512/4140/4140047.png"
-        
         new_user = User(username=request.form['username'], password=request.form['password'], gender=gender, avatar=avatar)
         db.session.add(new_user)
         db.session.commit()
@@ -83,7 +76,7 @@ def login():
 @app.route('/chat')
 @login_required
 def chat():
-    msgs = Message.query.order_by(Message.id.desc()).limit(100).all()
+    msgs = Message.query.order_by(Message.id.desc()).limit(50).all()
     return render_template('chat.html', user=current_user, initial_msgs=reversed(list(msgs)))
 
 @app.route('/live')
@@ -93,30 +86,47 @@ def live(): return render_template('live.html', user=current_user)
 @app.route('/logout')
 def logout(): logout_user(); return redirect(url_for('login'))
 
-# --- SOCKET EVENTS ---
+# --- HIZLI SOCKET İŞLEMLERİ ---
+
 @socketio.on('connect')
 def connect():
-    emit('update_user_list', {u.username: {"avatar": u.avatar} for u in User.query.all()}, broadcast=True)
-    stories = Story.query.all()
-    grouped = {s.username: {'avatar': s.user_avatar, 'content': s.content, 'music': s.music, 'media_type': s.media_type} for s in stories}
-    emit('receive_stories', grouped, broadcast=True)
+    # Sadece hikayeleri gönder, kullanıcı listesini hafiflet
+    send_stories()
 
 @socketio.on('message')
 def handle_msg(data):
-    msg = Message(username=current_user.username, user_avatar=current_user.avatar, content=data['content'], msg_type=data.get('type', 'text'), file_name=data.get('file_name', ''), timestamp=datetime.now().strftime("%H:%M"))
-    db.session.add(msg)
+    msg_time = datetime.now().strftime("%H:%M")
+    # Veritabanına yazmadan ÖNCE emit yaparsak mesaj anında gider (Hız Sırrı)
+    socketio.emit('new_message', {
+        'user': current_user.username,
+        'avatar': current_user.avatar,
+        'content': data['content'],
+        'type': data.get('type', 'text'),
+        'file_name': data.get('file_name', ''),
+        'time': msg_time
+    })
+    # Sonra arkada kaydet
+    m = Message(username=current_user.username, user_avatar=current_user.avatar, content=data['content'], msg_type=data.get('type', 'text'), file_name=data.get('file_name', ''), timestamp=msg_time)
+    db.session.add(m)
     db.session.commit()
-    emit('new_message', {'user': msg.username, 'avatar': msg.user_avatar, 'content': msg.content, 'type': msg.msg_type, 'file_name': msg.file_name, 'time': msg.timestamp}, broadcast=True)
 
 @socketio.on('add_story')
 def add_story(data):
     s = Story(username=current_user.username, user_avatar=current_user.avatar, content=data['content'], music=data.get('music'), media_type=data.get('media_type', 'image'))
     db.session.add(s)
     db.session.commit()
-    # Hikayeleri yeniden dağıt
+    send_stories()
+
+def send_stories():
     stories = Story.query.all()
-    grouped = {st.username: {'avatar': st.user_avatar, 'content': st.content, 'music': st.music, 'media_type': st.media_type} for st in stories}
+    grouped = {s.username: {'avatar': s.user_avatar, 'content': s.content, 'music': s.music, 'media_type': s.media_type} for s in stories}
     emit('receive_stories', grouped, broadcast=True)
+
+@socketio.on('update_bg')
+def update_bg(data):
+    user = db.session.get(User, current_user.id)
+    user.bg_img = data['bg']
+    db.session.commit()
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=10000)
