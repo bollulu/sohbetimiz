@@ -5,70 +5,71 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <style>
         :root { --wp-green: #25D366; --wp-dark: #075e54; }
-        body { margin:0; display:flex; height:100vh; font-family:sans-serif; background-color: #f0f2f5; }
+        body { margin:0; display:flex; height:100vh; font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow:hidden; }
         
-        /* Sol Panel */
-        #side { width:350px; background:white; border-right:1px solid #ddd; display:flex; flex-direction:column; }
-        .user-item { padding:12px; display:flex; align-items:center; gap:12px; border-bottom:1px solid #f2f2f2; }
-        .user-item img { width:45px; height:45px; border-radius:50%; object-fit:cover; }
-        .you-tag { background:#e7ffdb; color:#075e54; font-size:10px; padding:2px 6px; border-radius:10px; }
+        /* Sol Panel: Çevrimiçi Listesi */
+        #side { width:300px; background:white; border-right:1px solid #ddd; display:flex; flex-direction:column; }
+        .side-header { padding:12px; background:#ededed; display:flex; justify-content:space-between; align-items:center; }
+        .online-item { padding:12px; display:flex; align-items:center; gap:10px; border-bottom:1px solid #f9f9f9; }
+        .online-item img { width:40px; height:40px; border-radius:50%; object-fit:cover; }
+        .you-tag { color: var(--wp-green); font-weight:bold; font-size:11px; }
 
-        /* Ana Alan */
-        #main { flex:1; display:flex; flex-direction:column; position:relative; overflow:hidden; }
-        #chat-bg { position:absolute; top:0; left:0; width:100%; height:100%; z-index:1; background-size:cover; background-position:center; opacity:0.8; pointer-events:none; }
+        /* Orta Panel: Sohbet */
+        #main { flex:1; display:flex; flex-direction:column; position:relative; background:#e5ddd5; }
+        #chat-bg { position:absolute; top:0; left:0; width:100%; height:100%; z-index:1; background-size:cover; background-position:center; pointer-events:none; }
+        #chat-box { flex:1; overflow-y:auto; padding:20px; display:flex; flex-direction:column; gap:10px; z-index:2; }
         
-        /* Hikaye Barı */
-        #story-bar { height:100px; background:white; z-index:10; display:flex; align-items:center; padding:0 15px; gap:15px; border-bottom:1px solid #ddd; overflow-x:auto; }
-        .st-ring { width:60px; height:60px; border-radius:50%; border:3px solid var(--wp-green); padding:2px; cursor:pointer; }
-        
-        /* Mesajlar */
-        #chat-box { flex:1; overflow-y:auto; padding:20px; display:flex; flex-direction:column; gap:10px; z-index:5; }
+        /* Mesaj Balonları */
         .msg { display:flex; align-items:flex-end; gap:8px; max-width:70%; position:relative; }
         .msg.me { align-self:flex-end; flex-direction:row-reverse; }
-        .bubble { background:white; padding:8px 12px; border-radius:12px; position:relative; box-shadow:0 1px 1px rgba(0,0,0,0.1); }
+        .bubble { background:white; padding:8px 12px; border-radius:12px; position:relative; box-shadow:0 1px 1px rgba(0,0,0,0.1); word-wrap:break-word; }
         .me .bubble { background:#dcf8c6; }
-        .del-btn { display:none; position:absolute; top:-10px; right:-10px; cursor:pointer; background:red; color:white; border-radius:50%; width:18px; height:18px; font-size:12px; text-align:center; }
-        .msg:hover .del-btn { display:block; }
-        .u-name { font-size:11px; font-weight:bold; display:block; margin-bottom:2px; color:var(--wp-dark); }
+        .u-name { font-size:11px; font-weight:bold; color:var(--wp-dark); display:block; margin-bottom:2px; }
+        .del-btn { cursor:pointer; font-size:16px; color:gray; margin-left:8px; opacity:0; transition:0.2s; }
+        .msg:hover .del-btn { opacity:1; }
+
+        /* Sağ Panel: Hikayeler */
+        #story-panel { width:100px; background:#fff; border-left:1px solid #ddd; display:flex; flex-direction:column; align-items:center; padding-top:15px; overflow-y:auto; }
+        .st-container { text-align:center; margin-bottom:20px; cursor:pointer; }
+        .st-ring { width:60px; height:60px; border-radius:50%; border:3px solid var(--wp-green); padding:2px; object-fit:cover; transition: 0.3s; }
+        .st-ring:hover { transform: scale(1.1); }
+        .add-st { width:55px; height:55px; border-radius:50%; background:#eee; display:flex; align-items:center; justify-content:center; font-size:30px; cursor:pointer; margin-bottom:10px; }
 
         /* Hikaye Viewer */
-        #st-view { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:black; z-index:1000; flex-direction:column; align-items:center; justify-content:center; }
-        #st-media { max-width:90%; max-height:80%; border-radius:10px; }
-        #st-meta { color:white; margin-bottom:15px; display:flex; align-items:center; gap:10px; }
+        #st-view { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.95); z-index:1000; flex-direction:column; align-items:center; justify-content:center; }
+        #st-content { max-width:90%; max-height:80vh; border-radius:10px; }
+        .st-header { color:white; display:flex; align-items:center; gap:10px; margin-bottom:15px; width:300px; }
+        .st-header img { width:40px; height:40px; border-radius:50%; }
         
         .footer { padding:10px; background:#f0f0f0; display:flex; gap:10px; z-index:10; }
-        input { flex:1; border-radius:20px; border:none; padding:10px; outline:none; }
+        #mIn { flex:1; border-radius:20px; border:none; padding:12px; outline:none; font-size:15px; }
     </style>
 </head>
 <body>
 
 <div id="st-view">
-    <div id="st-meta"><img id="st-user-ava" style="width:40px;height:40px;border-radius:50%"><span id="st-user-name"></span></div>
+    <div class="st-header">
+        <img id="st-user-ava" src="">
+        <span id="st-user-name" style="font-weight:bold"></span>
+        <button onclick="closeSt()" style="margin-left:auto; background:none; border:none; color:white; font-size:20px; cursor:pointer">×</button>
+    </div>
     <div id="st-media-box"></div>
-    <div style="color:white; margin-top:20px; cursor:pointer" onclick="closeSt()">Kapat</div>
 </div>
 
 <div id="side">
-    <div style="padding:15px; background:#ededed; display:flex; justify-content:space-between; align-items:center;">
+    <div class="side-header">
         <img src="{{ user.avatar }}" id="my-ava" onclick="document.getElementById('p-file').click()" style="width:40px;height:40px;border-radius:50%;cursor:pointer;object-fit:cover">
         <div>
-            <button onclick="document.getElementById('bg-file').click()">🎨</button>
-            <button onclick="resetBg()">🔄</button>
-            <button onclick="location.href='/logout'">🚪</button>
+            <button title="Arka Plan Seç" onclick="document.getElementById('bg-file').click()">🎨</button>
+            <button title="Arka Planı Sıfırla" onclick="resetBg()">🔄</button>
+            <button title="Çıkış Yap" onclick="location.href='/logout'">🚪</button>
         </div>
     </div>
-    <div id="online-list"></div>
+    <div id="online-list" style="overflow-y:auto; flex:1"></div>
 </div>
 
 <div id="main">
     <div id="chat-bg" style="background-image: url('{{ user.bg_img }}')"></div>
-    <div id="story-bar">
-        <div style="text-align:center" onclick="document.getElementById('st-file').click()">
-            <div style="width:60px;height:60px;border-radius:50%;background:#eee;display:flex;align-items:center;justify-content:center;font-size:30px;cursor:pointer">+</div>
-            <small>Ekle</small>
-        </div>
-        <div id="st-list" style="display:flex; gap:15px"></div>
-    </div>
     <div id="chat-box">
         {% for m in initial_msgs %}
         <div class="msg {{ 'me' if m.username == user.username else '' }}" id="m-{{m.id}}">
@@ -76,15 +77,21 @@
             <div class="bubble">
                 <span class="u-name">{{ m.username }}</span>
                 {{ m.content }}
-                {% if m.username == user.username %}<div class="del-btn" onclick="delMsg({{m.id}})">×</div>{% endif %}
+                {% if m.username == user.username %}<span class="del-btn" onclick="delMsg({{m.id}})">🗑️</span>{% endif %}
             </div>
         </div>
         {% endfor %}
     </div>
     <div class="footer">
-        <input type="text" id="mIn" placeholder="Mesaj..." onkeypress="if(event.key==='Enter') send()">
-        <button onclick="send()">🚀</button>
+        <input type="text" id="mIn" placeholder="Mesaj yazın..." onkeypress="if(event.key==='Enter') send()">
+        <button onclick="send()" style="border:none; background:none; font-size:24px; cursor:pointer">🚀</button>
     </div>
+</div>
+
+<div id="story-panel">
+    <div class="add-st" onclick="document.getElementById('st-file').click()">+</div>
+    <div style="font-size:10px; margin-bottom:20px; color:gray">DURUM</div>
+    <div id="st-list"></div>
 </div>
 
 <input type="file" id="p-file" style="display:none" onchange="upPro(this)">
@@ -97,36 +104,38 @@
     const box = document.getElementById('chat-box');
     box.scrollTop = box.scrollHeight;
 
+    // MESAJLAŞMA
     function send() {
         const i = document.getElementById('mIn');
         if(i.value.trim()) { socket.emit('message', {content: i.value}); i.value=''; }
     }
-
     socket.on('new_message', d => {
         const isMe = d.user === myName;
         box.insertAdjacentHTML('beforeend', `
             <div class="msg ${isMe?'me':''}" id="m-${d.id}">
                 <img src="${d.avatar}" class="user-ava-img-${d.user}" style="width:30px;height:30px;border-radius:50%;object-fit:cover">
-                <div class="bubble"><span class="u-name">${d.user}</span>${d.content}${isMe?`<div class="del-btn" onclick="delMsg(${d.id})">×</div>`:''}</div>
+                <div class="bubble"><span class="u-name">${d.user}</span>${d.content}${isMe?`<span class="del-btn" onclick="delMsg(${d.id})">🗑️</span>`:''}</div>
             </div>
         `);
         box.scrollTop = box.scrollHeight;
     });
 
-    function delMsg(id) { socket.emit('delete_msg', {id: id}); }
+    function delMsg(id) { if(confirm("Mesajı silmek istiyor musunuz?")) socket.emit('delete_msg', {id: id}); }
     socket.on('msg_deleted', d => { document.getElementById('m-'+d.id)?.remove(); });
 
+    // ÇEVRİMİÇİ LİSTESİ
     socket.on('user_status', users => {
         const list = document.getElementById('online-list');
         list.innerHTML = "";
         for(let u in users) {
-            list.innerHTML += `<div class="user-item">
+            list.innerHTML += `<div class="online-item">
                 <img src="${users[u].avatar}" class="user-ava-img-${u}">
-                <span>${u} ${u===myName?'<span class="you-tag">Siz</span>':''}</span>
+                <span>${u} ${u===myName?'<span class="you-tag">(Siz)</span>':''}</span>
             </div>`;
         }
     });
 
+    // PROFİL VE ARKA PLAN
     function upPro(i) {
         const r = new FileReader();
         r.onload = e => {
@@ -135,7 +144,6 @@
         };
         r.readAsDataURL(i.files[0]);
     }
-
     socket.on('profile_updated', d => {
         document.querySelectorAll('.user-ava-img-'+d.user).forEach(img => img.src = d.avatar);
     });
@@ -153,44 +161,39 @@
         socket.emit('update_bg', {bg: ""});
     }
 
-    // --- HİKAYE SİSTEMİ ---
+    // HİKAYE MANTIĞI
     let storyData = {};
     socket.on('all_stories', d => {
         storyData = d;
         const list = document.getElementById('st-list');
         list.innerHTML = "";
         for(let u in d) {
-            list.innerHTML += `<div class="st-item" onclick="openSt('${u}')">
-                <img src="${d[u].avatar}" class="st-ring">
-                <br><small>${u}</small>
+            list.innerHTML += `<div class="st-container" onclick="openSt('${u}')">
+                <img src="${d[u].avatar}" class="st-ring user-ava-img-${u}">
+                <div style="font-size:10px">${u}</div>
             </div>`;
         }
     });
 
-    let currentStIdx = 0;
-    let currentStUser = "";
+    let stTimer;
     function openSt(u) {
-        currentStUser = u;
-        currentStIdx = 0;
+        let items = storyData[u].items;
+        let idx = 0;
         document.getElementById('st-view').style.display = 'flex';
-        showStItem();
-    }
-
-    function showStItem() {
-        const items = storyData[currentStUser].items;
-        const item = items[currentStIdx];
-        const box = document.getElementById('st-media-box');
-        document.getElementById('st-user-ava').src = storyData[currentStUser].avatar;
-        document.getElementById('st-user-name').innerText = currentStUser;
         
-        box.innerHTML = item.type === 'video' ? `<video src="${item.content}" id="st-media" autoplay></video>` : `<img src="${item.content}" id="st-media">`;
-        
-        setTimeout(() => {
-            if(currentStIdx < items.length - 1) { currentStIdx++; showStItem(); }
-            else { closeSt(); }
-        }, 4000);
+        function show() {
+            if(idx >= items.length) { closeSt(); return; }
+            document.getElementById('st-user-ava').src = storyData[u].avatar;
+            document.getElementById('st-user-name').innerText = u;
+            const media = document.getElementById('st-media-box');
+            const item = items[idx];
+            media.innerHTML = item.type === 'video' ? `<video src="${item.content}" id="st-content" autoplay></video>` : `<img src="${item.content}" id="st-content">`;
+            idx++;
+            stTimer = setTimeout(show, 4000);
+        }
+        show();
     }
-    function closeSt() { document.getElementById('st-view').style.display='none'; }
+    function closeSt() { clearTimeout(stTimer); document.getElementById('st-view').style.display='none'; }
 
     function upSt(i) {
         const f = i.files[0];
