@@ -1,56 +1,82 @@
 <!DOCTYPE html>
 <html lang="tr">
-<html>
 <head>
     <meta charset="UTF-8">
-    <title>Kayıt Ol</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kayıt Ol | Sohbet 2026</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f0f2f5; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .box { background: white; padding: 35px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 360px; text-align: center; }
-        h2 { color: #075e54; margin-bottom: 25px; font-size: 28px; }
-        .avatar-area { position: relative; display: inline-block; margin-bottom: 15px; }
-        .prev-img { width: 100px; height: 100px; border-radius: 50%; object-fit: cover; border: 3px solid #25D366; cursor: pointer; background: #eee; }
-        input, select { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; font-size: 15px; outline: none; }
-        input:focus { border-color: #25D366; }
-        button { width: 100%; padding: 13px; background: #25D366; border: none; color: white; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 16px; margin-top: 15px; transition: 0.3s; }
-        button:hover { background: #1ebe57; }
-        .link { font-size: 14px; margin-top: 15px; color: #666; }
-        .link a { color: #075e54; text-decoration: none; font-weight: bold; }
+        :root { --wa-green: #25D366; --wa-dark: #075e54; --bg: #f0f2f5; }
+        body { font-family: 'Segoe UI', sans-serif; background-color: var(--bg); margin: 0; display: flex; align-items: center; justify-content: center; height: 100vh; }
+        
+        .auth-container { background: white; padding: 30px; border-radius: 15px; box-shadow: 0 4px 25px rgba(0,0,0,0.1); width: 100%; max-width: 380px; text-align: center; }
+        h2 { color: var(--wa-dark); margin-bottom: 20px; }
+
+        /* Profil Fotoğrafı Alanı */
+        .avatar-selection { position: relative; margin-bottom: 20px; cursor: pointer; display: inline-block; }
+        .avatar-preview { width: 110px; height: 110px; border-radius: 50%; object-fit: cover; border: 3px solid var(--wa-green); background: #eee; transition: 0.3s; }
+        .avatar-selection:hover .avatar-preview { opacity: 0.8; }
+        .plus-icon { position: absolute; bottom: 5px; right: 5px; background: var(--wa-green); color: white; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-weight: bold; border: 2px solid white; }
+
+        .input-group { margin-bottom: 15px; text-align: left; }
+        label { display: block; margin-bottom: 5px; color: #666; font-size: 14px; }
+        input, select { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; outline: none; font-size: 15px; }
+        input:focus { border-color: var(--wa-green); }
+
+        button { width: 100%; padding: 13px; background: var(--wa-green); color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 10px; transition: 0.3s; }
+        button:hover { background: #1ebc57; transform: translateY(-1px); }
+        
+        .switch-link { margin-top: 20px; font-size: 14px; color: #777; }
+        .switch-link a { color: var(--wa-dark); text-decoration: none; font-weight: bold; }
     </style>
 </head>
 <body>
 
-<div class="box">
-    <h2>Kayıt Ol</h2>
+<div class="auth-container">
+    <h2>Yeni Hesap Oluştur</h2>
     
-    <div class="avatar-area" onclick="document.getElementById('fileIn').click()">
-        <img id="view" src="https://www.w3schools.com/howto/img_avatar.png" class="prev-img">
-        <div style="font-size: 11px; color: #25D366; margin-top: 5px; font-weight: bold;">FOTOĞRAF SEÇ</div>
-    </div>
+    <form method="POST" id="regForm">
+        <div class="avatar-selection" onclick="document.getElementById('fileIn').click()">
+            <img src="https://www.w3schools.com/howto/img_avatar.png" id="view" class="avatar-preview">
+            <div class="plus-icon">+</div>
+        </div>
 
-    <form method="POST">
-        <input type="text" name="username" placeholder="Kullanıcı Adı" required>
-        <input type="password" name="password" placeholder="Şifre" required>
-        <select name="gender">
-            <option value="Erkek">Erkek</option>
-            <option value="Kız">Kız</option>
-        </select>
-        
         <input type="hidden" name="avatar_data" id="avatar_data">
-        
-        <button type="submit">Hesabı Oluştur</button>
+
+        <div class="input-group">
+            <label>Kullanıcı Adı</label>
+            <input type="text" name="username" required placeholder="Örn: ahmet123" maxlength="20">
+        </div>
+
+        <div class="input-group">
+            <label>Şifre</label>
+            <input type="password" name="password" required placeholder="••••••••">
+        </div>
+
+        <div class="input-group">
+            <label>Cinsiyet</label>
+            <select name="gender">
+                <option value="Erkek">Erkek</option>
+                <option value="Kadın">Kadın</option>
+                <option value="Belirtmek İstemiyorum">Diğer</option>
+            </select>
+        </div>
+
+        <button type="submit">Kayıt Ol ve Başla</button>
     </form>
 
-    <input type="file" id="fileIn" style="display:none" accept="image/*" onchange="compressAndPreview(this)">
-    
-    <div class="link">
-        Zaten bir hesabın var mı? <a href="/login">Giriş Yap</a>
+    <input type="file" id="fileIn" style="display:none" accept="image/*" onchange="processImage(this)">
+
+    <div class="switch-link">
+        Zaten hesabın var mı? <a href="/login">Giriş Yap</a>
     </div>
 </div>
 
 <script>
-function compressAndPreview(input) {
+/**
+ * Seçilen resmi kare şeklinde kırpar, boyutlandırır ve Base64'e çevirir.
+ * Bu sayede veritabanında çok az yer kaplar ve her yerde hızlı açılır.
+ */
+function processImage(input) {
     if (input.files && input.files[0]) {
         const reader = new FileReader();
         reader.onload = function (e) {
@@ -60,24 +86,47 @@ function compressAndPreview(input) {
                 const canvas = document.createElement('canvas');
                 const ctx = canvas.getContext('2d');
                 
-                // Hedef boyut: 300x300 (Profil için ideal)
-                const size = 300;
-                canvas.width = size;
-                canvas.height = size;
+                // Profil için ideal boyut (300x300 px)
+                const targetSize = 300;
+                canvas.width = targetSize;
+                canvas.height = targetSize;
 
-                // Resmi kare olarak kırp ve boyutlandır
-                const minSide = Math.min(img.width, img.height);
-                ctx.drawImage(img, (img.width - minSide) / 2, (img.height - minSide) / 2, minSide, minSide, 0, 0, size, size);
+                // Resmi ortadan kare olarak kırpma hesaplaması
+                let sourceX, sourceY, sourceSize;
+                if (img.width > img.height) {
+                    sourceSize = img.height;
+                    sourceX = (img.width - img.height) / 2;
+                    sourceY = 0;
+                } else {
+                    sourceSize = img.width;
+                    sourceX = 0;
+                    sourceY = (img.height - img.width) / 2;
+                }
 
-                // Veriyi JPEG formatında %70 kalitede sıkıştır
-                const compressed = canvas.toDataURL('image/jpeg', 0.7);
-                document.getElementById('view').src = compressed;
-                document.getElementById('avatar_data').value = compressed;
-            }
+                // Çizim işlemi
+                ctx.drawImage(img, sourceX, sourceY, sourceSize, sourceSize, 0, 0, targetSize, targetSize);
+
+                // Veriyi sıkıştırılmış JPEG formatına çevir (Kalite: %70)
+                const compressedData = canvas.toDataURL('image/jpeg', 0.7);
+                
+                // Önizlemeyi ve gizli inputu güncelle
+                document.getElementById('view').src = compressedData;
+                document.getElementById('avatar_data').value = compressedData;
+            };
         };
         reader.readAsDataURL(input.files[0]);
     }
 }
+
+// Form gönderilmeden önce varsayılan bir resim kontrolü
+document.getElementById('regForm').onsubmit = function() {
+    const avatarData = document.getElementById('avatar_data').value;
+    if (!avatarData) {
+        // Eğer kullanıcı resim seçmediyse, önizlemedeki varsayılan resmi Base64 olarak kaydet
+        document.getElementById('avatar_data').value = document.getElementById('view').src;
+    }
+    return true;
+};
 </script>
 
 </body>
