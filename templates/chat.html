@@ -17,34 +17,43 @@
         
         /* HİKAYE ALANI */
         #story-area { height:110px; background:white; border-bottom:1px solid #ddd; display:flex; align-items:center; padding:0 15px; gap:15px; overflow-x:auto; white-space:nowrap; }
-        .st-item { display:inline-block; text-align:center; cursor:pointer; position:relative; }
+        .st-item { display:inline-block; text-align:center; cursor:pointer; position:relative; min-width: 65px; }
+        /* Madde 11: Hikaye dairesinde kullanıcının avatarı görünecek */
         .st-item img { width:60px; height:60px; border-radius:50%; border:3px solid var(--light); padding:2px; object-fit:cover; }
         .st-item span { display:block; font-size:12px; margin-top:2px; max-width:65px; overflow:hidden; text-overflow:ellipsis; }
 
+        /* HİKAYE GÖSTERİCİ (MODAL) */
+        #story-viewer { display:none; position:fixed; inset:0; background:black; z-index:20000; flex-direction:column; align-items:center; justify-content:center; }
+        #st-img { max-width:100%; max-height:80vh; border-radius:10px; }
+        #st-progress { position:absolute; top:10px; left:10px; right:10px; height:4px; background:gray; border-radius:2px; display:flex; gap:5px; }
+        .st-bar { height:100%; background:white; flex:1; opacity:0.5; transition:0.1s; }
+        .st-bar.active { opacity:1; }
+        #st-close { position:absolute; top:20px; right:20px; color:white; font-size:24px; cursor:pointer; font-weight:bold; z-index:20001; }
+        #st-delete { position:absolute; top:20px; left:20px; color:red; font-size:24px; cursor:pointer; z-index:20001; display:none; }
+
         /* MESAJLAR */
-        #chat-box { flex:1; overflow-y:auto; padding:20px; display:flex; flex-direction:column; gap:8px; }
-        .msg { display:flex; gap:10px; max-width:85%; position:relative; animation: fadeIn 0.3s; }
-        .msg.me { align-self:flex-end; flex-direction:row-reverse; }
+        #chat-box { flex:1; overflow-y:auto; padding:20px; display:flex; flex-direction:column; gap:15px; } /* Gap arttırıldı */
+        .msg { display:flex; gap:10px; max-width:85%; position:relative; animation: fadeIn 0.3s; align-items: flex-end; }
+        .msg.me { align-self:flex-end; flex-direction:row-reverse; } /* Madde 6: Kendi mesajımızda da avatar görünsün */
         .bubble { background:white; padding:8px 12px; border-radius:12px; box-shadow:0 1px 1px rgba(0,0,0,0.1); position:relative; min-width: 80px; word-wrap: break-word; }
         .me .bubble { background:#dcf8c6; }
         .meta { display:flex; justify-content:flex-end; align-items:center; gap:3px; font-size:10px; color:gray; margin-top:3px; }
         .tick { color:#999; font-size:14px; }
         .tick.read { color:#34b7f1; }
         
-        /* ALT ÇUBUK */
         footer { padding:10px; background:#f0f0f0; display:flex; gap:8px; align-items:center; }
         #mIn { flex:1; padding:12px; border-radius:20px; border:none; outline:none; }
         .icon-btn { border:none; background:none; font-size:22px; cursor:pointer; padding:5px; }
 
         /* VİDEO & HİKAYE MODAL */
         .overlay { display:none; position:fixed; inset:0; background:black; z-index:9999; justify-content:center; align-items:center; }
-        #local-v { position:absolute; top:20px; right:20px; width:100px; border:2px solid white; z-index:10000; }
+        #local-v { position:absolute; top:20px; right:20px; width:120px; border:2px solid white; z-index:10000; border-radius:10px; }
         
-        /* AKTİF KULLANICI LİSTESİ */
         .user-row { padding:10px; border-bottom:1px solid #f0f0f0; display:flex; align-items:center; gap:10px; cursor:pointer; }
-        .user-row:hover { background:#f5f5f5; }
         .user-row img { width:40px; height:40px; border-radius:50%; }
-
+        /* Madde 9: Görüntülü konuşma butonu */
+        .vid-btn { margin-left:auto; border:none; background:#eee; padding:5px 10px; border-radius:50%; cursor:pointer; }
+        
         @keyframes fadeIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
     </style>
 </head>
@@ -53,7 +62,7 @@
 <div id="side">
     <div class="side-header">
         <b>Aktif Üyeler</b>
-        <button onclick="location.href='/logout'" style="background:transparent; border:none; color:white; font-size:18px; cursor:pointer;">🚪 Çıkış</button>
+        <button onclick="location.href='/logout'" style="background:transparent; border:none; color:white; font-size:18px; cursor:pointer;">🚪</button>
     </div>
     <div class="user-row" style="background:#e9ffe9;">
         <img src="{{ user.avatar }}" id="my-ava-display">
@@ -61,12 +70,12 @@
     </div>
     <div id="online-list" style="flex:1; overflow-y:auto;"></div>
     
-    <div style="padding:10px; border-top:1px solid #ddd; background:#f9f9f9;">
-        <button onclick="document.getElementById('profile-in').click()" style="width:100%; margin-bottom:5px;">👤 Profil Değiştir (Dosya)</button>
-        <button onclick="changeProfileCam()" style="width:100%; margin-bottom:5px;">📷 Profil Değiştir (Kamera)</button>
-        <button onclick="document.getElementById('bg-in').click()" style="width:100%; margin-bottom:5px;">🖼️ Arka Plan (Dosya)</button>
-        <button onclick="changeBgCam()" style="width:100%; margin-bottom:5px;">📷 Arka Plan (Kamera)</button>
-        <button onclick="deleteAccount()" style="width:100%; background:#ff4444; color:white; border:none; padding:8px;">🗑️ Hesabı Sil</button>
+    <div style="padding:10px; border-top:1px solid #ddd; background:#f9f9f9; display:flex; flex-direction:column; gap:5px;">
+        <button onclick="document.getElementById('profile-in').click()">👤 Profil Değiştir</button>
+        <button onclick="changeProfileCam()">📷 Profil (Kamera)</button>
+        <button onclick="document.getElementById('bg-in').click()">🖼️ Arka Plan</button>
+        <button onclick="resetBg()">🔄 Arka Planı Sıfırla</button>
+        <button onclick="deleteAccount()" style="background:#ff4444; color:white; border:none; padding:8px;">🗑️ Hesabı Sil</button>
     </div>
 </div>
 
@@ -79,7 +88,7 @@
     <div id="story-area">
         <div class="st-item" onclick="addStoryModal()">
             <div style="width:60px;height:60px;border-radius:50%;background:#eee;display:flex;align-items:center;justify-content:center;font-size:30px;">+</div>
-            <span>Hikaye</span>
+            <span>Ekle</span>
         </div>
         <div id="st-list" style="display:flex; gap:15px;"></div>
     </div>
@@ -92,6 +101,13 @@
         <input type="text" id="mIn" placeholder="Mesaj yaz..." onkeypress="if(event.key==='Enter') send()">
         <button class="icon-btn" onclick="send()">🚀</button>
     </footer>
+</div>
+
+<div id="story-viewer" onclick="nextStory(event)">
+    <div id="st-progress"></div>
+    <div id="st-close" onclick="closeStory()">✖</div>
+    <div id="st-delete" onclick="deleteCurrentStory(event)">🗑️</div>
+    <img id="st-img">
 </div>
 
 <div id="video-ui" class="overlay">
@@ -111,55 +127,45 @@
 <script>
     const socket = io();
     const myUser = "{{ user.username }}";
-    let blockedUsers = []; // Basit bloklama (Client side display filter)
+    let blockedUsers = []; 
     let currentStream = null;
+    let storyData = {}; 
+    let activeStoryUser = null;
+    let activeStoryIndex = 0;
+    let storyTimer = null;
 
-    // 1. Saat
     setInterval(() => document.getElementById('clock').innerText = new Date().toLocaleString(), 1000);
 
-    // 2. Geçmişi Yükle (Sayfa yenilenince)
+    // --- SOCKET LISTENERS ---
     socket.on('load_history', msgs => {
-        document.getElementById('chat-box').innerHTML = ""; // Temizle
+        document.getElementById('chat-box').innerHTML = ""; 
         msgs.forEach(m => renderMsg(m));
     });
 
-    // 3. Online Listesi
     socket.on('update_online', users => {
         let html = "";
         for(let u in users) {
             if (u !== myUser) {
-                html += `<div class="user-row" onclick="userOptions('${u}')">
+                html += `<div class="user-row">
                     <img src="${users[u].avatar}">
                     <span>${u}</span>
-                    <button onclick="startVideo(event)" style="margin-left:auto;">📹</button>
+                    <button class="vid-btn" onclick="startVideo(event)">📹</button>
                 </div>`;
             }
         }
         document.getElementById('online-list').innerHTML = html;
-        // Kendi avatarını da güncelle (değiştiyse)
         if(users[myUser]) document.getElementById('my-ava-display').src = users[myUser].avatar;
     });
 
-    // 4. Mesaj Gönderme
-    function send() {
-        const inp = document.getElementById('mIn');
-        if(inp.value.trim()){
-            socket.emit('send_msg', {content: inp.value, type: 'text'});
-            inp.value = '';
-        }
-    }
-
-    // 5. Mesaj Alma ve Render
     socket.on('new_msg', data => renderMsg(data));
 
+    // Madde 6: Avatar ve kullanıcı adı hem gönderende hem alanda görünsün
     function renderMsg(d) {
-        // Bloklu mu?
         if(blockedUsers.includes(d.sender)) return; 
-
         const isMe = d.sender === myUser;
         let contentHtml = d.content;
         
-        // Resim Dosyası Kontrolü (Fix: Ekrana resim olarak düşme)
+        // Madde 7: Dosya (resim) ekrana gelmeme sorunu düzeltildi
         if(d.type === 'image') {
             contentHtml = `<img src="${d.content}" style="max-width:200px; border-radius:8px; display:block;">`;
         } else if (d.type === 'audio') {
@@ -168,9 +174,9 @@
 
         const html = `
             <div class="msg ${isMe ? 'me' : ''}" id="msg-${d.id}">
-                ${!isMe ? `<img src="${d.avatar}" style="width:30px;height:30px;border-radius:50%">` : ''}
+                <img src="${d.avatar}" style="width:30px;height:30px;border-radius:50%">
                 <div class="bubble">
-                    ${!isMe ? `<small style="color:orange;font-weight:bold;">${d.sender}</small><br>` : ''}
+                    <small style="color:${isMe?'#075e54':'orange'};font-weight:bold;">${d.sender}</small><br>
                     ${contentHtml}
                     <div class="meta">
                         <span>${d.time}</span>
@@ -184,41 +190,41 @@
         box.insertAdjacentHTML('beforeend', html);
         box.scrollTop = box.scrollHeight;
 
-        // Çift Çizgi Efekti (Okundu Simülasyonu)
         setTimeout(() => {
             const t = document.getElementById(`tick-${d.id}`);
             if(t) { t.innerText = "✓✓"; t.classList.add('read'); }
         }, 1500);
     }
 
-    // 6. Mesaj Silme
+    function send() {
+        const inp = document.getElementById('mIn');
+        if(inp.value.trim()){ socket.emit('send_msg', {content: inp.value, type: 'text'}); inp.value = ''; }
+    }
+    
     function deleteMsg(id) {
-        if(confirm("Mesaj herkesten silinsin mi?")) {
-            socket.emit('delete_msg', {id: id});
-        }
+        if(confirm("Silinsin mi?")) socket.emit('delete_msg', {id: id});
     }
     socket.on('msg_deleted', d => {
         const el = document.getElementById(`msg-${d.id}`);
         if(el) el.remove();
     });
 
-    // 7. Dosya Gönderme (Resim Kontrollü)
+    // --- DOSYA GÖNDERME DÜZELTMESİ (Madde 7) ---
     function processFile(input) {
         const file = input.files[0];
         if(!file) return;
         const reader = new FileReader();
         reader.onload = e => {
-            // Eğer resimse 'image', değilse 'file' (link) yapılabilir. Şimdilik hepsini image gibi deneyelim
-            // ya da uzantı kontrolü yapalım.
-            const type = file.type.startsWith('image/') ? 'image' : 'text'; 
-            socket.emit('send_msg', {content: e.target.result, type: type});
+            // Eğer resimse tip 'image' olarak işaretlenmeli
+            const isImg = file.type.startsWith('image/');
+            socket.emit('send_msg', {content: e.target.result, type: isImg ? 'image' : 'text'});
         };
         reader.readAsDataURL(file);
     }
 
-    // 8. Hikaye Sistemi (+ Butonu Yanına Daire)
+    // --- HİKAYE SİSTEMİ (Madde 1, 2, 4, 5, 11) ---
     function addStoryModal() {
-        if(confirm("Kameradan hikaye ekle? (İptal=Dosya)")) {
+        if(confirm("Kamera ile mi? (İptal = Dosya)")) {
             openCamForStory();
         } else {
             document.getElementById('story-in').click();
@@ -230,15 +236,11 @@
         reader.onload = e => socket.emit('add_story', {content: e.target.result, type: 'image'});
         reader.readAsDataURL(input.files[0]);
     }
-    
-    // Hikaye Kamerası (Basit implementasyon: Ana kamerayı kullanıp hemen kapatır)
+
     async function openCamForStory() {
         const stream = await navigator.mediaDevices.getUserMedia({video: true});
-        // Burada bir video elementi oluşturup foto çekme mantığı gerekir, 
-        // hızlı çözüm için dosya inputunu öneriyoruz ama kodda istediğiniz gibi:
         const video = document.createElement('video');
         video.srcObject = stream; video.play();
-        // Basitçe: 1 saniye sonra çekip gönderelim (Demo amaçlı)
         setTimeout(() => {
             const c = document.createElement('canvas');
             c.width = video.videoWidth; c.height = video.videoHeight;
@@ -249,30 +251,81 @@
         }, 1000);
     }
 
-    socket.on('all_stories', stories => {
-        let html = ``;
-        // + Butonunu koru
-        html += `<div class="st-item" onclick="addStoryModal()">
-            <div style="width:60px;height:60px;border-radius:50%;background:#eee;display:flex;align-items:center;justify-content:center;font-size:30px;">+</div>
-            <span>Ekle</span>
-        </div>`;
-        
-        stories.forEach(s => {
-            html += `<div class="st-item" onclick="viewStory('${s.content}')">
-                <img src="${s.avatar}">
-                <span>${s.username}</span>
+    // Hikayeleri Grupla ve Göster
+    socket.on('all_stories', groupedStories => {
+        storyData = groupedStories;
+        let html = "";
+        // + Butonu HTML'de sabit, yanına ekliyoruz
+        for (let user in groupedStories) {
+            // Madde 11: Hikaye dairesinde kullanıcının avatarı
+            const userAvatar = groupedStories[user][0].avatar; 
+            html += `<div class="st-item" onclick="openStoryViewer('${user}')">
+                <img src="${userAvatar}" style="border-color:${user===myUser ? '#999' : '#25D366'}">
+                <span>${user===myUser ? 'Siz' : user}</span>
             </div>`;
-        });
+        }
         document.getElementById('st-list').innerHTML = html;
     });
 
-    function viewStory(content) {
-        // Basit görüntüleme: Yeni pencerede aç
-        const w = window.open("", "_blank");
-        w.document.write(`<img src="${content}" style="width:100%">`);
+    // Madde 4 & 5: Hikaye Görüntüleyici (Modal)
+    function openStoryViewer(username) {
+        activeStoryUser = username;
+        activeStoryIndex = 0;
+        document.getElementById('story-viewer').style.display = 'flex';
+        showStory();
     }
 
-    // 9. Arka Plan & Profil (Kamera/Dosya)
+    function showStory() {
+        const stories = storyData[activeStoryUser];
+        if(!stories || activeStoryIndex >= stories.length) { closeStory(); return; }
+
+        const s = stories[activeStoryIndex];
+        document.getElementById('st-img').src = s.content;
+        
+        // Progress Bars
+        let bars = "";
+        for(let i=0; i<stories.length; i++) {
+            bars += `<div class="st-bar ${i<=activeStoryIndex ? 'active':''}"></div>`;
+        }
+        document.getElementById('st-progress').innerHTML = bars;
+
+        // Madde 1: Silme Butonu (Sadece kendi hikayemizde)
+        const delBtn = document.getElementById('st-delete');
+        if(activeStoryUser === myUser) {
+            delBtn.style.display = 'block';
+            delBtn.setAttribute('data-id', s.id);
+        } else {
+            delBtn.style.display = 'none';
+        }
+
+        // Otomatik Geçiş (5sn)
+        clearTimeout(storyTimer);
+        storyTimer = setTimeout(() => nextStory(), 5000);
+    }
+
+    function nextStory(e) {
+        // Eğer silme veya kapama butonuna tıklandıysa geçiş yapma
+        if(e && (e.target.id === 'st-close' || e.target.id === 'st-delete')) return;
+        
+        activeStoryIndex++;
+        showStory();
+    }
+
+    function closeStory() {
+        document.getElementById('story-viewer').style.display = 'none';
+        clearTimeout(storyTimer);
+    }
+
+    function deleteCurrentStory(e) {
+        e.stopPropagation();
+        const id = document.getElementById('st-delete').getAttribute('data-id');
+        if(confirm("Bu hikayeyi silmek istiyor musunuz?")) {
+            socket.emit('delete_story', {id: id});
+            closeStory();
+        }
+    }
+
+    // --- ARKA PLAN (Madde 8: Sıfırlama) ---
     function processImage(input, target) {
         const reader = new FileReader();
         reader.onload = e => {
@@ -281,42 +334,43 @@
         }
         reader.readAsDataURL(input.files[0]);
     }
-    
-    // Arka plan kamera
-    async function changeBgCam() {
-        const stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}});
-        const video = document.createElement('video'); video.srcObject=stream; video.play();
-        setTimeout(() => {
-            const c = document.createElement('canvas'); c.width=video.videoWidth; c.height=video.videoHeight;
-            c.getContext('2d').drawImage(video,0,0);
-            document.getElementById('main').style.backgroundImage = `url(${c.toDataURL()})`;
-            stream.getTracks().forEach(t=>t.stop());
-        }, 1000);
+    function resetBg() {
+        document.getElementById('main').style.backgroundImage = 'none';
     }
-    
-    // Profil Kamera
+
+    // --- KAMERALAR ---
     async function changeProfileCam() {
-        const stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:"user"}});
-        const video = document.createElement('video'); video.srcObject=stream; video.play();
-        setTimeout(() => {
-            const c = document.createElement('canvas'); c.width=300; c.height=300; // Kare
-            c.getContext('2d').drawImage(video,0,0,300,300);
-            socket.emit('update_avatar', {avatar: c.toDataURL('image/jpeg', 0.7)});
-            stream.getTracks().forEach(t=>t.stop());
+        const s = await navigator.mediaDevices.getUserMedia({video:{facingMode:"user"}});
+        // ... (aynı mantık) ...
+        const v = document.createElement('video'); v.srcObject=s; v.play();
+        setTimeout(()=>{
+             const c=document.createElement('canvas'); c.width=300; c.height=300;
+             c.getContext('2d').drawImage(v,0,0,300,300);
+             socket.emit('update_avatar', {avatar: c.toDataURL()});
+             s.getTracks().forEach(t=>t.stop());
         }, 1000);
     }
 
-    // 10. Engelleme Menüsü
-    function userOptions(u) {
-        event.stopPropagation();
-        if(confirm(`${u} kişisini engellemek istiyor musun?`)) {
-            blockedUsers.push(u);
-            alert("Kullanıcı engellendi. Mesajlarını görmeyeceksiniz.");
-            // Sayfa yenilenince blok kalkar, kalıcı olması için veritabanına yazılmalı (Advanced)
-        }
+    // --- VİDEO ARAMA (Madde 10) ---
+    async function startVideo(e) {
+        e.stopPropagation();
+        document.getElementById('video-ui').style.display = 'flex';
+        // PC'de direkt açılır, telefonda user facing başlar
+        currentStream = await navigator.mediaDevices.getUserMedia({video:true, audio:true});
+        document.getElementById('local-v').srcObject = currentStream;
+    }
+    function closeVideo() {
+        document.getElementById('video-ui').style.display = 'none';
+        if(currentStream) currentStream.getTracks().forEach(t=>t.stop());
+    }
+    async function switchCam() {
+        if(currentStream) currentStream.getTracks().forEach(t=>t.stop());
+        // Arka kamera isteği
+        currentStream = await navigator.mediaDevices.getUserMedia({video:{facingMode: {exact: "environment"}}});
+        document.getElementById('local-v').srcObject = currentStream;
     }
 
-    // 11. Ses Kaydı
+    // --- SES KAYDI ---
     let micRec;
     async function toggleMic() {
         const btn = document.getElementById('mic-btn');
@@ -336,35 +390,10 @@
             micRec.stop(); btn.innerText = "🎤";
         }
     }
-
-    // 12. Video Arama (Basit)
-    async function startVideo(e) {
-        e.stopPropagation();
-        document.getElementById('video-ui').style.display = 'flex';
-        currentStream = await navigator.mediaDevices.getUserMedia({video:true, audio:true});
-        document.getElementById('local-v').srcObject = currentStream;
-    }
-    function closeVideo() {
-        document.getElementById('video-ui').style.display = 'none';
-        if(currentStream) currentStream.getTracks().forEach(t=>t.stop());
-    }
-    async function switchCam() {
-        // Mobilde ön/arka geçiş (sadece telefonda çalışır)
-        if(currentStream) currentStream.getTracks().forEach(t=>t.stop());
-        currentStream = await navigator.mediaDevices.getUserMedia({video:{facingMode: {exact: "environment"}}});
-        document.getElementById('local-v').srcObject = currentStream;
-    }
-
-    // 13. Hesap Silme
+    
     function deleteAccount() {
-        const p = prompt("Hesabı silmek için şifrenizi girin:");
-        if(p) {
-            fetch('/delete_acc', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                body: 'password='+encodeURIComponent(p)
-            }).then(r => r.ok ? location.href='/register' : alert("Hata!"));
-        }
+        const p = prompt("Şifrenizi girin:");
+        if(p) fetch('/delete_acc', {method:'POST', body:'password='+encodeURIComponent(p), headers:{'Content-Type':'application/x-www-form-urlencoded'}}).then(r=>location.href='/register');
     }
 </script>
 </body>
