@@ -1,208 +1,213 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>WhatsApp Ultra</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
-    <style>
-        /* Mevcut Stiller */
-        body { font-family: sans-serif; margin: 0; display: flex; height: 100vh; background-size: cover; background-attachment: fixed; }
-        #side { width: 300px; background: white; border-right: 1px solid #ddd; display: flex; flex-direction: column; }
-        #main { flex: 1; display: flex; flex-direction: column; position: relative; }
+from gevent import monkey
+monkey.patch_all()
+
+import os
+from flask import Flask, render_template, request, redirect, url_for
+from flask_sqlalchemy import SQLAlchemy
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from flask_socketio import SocketIO, emit
+from datetime import datetime
+
+app = Flask(__name__)
+app.config['SECRET_KEY'] = 'master_whatsapp_2026'
+
+# Veritabanı Yolu
+basedir = os.path.abspath(os.path.dirname(__file__))
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'database.db')
+
+# Dosya Boyutu Sınırı (Resim, Video ve Müzik için 500MB)
+app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024 
+
+db = SQLAlchemy(app)
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent', max_http_buffer_size=500 * 1024 * 1024)
+
+# --- VERİTABANI MODELLERİ ---
+
+class User(UserMixin, db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(50), unique=True, nullable=False)
+    password = db.Column(db.String(100), nullable=False)
+    gender = db.Column(db.String(10))     # Erkek / Kadın
+    avatar = db.Column(db.Text)          # Kalıcı Profil (Base64)
+    bg_img = db.Column(db.Text)          # Kalıcı Arka Plan (Base64)
+
+class Message(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(50))
+    user_avatar = db.Column(db.Text)
+    content = db.Column(db.Text)         # Mesaj metni veya Dosya Base64
+    msg_type = db.Column(db.String(20))   # text / file
+    file_name = db.Column(db.String(100))
+    timestamp = db.Column(db.String(20))
+
+class Story(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(50))
+    user_avatar = db.Column(db.Text)
+    content = db.Column(db.Text)         # Resim veya Video Base64
+    music = db.Column(db.Text)           # Müzik Base64 (Opsiyonel)
+    media_type = db.Column(db.String(20)) # image / video
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+# Veritabanını oluştur
+with app.app_context():
+    db.create_all()
+
+# --- OTURUM YÖNETİMİ ---
+
+login_manager = LoginManager(app)
+login_manager.login_view = 'login'
+
+@login_manager.user_loader
+def load_user(id):
+    return db.session.get(User, int(id))
+
+# --- ANA ROUTLAR ---
+
+@app.route('/')
+def index():
+    return redirect(url_for('login'))
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+        gender = request.form.get('gender')
+        avatar_data = request.form.get('avatar_data')
         
-        #story-bar { height: 110px; background: rgba(255,255,255,0.9); border-bottom: 1px solid #ddd; display: flex; align-items: center; padding: 0 15px; gap: 15px; overflow-x: auto; }
-        .st-item { text-align: center; min-width: 75px; cursor: pointer; }
-        .st-ava { width: 60px; height: 60px; border-radius: 50%; border: 3px solid #25D366; object-fit: cover; padding: 2px; }
+        # Cinsiyete göre varsayılan avatar mantığı
+        if not avatar_data or len(avatar_data) < 100:
+            if gender == "Erkek":
+                avatar_data = "https://cdn-icons-png.flaticon.com/512/4140/4140037.png"
+            else:
+                avatar_data = "https://cdn-icons-png.flaticon.com/512/4140/4140047.png"
 
-        /* HİKAYE İZLEME MODAL (YENİ) */
-        #story-viewer { 
-            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
-            background: rgba(0,0,0,0.95); z-index: 1000; justify-content: center; align-items: center; 
-            flex-direction: column;
+        new_user = User(
+            username=username, 
+            password=password, 
+            gender=gender, 
+            avatar=avatar_data,
+            bg_img=""
+        )
+        try:
+            db.session.add(new_user)
+            db.session.commit()
+            return redirect(url_for('login'))
+        except:
+            db.session.rollback()
+            return "Hata: Kullanıcı adı zaten mevcut!"
+    return render_template('register.html')
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        user = User.query.filter_by(username=request.form['username']).first()
+        if user and user.password == request.form['password']:
+            login_user(user)
+            return redirect(url_for('chat'))
+    return render_template('login.html')
+
+@app.route('/chat')
+@login_required
+def chat():
+    # Son 100 mesajı getir
+    msgs = Message.query.order_by(Message.id.desc()).limit(100).all()
+    return render_template('chat.html', user=current_user, initial_msgs=reversed(list(msgs)))
+
+@app.route('/live')
+@login_required
+def live():
+    return render_template('live.html', user=current_user)
+
+@app.route('/logout')
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
+
+# --- SOCKET.IO ETKİLEŞİMLERİ ---
+
+online_users = {}
+
+@socketio.on('connect')
+def handle_connect():
+    if current_user.is_authenticated:
+        # Online listesine ekle ve yayınla
+        online_users[current_user.username] = {"avatar": current_user.avatar}
+        emit('update_user_list', online_users, broadcast=True)
+        # Mevcut hikayeleri gönder
+        send_stories()
+
+@socketio.on('message')
+def handle_message(data):
+    # Mesajı veritabanına kaydet
+    msg = Message(
+        username=current_user.username,
+        user_avatar=current_user.avatar,
+        content=data['content'],
+        msg_type=data.get('type', 'text'),
+        file_name=data.get('file_name', ''),
+        timestamp=datetime.now().strftime("%H:%M")
+    )
+    db.session.add(msg)
+    db.session.commit()
+    
+    # Herkese yayınla
+    emit('new_message', {
+        'user': msg.username,
+        'avatar': msg.user_avatar,
+        'content': msg.content,
+        'type': msg.msg_type,
+        'file_name': msg.file_name,
+        'time': msg.timestamp
+    }, broadcast=True)
+
+@socketio.on('add_story')
+def handle_story(data):
+    # Hikayeyi kaydet
+    new_story = Story(
+        username=current_user.username,
+        user_avatar=current_user.avatar,
+        content=data['content'],
+        music=data.get('music'),
+        media_type=data.get('media_type', 'image')
+    )
+    db.session.add(new_story)
+    db.session.commit()
+    send_stories()
+
+def send_stories():
+    # Tüm hikayeleri kullanıcı bazlı grupla
+    stories = Story.query.all()
+    grouped = {}
+    for s in stories:
+        grouped[s.username] = {
+            'avatar': s.user_avatar,
+            'content': s.content,
+            'music': s.music,
+            'media_type': s.media_type
         }
-        #story-content { max-width: 90%; max-height: 80%; border-radius: 10px; box-shadow: 0 0 20px rgba(255,255,255,0.2); }
-        #story-user-info { color: white; margin-bottom: 15px; font-size: 18px; font-weight: bold; display: flex; align-items: center; gap: 10px; }
-        .close-story { position: absolute; top: 20px; right: 20px; color: white; font-size: 30px; cursor: pointer; }
-        .progress-bar { width: 100%; height: 4px; background: #555; position: absolute; top: 0; }
-        .progress-fill { width: 0%; height: 100%; background: white; transition: width 3s linear; }
+    emit('receive_stories', grouped, broadcast=True)
 
-        /* Sohbet ve Diğerleri */
-        #chat-box { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
-        .msg { display: flex; gap: 10px; max-width: 80%; }
-        .msg.me { align-self: flex-end; flex-direction: row-reverse; }
-        .bubble { padding: 10px; border-radius: 10px; background: white; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
-        .me .bubble { background: #dcf8c6; }
-        .m-ava { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; }
-        .footer { padding: 15px; background: #eee; display: flex; gap: 10px; align-items: center; }
-        #mIn { flex: 1; padding: 10px; border-radius: 20px; border: 1px solid #ddd; outline: none; }
-        .btn { cursor: pointer; font-size: 20px; border: none; background: none; }
-    </style>
-</head>
-<body id="body" style="background-image: url('{{ user.bg_img if user.bg_img else 'https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png' }}')">
+@socketio.on('update_profile')
+def handle_profile_update(data):
+    user = db.session.get(User, current_user.id)
+    user.avatar = data['avatar']
+    db.session.commit()
+    # Online listesini güncelle
+    online_users[user.username]['avatar'] = data['avatar']
+    emit('update_user_list', online_users, broadcast=True)
 
-<div id="story-viewer">
-    <div class="progress-bar"><div class="progress-fill" id="p-fill"></div></div>
-    <span class="close-story" onclick="closeStory()">&times;</span>
-    <div id="story-user-info">
-        <img src="" id="st-viewer-ava" style="width:40px; height:40px; border-radius:50%; object-fit:cover;">
-        <span id="st-viewer-name"></span>
-    </div>
-    <img src="" id="story-content">
-</div>
+@socketio.on('update_bg')
+def handle_bg_update(data):
+    user = db.session.get(User, current_user.id)
+    user.bg_img = data['bg']
+    db.session.commit()
 
-<div id="side">
-    <div style="padding:15px; background:#ededed; display:flex; justify-content:space-between; align-items:center;">
-        <img src="{{ user.avatar }}" id="my-ava" onclick="document.getElementById('p-file').click()" style="width:40px; height:40px; border-radius:50%; object-fit:cover; cursor:pointer">
-        <div>
-            <button class="btn" onclick="document.getElementById('bg-file').click()">🎨</button>
-            <button class="btn" onclick="location.href='/logout'">🚪</button>
-        </div>
-    </div>
-    <div id="online-list"></div>
-</div>
+@socketio.on('signal')
+def handle_webrtc_signal(data):
+    # Görüntülü arama sinyallerini diğer kullanıcıya ilet
+    emit('signal', data, broadcast=True, include_self=False)
 
-<div id="main">
-    <div id="story-bar">
-        <div class="st-item" onclick="document.getElementById('st-file').click()">
-            <div class="st-ava" style="display:flex; align-items:center; justify-content:center; background:#eee; font-size:24px">+</div>
-            <div style="font-size:12px">Ekle</div>
-        </div>
-        <div id="st-list" style="display:flex; gap:15px"></div>
-    </div>
-
-    <div id="chat-box">
-        {% for m in initial_msgs %}
-        <div class="msg {{ 'me' if m.username == user.username else '' }}">
-            <img src="{{ m.user_avatar }}" class="m-ava">
-            <div class="bubble">
-                <div style="font-size:10px; color:green; font-weight:bold">{{ m.username }}</div>
-                {% if m.msg_type == 'file' %}
-                    <a href="{{ m.content }}" download="{{ m.file_name }}">📂 {{ m.file_name }}</a>
-                {% else %}
-                    {{ m.content }}
-                {% endif %}
-            </div>
-        </div>
-        {% endfor %}
-    </div>
-
-    <div class="footer">
-        <button class="btn" onclick="document.getElementById('f-file').click()">📎</button>
-        <input type="text" id="mIn" placeholder="Mesaj yaz..." onkeypress="if(event.key==='Enter') send()">
-        <button class="btn" onclick="send()">🚀</button>
-    </div>
-</div>
-
-<input type="file" id="p-file" style="display:none" onchange="upPro(this)" accept="image/*">
-<input type="file" id="st-file" style="display:none" onchange="upSt(this)" accept="image/*">
-<input type="file" id="bg-file" style="display:none" onchange="upBg(this)" accept="image/*">
-<input type="file" id="f-file" style="display:none" onchange="upFile(this)">
-
-<script>
-    const socket = io();
-    const myName = "{{ user.username }}";
-    const box = document.getElementById('chat-box');
-    let storyDataGlobal = {}; // Hikayeleri saklamak için
-
-    // HİKAYEYİ AÇMA FONKSİYONU
-    function openStory(username) {
-        const story = storyDataGlobal[username];
-        if(!story) return;
-
-        const viewer = document.getElementById('story-viewer');
-        const content = document.getElementById('story-content');
-        const vName = document.getElementById('st-viewer-name');
-        const vAva = document.getElementById('st-viewer-ava');
-        const pFill = document.getElementById('p-fill');
-
-        vName.innerText = username;
-        vAva.src = story.avatar;
-        content.src = story.content;
-        viewer.style.display = 'flex';
-        
-        // Animasyon ve otomatik kapatma
-        pFill.style.width = '0%';
-        setTimeout(() => { pFill.style.width = '100%'; }, 10);
-
-        window.storyTimeout = setTimeout(() => {
-            closeStory();
-        }, 3000);
-    }
-
-    function closeStory() {
-        document.getElementById('story-viewer').style.display = 'none';
-        document.getElementById('p-fill').style.width = '0%';
-        clearTimeout(window.storyTimeout);
-    }
-
-    // Mesaj Gönderme
-    function send() {
-        const i = document.getElementById('mIn');
-        if(i.value.trim()) { socket.emit('message', {content: i.value, type: 'text'}); i.value = ''; }
-    }
-
-    socket.on('new_message', d => {
-        const isMe = d.user === myName;
-        const content = d.type === 'file' ? `<a href="${d.content}" download="${d.file_name}">📂 ${d.file_name}</a>` : d.content;
-        const html = `<div class="msg ${isMe?'me':''}">
-            <img src="${d.avatar}" class="m-ava">
-            <div class="bubble"><div style="font-size:10px; color:green; font-weight:bold">${d.user}</div>${content}</div>
-        </div>`;
-        box.insertAdjacentHTML('beforeend', html);
-        box.scrollTop = box.scrollHeight;
-    });
-
-    socket.on('update_user_list', users => {
-        const list = document.getElementById('online-list');
-        list.innerHTML = "";
-        for(let u in users) list.innerHTML += `<div style="padding:10px; border-bottom:1px solid #eee; display:flex; align-items:center; gap:10px;"><img src="${users[u].avatar}" style="width:30px; height:30px; border-radius:50%; object-fit:cover;"> ${u} ${u===myName?'(Siz)':''}</div>`;
-    });
-
-    // HİKAYE LİSTESİ GÜNCELLEME
-    socket.on('receive_stories', grouped => {
-        storyDataGlobal = grouped; // Veriyi global değişkene at
-        const list = document.getElementById('st-list');
-        list.innerHTML = "";
-        for(let user in grouped) {
-            list.innerHTML += `
-                <div class="st-item" onclick="openStory('${user}')">
-                    <img src="${grouped[user].avatar}" class="st-ava">
-                    <div style="font-size:11px; font-weight:bold">${user}</div>
-                </div>`;
-        }
-    });
-
-    // Profil, Arka Plan, Hikaye Yükleme Fonksiyonları
-    function upPro(i) {
-        const r = new FileReader();
-        r.onload = e => {
-            socket.emit('update_profile', {avatar: e.target.result});
-            location.reload(); 
-        };
-        r.readAsDataURL(i.files[0]);
-    }
-
-    function upBg(i) {
-        const r = new FileReader();
-        r.onload = e => {
-            document.getElementById('body').style.backgroundImage = `url(${e.target.result})`;
-            socket.emit('update_bg', {bg: e.target.result});
-        };
-        r.readAsDataURL(i.files[0]);
-    }
-
-    function upSt(i) {
-        const r = new FileReader();
-        r.onload = e => socket.emit('add_story', {content: e.target.result});
-        r.readAsDataURL(i.files[0]);
-    }
-
-    function upFile(i) {
-        const file = i.files[0];
-        const r = new FileReader();
-        r.onload = e => socket.emit('message', {content: e.target.result, type: 'file', file_name: file.name});
-        r.readAsDataURL(file);
-    }
-</script>
-</body>
-</html>
+if __name__ == '__main__':
+    socketio.run(app, host='0.0.0.0', port=10000, debug=True)
