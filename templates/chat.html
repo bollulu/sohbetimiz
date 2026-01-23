@@ -22,16 +22,18 @@
         footer { padding:10px; background:#f0f0f0; display:flex; gap:10px; align-items:center; }
         #mIn { flex:1; padding:12px; border-radius:25px; border:none; outline:none; }
         .vid-btn { border:none; background:#eee; padding:5px 8px; border-radius:50%; cursor:pointer; margin-left:auto; }
+        .tık { font-size: 12px; margin-left: 3px; }
+        .tık.read { color: #34B7F1; } /* Mavi Tık Rengi */
+        
         /* Story Viewer */
         #story-viewer { display:none; position:fixed; inset:0; background:black; z-index:20000; flex-direction:column; align-items:center; justify-content:center; }
         #st-frame { width:100%; max-width:450px; height:100%; position:relative; display:flex; align-items:center; justify-content:center; }
         #st-img, #st-vid { width:100%; max-height:100vh; object-fit:contain; }
-        #st-nav-left, #st-nav-right { position:absolute; top:0; height:100%; width:40%; z-index:20001; cursor:pointer; }
+        #st-nav-left, #st-nav-right { position:absolute; top:0; height:100%; width:45%; z-index:20001; cursor:pointer; }
         #st-nav-left { left:0; } #st-nav-right { right:0; }
         #st-progress-container { position:absolute; top:10px; left:10px; right:10px; display:flex; gap:5px; height:3px; z-index:20002; }
         .st-bar-bg { flex:1; background:rgba(255,255,255,0.3); border-radius:2px; overflow:hidden; }
         .st-bar-fill { width:0%; height:100%; background:white; }
-        /* Modal */
         .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.9); z-index:30000; flex-direction:column; align-items:center; justify-content:center; color:white; }
         #cam-preview { width:90%; max-width:400px; border-radius:15px; }
     </style>
@@ -39,7 +41,7 @@
 <body>
 
 <div id="side">
-    <div class="side-header"><b>Aktif Üyeler</b> <button onclick="location.href='/logout'" style="background:none;border:none;color:white;cursor:pointer;">🚪</button></div>
+    <div class="side-header"><b>10 LİNE SOHBETİMİZ</b> <button onclick="location.href='/logout'" style="background:none;border:none;color:white;cursor:pointer;">🚪</button></div>
     <div style="padding:10px; background:#f0f0f0; display:flex; align-items:center; gap:10px;">
         <img src="{{ user.avatar }}" id="my-ava" class="avatar-chat user-avatar-{{ user.username }}">
         <b>Siz</b> <button class="vid-btn" onclick="startVideo()">📹</button>
@@ -61,7 +63,7 @@
         </div>
         <div id="st-list" style="display:flex; gap:15px;"></div>
     </div>
-    <div id="chat-box"></div>
+    <div id="chat-box" onscroll="checkSeen()"></div>
     <footer>
         <button onclick="document.getElementById('file-in').click()" style="font-size:20px;border:none;background:none;cursor:pointer;">📎</button>
         <button id="mic-btn" onclick="toggleMic()" style="font-size:20px;border:none;background:none;cursor:pointer;">🎤</button>
@@ -133,7 +135,7 @@
     }
     function closeCam() { document.getElementById('cam-modal').style.display='none'; stream?.getTracks().forEach(t=>t.stop()); }
 
-    // --- MESAJ & ONLINE ---
+    // --- MESAJ & MAVI TIK ---
     function send() { const i = document.getElementById('mIn'); if(i.value.trim()) { socket.emit('send_msg', {content:i.value, type:'text'}); i.value=''; } }
     socket.on('new_msg', d => renderMsg(d));
     socket.on('load_history', msgs => msgs.forEach(m => renderMsg(m)));
@@ -142,18 +144,30 @@
         let c = d.content;
         if(d.type === 'image') c = `<img src="${d.content}" style="max-width:200px;border-radius:10px;">`;
         else if(d.type === 'video') c = `<video src="${d.content}" controls style="max-width:200px;border-radius:10px;"></video>`;
-        const h = `<div class="msg ${isMe?'me':''}" id="msg-${d.id}">
+        const h = `<div class="msg ${isMe?'me':''}" id="msg-${d.id}" data-sender="${d.sender}" data-read="${d.is_read}">
             <img src="${d.avatar}" class="avatar-chat user-avatar-${d.sender}">
             <div class="bubble">
                 <div style="font-size:10px;font-weight:bold;color:${isMe?'#075e54':'orange'}">${d.sender}</div>${c}
-                <div style="font-size:9px;text-align:right;color:gray;margin-top:5px;">${d.time} ${isMe?`<span onclick="delMsg(${d.id})" style="color:red;cursor:pointer;margin-left:5px;">Sil</span>`:''}</div>
+                <div style="font-size:9px;text-align:right;color:gray;margin-top:5px;">${d.time} 
+                    ${isMe ? `<span class="tık ${d.is_read?'read':''}" id="tık-${d.id}">✔✔</span>` : ''}
+                    ${isMe ? `<span onclick="delMsg(${d.id})" style="color:red;cursor:pointer;margin-left:5px;">Sil</span>`:''}
+                </div>
             </div></div>`;
-        document.getElementById('chat-box').insertAdjacentHTML('beforeend', h); document.getElementById('chat-box').scrollTop = 99999;
+        document.getElementById('chat-box').insertAdjacentHTML('beforeend', h); checkSeen();
     }
+    function checkSeen() {
+        const msgs = document.querySelectorAll('.msg:not(.me)');
+        msgs.forEach(m => {
+            const id = m.id.split('-')[1];
+            if(m.getAttribute('data-read') === 'false') {
+                socket.emit('msg_seen', {id: id});
+                m.setAttribute('data-read', 'true');
+            }
+        });
+    }
+    socket.on('mark_read', d => { const t = document.getElementById(`tık-${d.id}`); if(t) t.classList.add('read'); });
     function delMsg(id) { if(confirm("Sil?")) socket.emit('delete_msg', {id:id}); }
     socket.on('msg_deleted', d => document.getElementById(`msg-${d.id}`)?.remove());
-    socket.on('force_avatar_update', d => document.querySelectorAll(`.user-avatar-${d.username}`).forEach(img => img.src = d.new_avatar));
-    socket.on('update_online_list', () => { /* Basitlik için connect'te yüklendi */ });
 
     // --- STORY ---
     function showStoryOptions() { if(confirm("Kamera?")) openCam('story'); else document.getElementById('story-in').click(); }
@@ -183,11 +197,23 @@
     function deleteMyStory(e) { e.stopPropagation(); if(confirm("Sil?")) { socket.emit('delete_story', {id: storyData[activeUser][activeIdx].id}); closeStory(); } }
     function showViewers() { alert("Görenler: " + storyData[activeUser][activeIdx].views.join(", ")); }
 
-    // --- VIDEO ---
+    // --- VIDEO & SES ---
     let localStream;
     async function startVideo() { document.getElementById('video-ui').style.display='flex'; localStream = await navigator.mediaDevices.getUserMedia({video:true, audio:true}); document.getElementById('local-v').srcObject = localStream; }
     function closeVideo() { document.getElementById('video-ui').style.display='none'; localStream?.getTracks().forEach(t=>t.stop()); }
+    
+    let mediaRec;
+    async function toggleMic() {
+        const btn = document.getElementById('mic-btn');
+        if(!mediaRec || mediaRec.state === 'inactive') {
+            const s = await navigator.mediaDevices.getUserMedia({audio:true}); mediaRec = new MediaRecorder(s);
+            let chunks = []; mediaRec.ondataavailable = e => chunks.push(e.data);
+            mediaRec.onstop = () => { const b = new Blob(chunks,{type:'audio/ogg'}); const r = new FileReader(); r.onload=e=>socket.emit('send_msg',{content:e.target.result,type:'audio'}); r.readAsDataURL(b); };
+            mediaRec.start(); btn.innerText = "🔴";
+        } else { mediaRec.stop(); btn.innerText = "🎤"; }
+    }
 
+    socket.on('force_avatar_update', d => document.querySelectorAll(`.user-avatar-${d.username}`).forEach(img => img.src = d.new_avatar));
     window.onkeydown = e => { if(document.getElementById('story-viewer').style.display==='flex') { if(e.key==='ArrowRight') nextStory(); if(e.key==='ArrowLeft') prevStory(); if(e.key==='Escape') closeStory(); } };
 </script>
 </body>
