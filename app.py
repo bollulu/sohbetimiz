@@ -9,7 +9,7 @@ from flask_socketio import SocketIO, emit
 from datetime import datetime
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'wp_ultra_final_2026'
+app.config['SECRET_KEY'] = 'wp_ultra_safe_2026'
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -19,11 +19,12 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 
+# MODELLER
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True)
     password = db.Column(db.String(100))
-    avatar = db.Column(db.Text)
+    avatar = db.Column(db.Text) # Base64
     bg_img = db.Column(db.Text, default="")
 
 class Message(db.Model):
@@ -49,9 +50,24 @@ login_manager.login_view = 'login'
 @login_manager.user_loader
 def load_user(id): return db.session.get(User, int(id))
 
+# ROUTLAR
 @app.route('/')
 def home():
     return redirect(url_for('chat')) if current_user.is_authenticated else redirect(url_for('login'))
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        username = request.form.get('username')
+        if User.query.filter_by(username=username).first(): return "Bu isim alınmış!", 400
+        new_user = User(
+            username=username, 
+            password=request.form.get('password'), 
+            avatar=request.form.get('avatar_data')
+        )
+        db.session.add(new_user); db.session.commit()
+        return redirect(url_for('login'))
+    return render_template('register.html')
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -66,10 +82,6 @@ def login():
 def chat():
     msgs = Message.query.all()
     return render_template('chat.html', user=current_user, initial_msgs=msgs)
-
-@app.route('/live')
-@login_required
-def live(): return render_template('live.html', user=current_user)
 
 @app.route('/logout')
 def logout(): logout_user(); return redirect(url_for('login'))
@@ -102,14 +114,6 @@ def add_story(data):
     s = Story(username=current_user.username, user_avatar=current_user.avatar, content=data['content'], media_type=data['type'], music=data.get('music',''))
     db.session.add(s); db.session.commit()
     send_all_stories()
-
-@socketio.on('update_profile')
-def up_profile(data):
-    user = db.session.get(User, current_user.id)
-    user.avatar = data['avatar']
-    db.session.commit()
-    online_users[user.username]['avatar'] = data['avatar']
-    emit('profile_updated', {'user': user.username, 'avatar': data['avatar']}, broadcast=True)
 
 def send_all_stories():
     stories = Story.query.all()
