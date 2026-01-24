@@ -1,176 +1,315 @@
-<style>
-    /* Madde 9: Hikaye navigasyon alanları */
-    .st-nav-left, .st-nav-right { position: absolute; top:0; bottom:0; width: 30%; z-index: 20002; }
-    .st-nav-left { left: 0; }
-    .st-nav-right { right: 0; }
-    
-    /* Madde 11: Hikaye yazı alanı */
-    #st-text-overlay { position: absolute; bottom: 20%; color: white; font-size: 20px; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); text-align: center; width: 80%; pointer-events: none; z-index: 20003; }
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>WhatsApp Ultra Pro</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <style>
+        :root { --main: #075e54; --light: #25D366; --bg: #e5ddd5; --my-msg: #dcf8c6; }
+        body { margin: 0; font-family: sans-serif; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        
+        /* Üst Bar */
+        header { background: var(--main); color: white; padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+        
+        /* Ana Konteyner */
+        #app-container { display: flex; flex: 1; overflow: hidden; position: relative; }
+        
+        /* Yan Panel (Kullanıcılar) - Mobilde gizlenebilir veya daraltılabilir */
+        #side-panel { width: 80px; background: #fff; border-right: 1px solid #ddd; display: flex; flex-direction: column; align-items: center; padding-top: 10px; overflow-y: auto; }
+        .user-avatar { width: 50px; height: 50px; border-radius: 50%; margin-bottom: 15px; cursor: pointer; border: 2px solid transparent; }
+        .user-avatar.active { border-color: var(--light); }
+        
+        /* Chat Alanı */
+        #chat-window { flex: 1; display: flex; flex-direction: column; background: var(--bg); background-size: cover; position: relative; }
+        
+        /* Hikayeler */
+        #story-bar { height: 80px; background: white; display: flex; align-items: center; padding: 0 10px; gap: 10px; overflow-x: auto; border-bottom: 1px solid #ddd; flex-shrink: 0; }
+        .story-circle { min-width: 55px; height: 55px; border-radius: 50%; border: 3px solid var(--light); padding: 2px; cursor: pointer; }
+        .story-circle img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
 
-    /* Kamera önizleme */
-    #story-cam-preview { display:none; position:fixed; inset:0; background:black; z-index:30000; flex-direction:column; align-items:center; }
-    #story-cam-preview video { width:100%; max-height:70vh; }
+        /* Mesaj Listesi */
+        #msg-list { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; }
+        .msg { max-width: 80%; padding: 8px 12px; border-radius: 10px; position: relative; word-wrap: break-word; font-size: 14px; }
+        .msg.sent { align-self: flex-end; background: var(--my-msg); }
+        .msg.received { align-self: flex-start; background: white; }
+        .msg small { font-size: 10px; color: #888; display: block; text-align: right; margin-top: 4px; }
 
-    .active-dm { background: #dcf8c6 !important; }
-</style>
+        /* Giriş Alanı - Mobilde Burası Kritik */
+        #input-area { background: #f0f0f0; padding: 10px; display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+        #input-area input { flex: 1; padding: 12px; border-radius: 25px; border: none; outline: none; }
+        #input-area button { background: var(--main); color: white; border: none; padding: 10px 15px; border-radius: 50%; cursor: pointer; }
 
-<div id="story-cam-preview">
-    <video id="st-vid-feed" autoplay playsinline></video>
-    <input type="text" id="st-text-input" placeholder="Hikayene bir yazı ekle..." style="width:80%; padding:10px; margin:10px; border-radius:20px;">
-    <div style="display:flex; gap:10px;">
-        <button onclick="captureStory()" style="padding:15px; background:red; color:white; border-radius:50%; border:none;">📸 ÇEK</button>
-        <button onclick="closeStoryCam()" style="padding:15px; background:gray; color:white; border-radius:50%; border:none;">✖</button>
+        /* Hikaye İzleyici (Fullscreen) */
+        #story-viewer { display: none; position: fixed; inset: 0; background: black; z-index: 9999; justify-content: center; align-items: center; }
+        #st-img { max-width: 100%; max-height: 100vh; }
+        #st-progress-container { position: absolute; top: 10px; width: 95%; display: flex; gap: 5px; }
+        .st-bar { height: 3px; background: rgba(255,255,255,0.3); flex: 1; }
+        .st-fill { height: 100%; background: white; width: 0%; }
+        .st-nav { position: absolute; top: 0; bottom: 0; width: 40%; z-index: 10001; }
+        #st-text-overlay { position: absolute; bottom: 15%; color: white; width: 80%; text-align: center; font-size: 18px; text-shadow: 1px 1px 5px #000; }
+
+        /* Kamera Önizleme */
+        #cam-overlay { display: none; position: fixed; inset: 0; background: #000; z-index: 10002; flex-direction: column; }
+        #cam-video { width: 100%; flex: 1; object-fit: cover; }
+
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+<header>
+    <b>WhatsApp Ultra</b>
+    <div style="display: flex; gap: 10px;">
+        <span onclick="openCamForStory()">📸</span>
+        <span onclick="document.getElementById('bg-up').click()">🖼️</span>
+        <input type="file" id="bg-up" class="hidden" onchange="changeBg(this)">
+        <a href="/logout" style="text-decoration: none;">🚪</a>
+    </div>
+</header>
+
+<div id="app-container">
+    <div id="side-panel">
+        <div class="user-avatar active" onclick="setDM('global')" id="target-global" title="Global Chat">🌍</div>
+        <div id="online-users-list"></div>
+    </div>
+
+    <div id="chat-window">
+        <div id="story-bar">
+            </div>
+
+        <div id="msg-list">
+            </div>
+
+        <div id="input-area">
+            <button onclick="document.getElementById('file-up').click()">+</button>
+            <input type="file" id="file-up" class="hidden" onchange="sendFile(this)">
+            <input type="text" id="mIn" placeholder="Mesaj yazın...">
+            <button onclick="sendMsg()">➤</button>
+        </div>
     </div>
 </div>
 
 <div id="story-viewer">
-    <div class="st-nav-left" onclick="prevStory()"></div>
-    <div class="st-nav-right" onclick="nextStory()"></div>
-    <div id="st-progress"></div>
-    <div id="st-close" onclick="closeStory()">✖</div>
-    <div id="st-delete" onclick="deleteCurrentStory(event)">🗑️</div>
+    <div id="st-progress-container"></div>
+    <div class="st-nav" style="left:0;" onclick="prevStory()"></div>
+    <div class="st-nav" style="right:0;" onclick="nextStory()"></div>
+    <div id="st-close" onclick="closeStory()" style="position:absolute; top:30px; right:20px; color:white; font-size:30px; z-index:10005;">✕</div>
     <img id="st-img">
     <div id="st-text-overlay"></div>
 </div>
 
+<div id="cam-overlay">
+    <video id="cam-video" autoplay playsinline></video>
+    <div style="padding: 20px; display: flex; flex-direction: column; gap: 10px;">
+        <input type="text" id="st-comment" placeholder="Hikaye yazısı ekle..." style="padding:10px; border-radius:20px; border:none;">
+        <div style="display: flex; justify-content: space-around;">
+            <button onclick="capturePhoto()" style="width:70px; height:70px; border-radius:50%; background:white; border:5px solid #ccc;"></button>
+            <button onclick="closeCam()" style="color:white; background:none; border:none; font-size:24px;">✕</button>
+        </div>
+    </div>
+</div>
+
 <script>
+    const socket = io();
+    const myUser = "{{ user.username }}";
     let currentRecipient = 'global';
-    let userAvatars = {}; // Madde 4: Anlık avatar takibi
-    let myBlocks = []; // Madde 1: Engellenenler
+    let storyData = {};
+    let activeStoryUser = "";
+    let activeStoryIndex = 0;
+    let storyTimer;
 
-    // Madde 6: Arka planı LocalStorage'dan yükle
-    window.onload = () => {
-        const savedBg = localStorage.getItem('chat-bg');
-        if(savedBg) document.getElementById('main').style.backgroundImage = `url(${savedBg})`;
-    };
-
-    // Madde 5: DM Seçeneği ve Kullanıcı Engelleme (Madde 1)
-    socket.on('update_online', users => {
-        let html = `<div class="user-row ${currentRecipient==='global'?'active-dm':''}" onclick="setRecipient('global')">🌍 Global Chat</div>`;
-        for(let u in users) {
-            userAvatars[u] = users[u].avatar; 
-            if (u !== myUser) {
-                html += `<div class="user-row ${currentRecipient===u?'active-dm':''}" onclick="setRecipient('${u}')">
-                    <img src="${users[u].avatar}" id="ava-${u}">
-                    <span>${u}</span>
-                    <button onclick="blockUser(event, '${u}')" style="font-size:10px; margin-left:auto;">🚫 Engelle</button>
-                </div>`;
-            }
-        }
-        document.getElementById('online-list').innerHTML = html;
-    });
-
-    function setRecipient(user) {
-        currentRecipient = user;
-        document.getElementById('mIn').placeholder = user === 'global' ? "Global'e yaz..." : `${user} kullanıcısına DM...`;
-        // Mesajları filtrele veya yeniden yükle...
-        socket.emit('connect'); // Basitçe geçmişi tekrar çekmek için
+    // Arka planı yükle
+    if(localStorage.getItem('chat-bg')) {
+        document.getElementById('chat-window').style.backgroundImage = `url(${localStorage.getItem('chat-bg')})`;
     }
 
-    function blockUser(e, user) {
-        e.stopPropagation();
-        if(confirm(`${user} engellensin mi?`)) socket.emit('block_user', {username: user});
+    // Mesaj Gönderme
+    function sendMsg() {
+        const inp = document.getElementById('mIn');
+        if(!inp.value.trim()) return;
+        socket.emit('send_msg', {content: inp.value, type: 'text', recipient: currentRecipient});
+        inp.value = '';
     }
 
-    socket.on('user_blocked_status', d => { myBlocks = d.blocked; alert("Engellendi!"); });
-
-    // Madde 4: Avatar anında her yerde güncellensin
-    socket.on('avatar_changed_globally', d => {
-        userAvatars[d.username] = d.avatar;
-        document.querySelectorAll(`img[id^="ava-${d.username}"]`).forEach(img => img.src = d.avatar);
-        // Sohbet içindeki eski mesajların avatarlarını da seçicilerle güncelleyebilirsin
-    });
-
-    // Madde 2: Hikaye Kamerası
-    async function openCamForStory() {
-        document.getElementById('story-cam-preview').style.display = 'flex';
-        const stream = await navigator.mediaDevices.getUserMedia({video: true});
-        document.getElementById('st-vid-feed').srcObject = stream;
-    }
-
-    function captureStory() {
-        const video = document.getElementById('st-vid-feed');
-        const text = document.getElementById('st-text-input').value;
-        const canvas = document.createElement('canvas');
-        canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-        canvas.getContext('2d').drawImage(video, 0, 0);
-        const data = canvas.toDataURL('image/jpeg');
-        socket.emit('add_story', {content: data, text: text, type: 'image'});
-        closeStoryCam();
-    }
-
-    function closeStoryCam() {
-        const v = document.getElementById('st-vid-feed');
-        if(v.srcObject) v.srcObject.getTracks().forEach(t => t.stop());
-        document.getElementById('story-cam-preview').style.display = 'none';
-    }
-
-    // Madde 8, 9, 10: Hikaye Navigasyonu
-    function showStory() {
-        const users = Object.keys(storyData);
-        const currentStories = storyData[activeStoryUser];
-        
-        if(activeStoryIndex >= currentStories.length) {
-            // Madde 10: Sonraki kullanıcıya geç
-            let nextUserIdx = users.indexOf(activeStoryUser) + 1;
-            if(nextUserIdx < users.length) {
-                openStoryViewer(users[nextUserIdx]);
-                return;
-            } else { closeStory(); return; }
-        }
-
-        if(activeStoryIndex < 0) {
-            // Önceki kullanıcıya geç
-            let prevUserIdx = users.indexOf(activeStoryUser) - 1;
-            if(prevUserIdx >= 0) {
-                activeStoryUser = users[prevUserIdx];
-                activeStoryIndex = storyData[activeStoryUser].length - 1;
-                showStory(); return;
-            } else { activeStoryIndex = 0; }
-        }
-
-        const s = currentStories[activeStoryIndex];
-        document.getElementById('st-img').src = s.content;
-        document.getElementById('st-text-overlay').innerText = s.text || "";
-        
-        // Madde 3: Progress bar güncelleme (CSS transition ile yapılabilir)
-        updateProgressBars(currentStories.length);
-
-        clearTimeout(storyTimer);
-        storyTimer = setTimeout(() => nextStory(), 5000);
-    }
-
-    function nextStory() { activeStoryIndex++; showStory(); }
-    function prevStory() { activeStoryIndex--; showStory(); }
-
-    // Klavye yön tuşları (Madde 8)
-    window.addEventListener('keydown', e => {
-        if(document.getElementById('story-viewer').style.display === 'flex') {
-            if(e.key === "ArrowRight") nextStory();
-            if(e.key === "ArrowLeft") prevStory();
-        }
-    });
-
-    // Madde 7: Tüm dosya türlerini destekle (Dosya uzantısını koruyarak)
-    function processFile(input) {
+    // Dosya Gönderme (Tüm Türler)
+    function sendFile(input) {
         const file = input.files[0];
         const reader = new FileReader();
         reader.onload = e => {
-            const type = file.type.startsWith('image/') ? 'image' : (file.type.startsWith('audio/') ? 'audio' : 'file');
+            const type = file.type.split('/')[0] === 'image' ? 'image' : 'file';
             socket.emit('send_msg', {content: e.target.result, type: type, recipient: currentRecipient});
         };
         reader.readAsDataURL(file);
     }
 
-    // Madde 6: Arka plan kaydetme
-    function processImage(input, target) {
+    // DM Değiştirme
+    function setDM(user) {
+        currentRecipient = user;
+        document.querySelectorAll('.user-avatar').forEach(a => a.classList.remove('active'));
+        document.getElementById('target-' + user).classList.add('active');
+        document.getElementById('msg-list').innerHTML = '';
+        socket.emit('connect'); // Geçmişi tekrar iste
+    }
+
+    socket.on('update_online', users => {
+        const list = document.getElementById('online-users-list');
+        list.innerHTML = '';
+        for(let u in users) {
+            if(u === myUser) continue;
+            const div = document.createElement('img');
+            div.src = users[u].avatar || 'https://via.placeholder.com/50';
+            div.className = 'user-avatar';
+            div.id = 'target-' + u;
+            div.onclick = () => setDM(u);
+            div.title = u;
+            list.appendChild(div);
+        }
+    });
+
+    socket.on('load_history', msgs => {
+        msgs.forEach(m => displayMsg(m));
+        scrollBottom();
+    });
+
+    socket.on('new_msg', m => {
+        if(m.recipient === 'global' && currentRecipient === 'global') displayMsg(m);
+        else if(m.recipient === myUser && currentRecipient === m.sender) displayMsg(m);
+        else if(m.sender === myUser && currentRecipient === m.recipient) displayMsg(m);
+        scrollBottom();
+    });
+
+    function displayMsg(m) {
+        const list = document.getElementById('msg-list');
+        const div = document.createElement('div');
+        div.className = `msg ${m.sender === myUser ? 'sent' : 'received'}`;
+        
+        if(m.type === 'text') div.innerHTML = `<b>${m.sender}:</b><br>${m.content}`;
+        else if(m.type === 'image') div.innerHTML = `<b>${m.sender}:</b><br><img src="${m.content}" style="max-width:200px; border-radius:10px;">`;
+        else div.innerHTML = `<b>${m.sender}:</b><br>📄 <a href="${m.content}" download>Dosyayı İndir</a>`;
+        
+        div.innerHTML += `<small>${m.time}</small>`;
+        list.appendChild(div);
+    }
+
+    function scrollBottom() {
+        const list = document.getElementById('msg-list');
+        list.scrollTop = list.scrollHeight;
+    }
+
+    // HİKAYE SİSTEMİ
+    socket.on('all_stories', data => {
+        storyData = data;
+        const bar = document.getElementById('story-bar');
+        bar.innerHTML = '';
+        for(let user in data) {
+            const div = document.createElement('div');
+            div.className = 'story-circle';
+            div.onclick = () => openStory(user);
+            div.innerHTML = `<img src="${data[user][0].avatar}">`;
+            bar.appendChild(div);
+        }
+    });
+
+    function openStory(user) {
+        activeStoryUser = user;
+        activeStoryIndex = 0;
+        document.getElementById('story-viewer').style.display = 'flex';
+        renderStory();
+    }
+
+    function renderStory() {
+        const stories = storyData[activeStoryUser];
+        const s = stories[activeStoryIndex];
+        document.getElementById('st-img').src = s.content;
+        document.getElementById('st-text-overlay').innerText = s.text || "";
+        
+        // Progress Bar
+        const prog = document.getElementById('st-progress-container');
+        prog.innerHTML = '';
+        stories.forEach((_, i) => {
+            const bar = document.createElement('div');
+            bar.className = 'st-bar';
+            const fill = document.createElement('div');
+            fill.className = 'st-fill';
+            if(i < activeStoryIndex) fill.style.width = '100%';
+            if(i === activeStoryIndex) {
+                setTimeout(() => fill.style.transition = 'width 5s linear', 50);
+                setTimeout(() => fill.style.width = '100%', 100);
+            }
+            bar.appendChild(fill);
+            prog.appendChild(bar);
+        });
+
+        clearTimeout(storyTimer);
+        storyTimer = setTimeout(() => nextStory(), 5000);
+    }
+
+    function nextStory() {
+        if(activeStoryIndex < storyData[activeStoryUser].length - 1) {
+            activeStoryIndex++;
+            renderStory();
+        } else {
+            // Sonraki kullanıcıya geç
+            const users = Object.keys(storyData);
+            let idx = users.indexOf(activeStoryUser);
+            if(idx < users.length - 1) openStory(users[idx+1]);
+            else closeStory();
+        }
+    }
+
+    function prevStory() {
+        if(activeStoryIndex > 0) {
+            activeStoryIndex--;
+            renderStory();
+        }
+    }
+
+    function closeStory() {
+        document.getElementById('story-viewer').style.display = 'none';
+        clearTimeout(storyTimer);
+    }
+
+    // KAMERA
+    async function openCamForStory() {
+        const stream = await navigator.mediaDevices.getUserMedia({video: {facingMode: 'user'}});
+        document.getElementById('cam-video').srcObject = stream;
+        document.getElementById('cam-overlay').style.display = 'flex';
+    }
+
+    function capturePhoto() {
+        const vid = document.getElementById('cam-video');
+        const canvas = document.createElement('canvas');
+        canvas.width = vid.videoWidth; canvas.height = vid.videoHeight;
+        canvas.getContext('2d').drawImage(vid, 0, 0);
+        const data = canvas.toDataURL('image/jpeg', 0.7);
+        const txt = document.getElementById('st-comment').value;
+        socket.emit('add_story', {content: data, text: txt, type: 'image'});
+        closeCam();
+    }
+
+    function closeCam() {
+        const vid = document.getElementById('cam-video');
+        if(vid.srcObject) vid.srcObject.getTracks().forEach(t => t.stop());
+        document.getElementById('cam-overlay').style.display = 'none';
+    }
+
+    function changeBg(input) {
         const reader = new FileReader();
         reader.onload = e => {
-            if(target === 'bg') {
-                document.getElementById('main').style.backgroundImage = `url(${e.target.result})`;
-                localStorage.setItem('chat-bg', e.target.result);
-            }
-        }
+            document.getElementById('chat-window').style.backgroundImage = `url(${e.target.result})`;
+            localStorage.setItem('chat-bg', e.target.result);
+        };
         reader.readAsDataURL(input.files[0]);
     }
+
+    // Klavye Navigasyonu
+    window.onkeydown = e => {
+        if(document.getElementById('story-viewer').style.display === 'flex') {
+            if(e.key === "ArrowRight") nextStory();
+            if(e.key === "ArrowLeft") prevStory();
+        }
+    };
 </script>
+</body>
+</html>
