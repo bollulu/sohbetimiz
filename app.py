@@ -12,14 +12,22 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'ultra_final_v2026_pro'
 app.config['MAX_CONTENT_LENGTH'] = 200 * 1024 * 1024 
 
-# Veritabanı dosya yolu ayarı 
+# --- VERİTABANI AYARI (PostgreSQL & SQLite Uyumlu) ---
 basedir = os.path.abspath(os.path.dirname(__file__))
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'database.db')
+# Render'daki DATABASE_URL'i al, yoksa yerel sqlite kullan
+db_uri = os.environ.get('DATABASE_URL', 'sqlite:///' + os.path.join(basedir, 'database.db'))
+
+# PostgreSQL 'postgres://' prefixini 'postgresql://' olarak düzeltme (Render/SQLAlchemy uyumu için)
+if db_uri.startswith("postgres://"):
+    db_uri = db_uri.replace("postgres://", "postgresql://", 1)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = db_uri
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 
-# --- MODELLER --- 
+# --- MODELLER ---
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True)
@@ -39,8 +47,8 @@ class Message(db.Model):
 class Story(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50))
-    avatar = db.Column(db.Text) 
-    content = db.Column(db.Text) 
+    avatar = db.Column(db.Text)
+    content = db.Column(db.Text)
     media_type = db.Column(db.String(10)) 
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -49,27 +57,32 @@ with app.app_context():
 
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
+
 @login_manager.user_loader
-def load_user(id): return db.session.get(User, int(id))
+def load_user(id): 
+    return db.session.get(User, int(id))
 
 # --- ROTALAR (ROUTES) ---
 
-@app.route('/') # Ana sayfa hatasını çözen yeni rota 
+@app.route('/')
 def index():
+    # Ana sayfaya geleni login'e yönlendirerek 404 hatasını çözer
     return redirect(url_for('login'))
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
         u = request.form.get('username')
-        if User.query.filter_by(username=u).first(): return "Kullanıcı adı alınmış!", 400
+        if User.query.filter_by(username=u).first(): 
+            return "Kullanıcı adı alınmış!", 400
         new_u = User(
             username=u, 
             password=request.form.get('password'), 
             gender=request.form.get('gender'), 
             avatar=request.form.get('avatar_data')
         )
-        db.session.add(new_u); db.session.commit()
+        db.session.add(new_u)
+        db.session.commit()
         return redirect(url_for('login'))
     return render_template('register.html')
 
@@ -78,30 +91,37 @@ def login():
     if request.method == 'POST':
         user = User.query.filter_by(username=request.form.get('username')).first()
         if user and user.password == request.form.get('password'):
-            login_user(user); return redirect(url_for('chat'))
+            login_user(user)
+            return redirect(url_for('chat'))
     return render_template('login.html')
 
 @app.route('/chat')
 @login_required
-def chat(): return render_template('chat.html', user=current_user)
+def chat(): 
+    return render_template('chat.html', user=current_user)
 
-@app.route('/live') # live.html için eklenen rota 
+@app.route('/live')
 @login_required
 def live():
+    # live.html sayfasını açar
     return render_template('live.html')
 
 @app.route('/logout')
-def logout(): logout_user(); return redirect(url_for('login'))
+def logout(): 
+    logout_user()
+    return redirect(url_for('login'))
 
 @app.route('/delete_acc', methods=['POST'])
 @login_required
 def delete_acc():
     if current_user.password == request.form.get('password'):
-        db.session.delete(current_user); db.session.commit()
-        logout_user(); return "OK"
+        db.session.delete(current_user)
+        db.session.commit()
+        logout_user()
+        return "OK"
     return "FAIL", 403
 
-# --- SOCKET EVENTS --- 
+# --- SOCKET EVENTS ---
 online_users = {}
 
 @socketio.on('connect')
@@ -110,6 +130,7 @@ def on_connect():
         online_users[current_user.username] = {"avatar": current_user.avatar}
         emit('update_online', online_users, broadcast=True)
         
+        # Geçmiş Mesajları Yükle
         messages = Message.query.all()
         history = []
         for m in messages:
@@ -135,7 +156,8 @@ def handle_msg(data):
         msg_type=data['type'], 
         timestamp=datetime.now().strftime("%H:%M")
     )
-    db.session.add(m); db.session.commit()
+    db.session.add(m)
+    db.session.commit()
     emit('new_msg', {
         'id': m.id, 'sender': m.sender, 'avatar': m.avatar, 
         'content': m.content, 'type': m.msg_type, 'time': m.timestamp
@@ -145,21 +167,24 @@ def handle_msg(data):
 def delete_message(data):
     msg = db.session.get(Message, data['id'])
     if msg:
-        db.session.delete(msg); db.session.commit()
+        db.session.delete(msg)
+        db.session.commit()
         emit('msg_deleted', {'id': data['id']}, broadcast=True)
 
 @socketio.on('add_story')
 def add_story(data):
     s = Story(username=current_user.username, avatar=current_user.avatar, 
               content=data['content'], media_type=data['type'])
-    db.session.add(s); db.session.commit()
+    db.session.add(s)
+    db.session.commit()
     send_stories()
 
 @socketio.on('delete_story')
 def delete_story(data):
     s = db.session.get(Story, data['id'])
     if s and s.username == current_user.username:
-        db.session.delete(s); db.session.commit()
+        db.session.delete(s)
+        db.session.commit()
         send_stories()
 
 @socketio.on('update_avatar')
@@ -174,7 +199,8 @@ def send_stories():
     stories = Story.query.all()
     grouped = {}
     for s in stories:
-        if s.username not in grouped: grouped[s.username] = []
+        if s.username not in grouped: 
+            grouped[s.username] = []
         grouped[s.username].append({
             'id': s.id, 'username': s.username, 'avatar': s.avatar, 
             'content': s.content, 'type': s.media_type
