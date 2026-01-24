@@ -10,7 +10,7 @@ from datetime import datetime
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'ultra_final_v2026_pro'
-app.config['MAX_CONTENT_LENGTH'] = 200 * 1024 * 1024 
+app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024 # 500MB'a çıkarıldı
 basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'database.db')
 
@@ -30,7 +30,7 @@ class Message(db.Model):
     sender = db.Column(db.String(50))
     recipient = db.Column(db.String(50), default="global")
     content = db.Column(db.Text)
-    msg_type = db.Column(db.String(20)) # image, video, file, audio, text
+    msg_type = db.Column(db.String(20)) # image, audio, video, file, text
     timestamp = db.Column(db.String(20))
 
 class Story(db.Model):
@@ -57,7 +57,7 @@ def index(): return redirect(url_for('login'))
 def register():
     if request.method == 'POST':
         u = request.form.get('username')
-        if User.query.filter_by(username=u).first(): return "Bu kullanıcı adı alınmış!", 400
+        if User.query.filter_by(username=u).first(): return "Hata: Kullanıcı mevcut!", 400
         new_u = User(username=u, password=request.form.get('password'), gender=request.form.get('gender'), avatar=request.form.get('avatar_data'))
         db.session.add(new_u); db.session.commit()
         return redirect(url_for('login'))
@@ -89,7 +89,6 @@ def on_connect():
         send_stories()
 
 def send_history():
-    # Global ve kişiye özel DM'leri getir
     msgs = Message.query.filter((Message.recipient == 'global') | (Message.recipient == current_user.username) | (Message.sender == current_user.username)).all()
     history = [{'id': m.id, 'sender': m.sender, 'recipient': m.recipient, 'content': m.content, 'type': m.msg_type, 'time': m.timestamp} for m in msgs]
     emit('load_history', history)
@@ -97,10 +96,9 @@ def send_history():
 @socketio.on('send_msg')
 def handle_msg(data):
     recipient = data.get('recipient', 'global')
-    # Engelleme kontrolü (basit)
     target_user = User.query.filter_by(username=recipient).first()
     if target_user and current_user.username in json.loads(target_user.blocked_list):
-        return # Mesaj gitmez
+        return 
         
     m = Message(sender=current_user.username, recipient=recipient, content=data['content'], msg_type=data['type'], timestamp=datetime.now().strftime("%H:%M"))
     db.session.add(m); db.session.commit()
@@ -109,26 +107,9 @@ def handle_msg(data):
     if recipient == 'global':
         emit('new_msg', msg_data, broadcast=True)
     else:
-        emit('new_msg', msg_data) # Kendine gönder
+        emit('new_msg', msg_data)
         if recipient in online_users:
             emit('new_msg', msg_data, room=online_users[recipient]['sid'])
-
-@socketio.on('block_user')
-def block_user(data):
-    target = data['username']
-    current_blocks = json.loads(current_user.blocked_list)
-    if target not in current_blocks:
-        current_blocks.append(target)
-        current_user.blocked_list = json.dumps(current_blocks)
-        db.session.commit()
-        emit('user_blocked_status', {'blocked': current_blocks})
-
-@socketio.on('update_avatar')
-def update_avatar_func(data):
-    current_user.avatar = data['avatar']
-    db.session.commit()
-    online_users[current_user.username]['avatar'] = data['avatar']
-    emit('avatar_changed_globally', {'username': current_user.username, 'avatar': data['avatar']}, broadcast=True)
 
 @socketio.on('add_story')
 def add_story(data):
