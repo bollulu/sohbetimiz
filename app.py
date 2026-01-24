@@ -11,7 +11,8 @@ from datetime import datetime
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'ultra_final_v2026_pro'
 app.config['MAX_CONTENT_LENGTH'] = 200 * 1024 * 1024 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(os.path.abspath(os.path.dirname(__file__)), 'database.db')
+basedir = os.path.abspath(os.path.dirname(__file__))
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'database.db')
 
 db = SQLAlchemy(app)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
@@ -22,22 +23,22 @@ class User(UserMixin, db.Model):
     password = db.Column(db.String(100))
     avatar = db.Column(db.Text) 
     gender = db.Column(db.String(20))
-    blocked_list = db.Column(db.Text, default="[]") # JSON string olarak tutulacak
+    blocked_list = db.Column(db.Text, default="[]") 
 
 class Message(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     sender = db.Column(db.String(50))
-    recipient = db.Column(db.String(50), default="global") # DM için eklendi
+    recipient = db.Column(db.String(50), default="global")
     content = db.Column(db.Text)
-    msg_type = db.Column(db.String(20))
+    msg_type = db.Column(db.String(20)) # image, video, file, audio, text
     timestamp = db.Column(db.String(20))
 
 class Story(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50))
     avatar = db.Column(db.Text)
-    content = db.Column(db.Text) # Resim/Video verisi
-    text_content = db.Column(db.Text, default="") # Hikaye yazısı (Madde 11)
+    content = db.Column(db.Text)
+    text_content = db.Column(db.Text, default="")
     media_type = db.Column(db.String(10)) 
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -49,11 +50,14 @@ login_manager.login_view = 'login'
 @login_manager.user_loader
 def load_user(id): return db.session.get(User, int(id))
 
+@app.route('/')
+def index(): return redirect(url_for('login'))
+
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
         u = request.form.get('username')
-        if User.query.filter_by(username=u).first(): return "Hata!", 400
+        if User.query.filter_by(username=u).first(): return "Bu kullanıcı adı alınmış!", 400
         new_u = User(username=u, password=request.form.get('password'), gender=request.form.get('gender'), avatar=request.form.get('avatar_data'))
         db.session.add(new_u); db.session.commit()
         return redirect(url_for('login'))
@@ -81,11 +85,33 @@ def on_connect():
     if current_user.is_authenticated:
         online_users[current_user.username] = {"avatar": current_user.avatar, "sid": request.sid}
         emit('update_online', online_users, broadcast=True)
-        # Geçmiş mesajları yükle (Sadece global ve kullanıcıya özel DM'ler)
-        msgs = Message.query.filter((Message.recipient == 'global') | (Message.recipient == current_user.username) | (Message.sender == current_user.username)).all()
-        history = [{'id': m.id, 'sender': m.sender, 'recipient': m.recipient, 'content': m.content, 'type': m.msg_type, 'time': m.timestamp} for m in msgs]
-        emit('load_history', history)
+        send_history()
         send_stories()
+
+def send_history():
+    # Global ve kişiye özel DM'leri getir
+    msgs = Message.query.filter((Message.recipient == 'global') | (Message.recipient == current_user.username) | (Message.sender == current_user.username)).all()
+    history = [{'id': m.id, 'sender': m.sender, 'recipient': m.recipient, 'content': m.content, 'type': m.msg_type, 'time': m.timestamp} for m in msgs]
+    emit('load_history', history)
+
+@socketio.on('send_msg')
+def handle_msg(data):
+    recipient = data.get('recipient', 'global')
+    # Engelleme kontrolü (basit)
+    target_user = User.query.filter_by(username=recipient).first()
+    if target_user and current_user.username in json.loads(target_user.blocked_list):
+        return # Mesaj gitmez
+        
+    m = Message(sender=current_user.username, recipient=recipient, content=data['content'], msg_type=data['type'], timestamp=datetime.now().strftime("%H:%M"))
+    db.session.add(m); db.session.commit()
+    msg_data = {'id': m.id, 'sender': m.sender, 'recipient': m.recipient, 'content': m.content, 'type': m.msg_type, 'time': m.timestamp}
+    
+    if recipient == 'global':
+        emit('new_msg', msg_data, broadcast=True)
+    else:
+        emit('new_msg', msg_data) # Kendine gönder
+        if recipient in online_users:
+            emit('new_msg', msg_data, room=online_users[recipient]['sid'])
 
 @socketio.on('block_user')
 def block_user(data):
@@ -97,26 +123,11 @@ def block_user(data):
         db.session.commit()
         emit('user_blocked_status', {'blocked': current_blocks})
 
-@socketio.on('send_msg')
-def handle_msg(data):
-    recipient = data.get('recipient', 'global')
-    m = Message(sender=current_user.username, recipient=recipient, content=data['content'], msg_type=data['type'], timestamp=datetime.now().strftime("%H:%M"))
-    db.session.add(m); db.session.commit()
-    msg_data = {'id': m.id, 'sender': m.sender, 'recipient': m.recipient, 'content': m.content, 'type': m.msg_type, 'time': m.timestamp}
-    if recipient == 'global':
-        emit('new_msg', msg_data, broadcast=True)
-    else:
-        # DM gönderimi: Sadece gönderene ve alana ilet
-        emit('new_msg', msg_data)
-        if recipient in online_users:
-            emit('new_msg', msg_data, room=online_users[recipient]['sid'])
-
 @socketio.on('update_avatar')
 def update_avatar_func(data):
     current_user.avatar = data['avatar']
     db.session.commit()
     online_users[current_user.username]['avatar'] = data['avatar']
-    emit('update_online', online_users, broadcast=True)
     emit('avatar_changed_globally', {'username': current_user.username, 'avatar': data['avatar']}, broadcast=True)
 
 @socketio.on('add_story')
