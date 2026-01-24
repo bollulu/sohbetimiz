@@ -1,431 +1,436 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sohbetimiz</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>WhatsApp Ultra</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        /* WhatsApp Web Orijinal Renk Paleti (Dark Mode) */
-        :root {
-            --bg-color: #111b21;
-            --sidebar-bg: #202c33;
-            --header-bg: #202c33;
-            --primary: #00a884;
-            --incoming-bg: #202c33;
-            --outgoing-bg: #005c4b;
-            --text-primary: #e9edef;
-            --text-secondary: #8696a0;
-            --border-color: #313d45;
-            --input-bg: #2a3942;
-        }
-
-        body { margin: 0; font-family: 'Segoe UI', Helvetica, Arial, sans-serif; background-color: var(--bg-color); color: var(--text-primary); display: flex; height: 100vh; overflow: hidden; }
-
-        /* --- SOL PANEL (Sidebar) --- */
-        .sidebar { width: 400px; max-width: 35%; display: flex; flex-direction: column; border-right: 1px solid var(--border-color); background-color: var(--sidebar-bg); }
+        :root { --main: #075e54; --light: #25D366; --bg: #e5ddd5; --outgoing: #dcf8c6; --incoming: #ffffff; }
+        body { margin:0; display:flex; height:100vh; font-family:sans-serif; overflow:hidden; background:#dcdcdc; }
         
-        .header { height: 60px; padding: 10px 16px; background-color: var(--header-bg); display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); }
-        .user-avatar { width: 40px; height: 40px; border-radius: 50%; cursor: pointer; object-fit: cover; }
+        /* SOL PANEL */
+        #side { width:320px; background:white; border-right:1px solid #ddd; display:flex; flex-direction:column; z-index: 2; }
+        .side-header { background: var(--main); color:white; padding:10px 15px; display:flex; justify-content:space-between; align-items:center; height: 40px; }
         
-        .nav-icons { display: flex; gap: 20px; color: var(--text-secondary); }
-        .nav-icons i { cursor: pointer; font-size: 1.2rem; transition: 0.2s; }
-        .nav-icons i:hover { color: var(--text-primary); }
+        /* Sekmeler (Odalar / Kişiler) - Tasarıma uygun eklendi */
+        .tabs { display:flex; background:var(--main); padding-bottom:0; }
+        .tab-btn { flex:1; background:transparent; border:none; color:#aebac1; padding:10px; cursor:pointer; font-weight:bold; border-bottom:3px solid transparent; }
+        .tab-btn.active { color:white; border-bottom:3px solid white; }
 
-        /* Sekmeler (Odalar / Kişiler) */
-        .tabs { display: flex; background: var(--sidebar-bg); padding: 5px 10px; border-bottom: 1px solid var(--border-color); }
-        .tab-btn { flex: 1; background: transparent; border: none; color: var(--text-secondary); padding: 10px; cursor: pointer; font-weight: 500; font-size: 14px; border-bottom: 3px solid transparent; }
-        .tab-btn.active { color: var(--primary); border-bottom: 3px solid var(--primary); }
+        .list-container { flex:1; overflow-y:auto; }
+        .user-row { padding:12px 15px; border-bottom:1px solid #f0f0f0; display:flex; align-items:center; gap:15px; cursor:pointer; transition:0.2s; }
+        .user-row:hover { background:#f5f5f5; }
+        .user-row img { width:45px; height:45px; border-radius:50%; object-fit:cover; }
+        .user-info h4 { margin:0; font-size:16px; font-weight:normal; color:#111; }
+        .user-info span { font-size:13px; color:gray; }
 
-        /* Listeler */
-        .list-container { flex: 1; overflow-y: auto; }
-        .list-item { display: flex; align-items: center; padding: 12px 15px; cursor: pointer; border-bottom: 1px solid var(--border-color); transition: 0.2s; }
-        .list-item:hover { background-color: var(--bg-color); }
-        .list-item img { width: 45px; height: 45px; border-radius: 50%; margin-right: 15px; object-fit: cover; }
-        .list-info { flex: 1; }
-        .list-info h4 { margin: 0; font-size: 16px; font-weight: normal; color: var(--text-primary); }
-        .list-info span { font-size: 13px; color: var(--text-secondary); }
+        /* SAĞ PANEL (ANA EKRAN) */
+        #main { flex:1; display:flex; flex-direction:column; position:relative; background-color: var(--bg); background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); background-repeat: repeat; transition: 0.3s; }
+        
+        /* Header */
+        .chat-header { background:rgba(255,255,255,0.95); padding:10px 15px; display:flex; align-items:center; gap:15px; border-bottom:1px solid #ddd; height:40px; }
+        .chat-header img { width:40px; height:40px; border-radius:50%; }
 
-        /* --- SAĞ PANEL (Chat Alanı) --- */
-        .chat-area { flex: 1; display: flex; flex-direction: column; background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); background-color: #0b141a; background-repeat: repeat; position: relative; }
-        
-        .chat-header { height: 60px; background-color: var(--header-bg); padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border-color); z-index: 10; }
-        .chat-info h3 { margin: 0; font-size: 16px; font-weight: normal; }
-        .chat-info span { font-size: 12px; color: var(--text-secondary); }
+        /* Hikaye Alanı */
+        #story-area { height:100px; background:white; border-bottom:1px solid #ddd; display:flex; align-items:center; padding:5px 15px; gap:15px; overflow-x:auto; white-space:nowrap; }
+        .st-item { display:inline-block; text-align:center; cursor:pointer; position:relative; min-width: 65px; }
+        .st-item img { width:55px; height:55px; border-radius:50%; border:3px solid var(--light); padding:2px; object-fit:cover; }
+        .st-item span { display:block; font-size:12px; margin-top:2px; max-width:65px; overflow:hidden; text-overflow:ellipsis; }
 
-        #messages { flex: 1; padding: 20px 50px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+        /* Mesajlar */
+        #chat-box { flex:1; overflow-y:auto; padding:20px; display:flex; flex-direction:column; gap:10px; }
+        .msg { display:flex; gap:10px; max-width:80%; position:relative; animation: fadeIn 0.3s; align-items: flex-end; }
+        .msg.me { align-self:flex-end; flex-direction:row-reverse; }
+        .bubble { background:var(--incoming); padding:8px 10px; border-radius:8px; box-shadow:0 1px 1px rgba(0,0,0,0.1); position:relative; min-width: 80px; word-wrap: break-word; font-size:14px; }
+        .me .bubble { background:var(--outgoing); }
+        .sender-name { font-size:11px; font-weight:bold; color:orange; margin-bottom:3px; display:block; }
+        .me .sender-name { display:none; } 
         
-        .message { max-width: 65%; padding: 6px 7px 8px 9px; border-radius: 7.5px; position: relative; font-size: 14.2px; line-height: 19px; color: var(--text-primary); box-shadow: 0 1px 0.5px rgba(0,0,0,0.13); }
-        .received { align-self: flex-start; background-color: var(--incoming-bg); border-radius: 0 7.5px 7.5px 7.5px; }
-        .sent { align-self: flex-end; background-color: var(--outgoing-bg); border-radius: 7.5px 0 7.5px 7.5px; }
+        .meta { display:flex; justify-content:flex-end; align-items:center; gap:3px; font-size:10px; color:gray; margin-top:3px; float:right; margin-left:10px; }
+        .tick { color:#999; font-size:14px; }
+        .tick.read { color:#34b7f1; }
         
-        .sender-name { font-size: 11px; color: #6fb0d6; font-weight: bold; margin-bottom: 4px; display: block; }
-        .msg-img { max-width: 300px; border-radius: 5px; margin-top: 5px; cursor: pointer; }
+        /* Footer Input */
+        footer { padding:10px; background:#f0f0f0; display:flex; gap:10px; align-items:center; min-height:50px; }
+        #mIn { flex:1; padding:12px; border-radius:20px; border:none; outline:none; font-size:15px; }
+        .icon-btn { border:none; background:none; font-size:22px; cursor:pointer; color:#555; padding:5px; }
+        .icon-btn:hover { color:var(--main); }
 
-        /* Alt Kısım (Input) */
-        .input-area { min-height: 62px; background-color: var(--header-bg); padding: 5px 16px; display: flex; align-items: center; gap: 10px; z-index: 10; }
-        .input-area input { flex: 1; background-color: var(--input-bg); border: none; border-radius: 8px; padding: 12px; color: var(--text-primary); font-size: 15px; outline: none; }
-        .icon-btn { background: none; border: none; color: var(--text-secondary); font-size: 20px; cursor: pointer; padding: 8px; }
-        .icon-btn:hover { color: var(--text-primary); }
+        /* MODALLER & VİDEO */
+        .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.8); z-index:9999; justify-content:center; align-items:center; }
+        .modal-content { background:white; padding:20px; border-radius:10px; width:300px; text-align:center; }
+        .btn { background:var(--light); color:white; border:none; padding:10px 20px; border-radius:5px; cursor:pointer; margin:5px; font-weight:bold; }
+        .btn-cancel { background:#ff4444; }
 
-        /* --- MODALLER (Açılır Pencereler) --- */
-        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 1000; justify-content: center; align-items: center; backdrop-filter: blur(2px); }
-        .modal-content { background: var(--sidebar-bg); padding: 25px; border-radius: 12px; width: 400px; text-align: center; border: 1px solid var(--border-color); box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
-        .modal-content h3 { margin-top: 0; color: var(--text-primary); }
-        .modal-content input { width: 90%; padding: 12px; margin: 10px 0; background: var(--input-bg); border: 1px solid var(--border-color); border-radius: 5px; color: white; outline: none; }
+        /* Hikaye Görüntüleyici */
+        #story-viewer { display:none; position:fixed; inset:0; background:black; z-index:20000; flex-direction:column; align-items:center; justify-content:center; }
+        #st-content-box { max-width:100%; max-height:80vh; }
+        #st-img, #st-vid { max-width:100%; max-height:80vh; border-radius:10px; }
+        #st-progress { position:absolute; top:10px; left:10px; right:10px; height:4px; background:gray; display:flex; gap:5px; }
+        .st-bar { height:100%; background:white; flex:1; opacity:0.5; }
+        .st-bar.active { opacity:1; }
         
-        .btn { padding: 10px 24px; background: var(--primary); border: none; border-radius: 5px; color: white; cursor: pointer; font-weight: bold; font-size: 14px; margin: 5px; }
-        .btn:hover { background-color: #008f6f; }
-        .btn-cancel { background-color: transparent; border: 1px solid var(--border-color); color: var(--text-secondary); }
+        @keyframes fadeIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
         
-        #camera-preview { width: 100%; border-radius: 8px; display: none; margin-bottom: 10px; transform: scaleX(-1); }
-        
-        /* Mobile Responsive */
         @media (max-width: 768px) {
-            .sidebar { width: 100%; max-width: 100%; position: absolute; height: 100%; z-index: 20; transition: 0.3s; }
-            .sidebar.hidden { transform: translateX(-100%); }
-            .chat-area { width: 100%; }
-            #messages { padding: 10px; }
-            .back-btn { display: block; color: var(--text-secondary); font-size: 20px; cursor: pointer; margin-right: 15px; }
+            #side { width:100%; position:absolute; height:100%; transition:0.3s; }
+            #side.hidden { transform: translateX(-100%); }
+            .back-btn { display:block !important; margin-right:10px; cursor:pointer; }
         }
-        @media (min-width: 769px) { .back-btn { display: none; } }
+        .back-btn { display:none; }
     </style>
 </head>
 <body>
 
-    <div id="settings-modal" class="modal">
-        <div class="modal-content">
-            <h3>Profil Ayarları</h3>
-            <input type="text" id="settings-avatar" placeholder="Avatar URL (Resim Linki)">
-            <input type="text" id="settings-bg" placeholder="Arka Plan URL (İsteğe Bağlı)">
-            <button class="btn" onclick="saveSettings()">Kaydet</button>
-            <button class="btn btn-cancel" onclick="closeModal('settings-modal')">İptal</button>
+<div id="side">
+    <div class="side-header">
+        <div style="display:flex; align-items:center; gap:10px;">
+            <img src="{{ current_user.avatar }}" class="my-avatar" style="width:35px; height:35px; border-radius:50%;" onclick="openSettings()">
+            <b>Siz</b>
+        </div>
+        <div>
+            <button class="icon-btn" style="color:white;" onclick="openRoomModal()" title="Oda Ekle">+</button>
+            <a href="/logout" class="icon-btn" style="color:white; font-size:18px;">🚪</a>
         </div>
     </div>
-
-    <div id="story-modal" class="modal">
-        <div class="modal-content">
-            <h3>Durum Paylaş</h3>
-            <video id="camera-preview" autoplay playsinline></video>
-            <canvas id="snapshot-canvas" style="display:none;"></canvas>
-            
-            <div style="display:flex; justify-content:center; gap:10px; margin-bottom:10px;">
-                <button class="icon-btn" onclick="startCamera()"><i class="fas fa-camera"></i></button>
-                <button class="icon-btn" onclick="document.getElementById('story-file').click()"><i class="fas fa-image"></i></button>
-            </div>
-
-            <button class="btn" id="capture-btn" style="display:none;" onclick="takeSnapshot()">Çek & Gönder</button>
-            
-            <input type="file" id="story-file" accept="image/*,video/*" hidden onchange="previewFile()">
-            <input type="text" id="story-text" placeholder="Bir şeyler yaz...">
-            <button class="btn" onclick="sendStory()">Paylaş</button>
-            <button class="btn btn-cancel" onclick="closeStoryModal()">Kapat</button>
-        </div>
+    
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('rooms')">SOHBETLER</button>
+        <button class="tab-btn" onclick="switchTab('users')">KİŞİLER</button>
     </div>
 
-    <div id="room-modal" class="modal">
-        <div class="modal-content">
-            <h3>Yeni Oda Kur</h3>
-            <input type="text" id="new-room-name" placeholder="Oda İsmi">
-            <input type="password" id="new-room-pass" placeholder="Şifre (Opsiyonel)">
-            <button class="btn" onclick="createRoom()">Oluştur</button>
-            <button class="btn btn-cancel" onclick="closeModal('room-modal')">İptal</button>
+    <div id="room-list" class="list-container">
+        <div class="user-row" onclick="joinRoom('general')">
+            <div style="width:45px;height:45px;background:var(--light);border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;">
+                <i class="fas fa-globe"></i>
+            </div>
+            <div class="user-info">
+                <h4>Genel Sohbet</h4>
+                <span>Herkes burada</span>
+            </div>
         </div>
+        {% for room in rooms %}
+        <div class="user-row" onclick="joinRoom('{{ room.name }}', {{ 'true' if room.password else 'false' }})">
+            <div style="width:45px;height:45px;background:#aaa;border-radius:50%;display:flex;align-items:center;justify-content:center;color:white;">
+                <i class="fas fa-hashtag"></i>
+            </div>
+            <div class="user-info">
+                <h4>{{ room.name }}</h4>
+                <span>{{ '🔒 Şifreli' if room.password else 'Açık Oda' }}</span>
+            </div>
+        </div>
+        {% endfor %}
     </div>
 
-    <div class="sidebar" id="sidebar">
-        <div class="header">
-            <img src="{{ current_user.avatar }}" class="user-avatar my-avatar" onclick="openSettings()" title="Profil Ayarları">
-            <div class="nav-icons">
-                <i class="fas fa-circle-notch" onclick="openStoryModal()" title="Durum"></i>
-                <i class="fas fa-comment-alt" onclick="switchTab('users')" title="Yeni Sohbet"></i>
-                <i class="fas fa-plus" onclick="openRoomModal()" title="Oda Oluştur"></i>
-                <a href="/logout" style="color:inherit;"><i class="fas fa-sign-out-alt" title="Çıkış"></i></a>
+    <div id="user-list" class="list-container" style="display:none;">
+        {% for user in users %}
+        <div class="user-row" onclick="startPrivateChat('{{ user.username }}')">
+            <img src="{{ user.avatar }}" class="avatar-{{ user.username }}">
+            <div class="user-info">
+                <h4>{{ user.username }}</h4>
+                <span>Müsait</span>
             </div>
+            <button onclick="event.stopPropagation(); blockUser('{{ user.username }}')" style="margin-left:auto; border:none; background:none; color:red;">🚫</button>
         </div>
+        {% endfor %}
+    </div>
+</div>
 
-        <div class="tabs">
-            <button class="tab-btn active" onclick="switchTab('rooms')">ODALAR</button>
-            <button class="tab-btn" onclick="switchTab('users')">KİŞİLER</button>
+<div id="main">
+    <div class="chat-header">
+        <i class="fas fa-arrow-left back-btn" onclick="toggleSidebar()"></i>
+        <img src="https://via.placeholder.com/40" id="header-img" style="display:none;">
+        <div style="flex:1;">
+            <b id="chat-title">WhatsApp Ultra</b>
+            <span id="chat-status" style="display:block; font-size:11px; color:gray;">çevrimiçi</span>
         </div>
-
-        <div id="room-list" class="list-container">
-            <div class="list-item" onclick="joinRoom('general')">
-                <div style="width:45px; height:45px; background:#00a884; border-radius:50%; display:flex; justify-content:center; align-items:center; margin-right:15px; color:white;">
-                    <i class="fas fa-globe"></i>
-                </div>
-                <div class="list-info">
-                    <h4>Genel Sohbet</h4>
-                    <span>Herkes burada</span>
-                </div>
-            </div>
-            {% for room in rooms %}
-            <div class="list-item" onclick="joinRoom('{{ room.name }}', {{ 'true' if room.password else 'false' }})">
-                <div style="width:45px; height:45px; background:#53bdeb; border-radius:50%; display:flex; justify-content:center; align-items:center; margin-right:15px; color:white;">
-                    <i class="fas fa-users"></i>
-                </div>
-                <div class="list-info">
-                    <h4>{{ room.name }}</h4>
-                    <span>{{ '🔒 Şifreli Oda' if room.password else 'Herkese Açık' }}</span>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-
-        <div id="user-list" class="list-container" style="display:none;">
-            {% for user in users %}
-            <div class="list-item" onclick="startPrivateChat('{{ user.username }}')">
-                <img src="{{ user.avatar }}" class="avatar-{{ user.username }}">
-                <div class="list-info">
-                    <h4>{{ user.username }}</h4>
-                    <span>Müsait</span>
-                </div>
-                <button class="icon-btn" onclick="event.stopPropagation(); blockUser('{{ user.username }}')" title="Engelle" style="font-size:14px; color:#ef5350;">
-                    <i class="fas fa-ban"></i>
-                </button>
-            </div>
-            {% endfor %}
-        </div>
+        <button class="icon-btn" onclick="openCamForStory()" title="Durum Ekle">📸</button>
     </div>
 
-    <div class="chat-area">
-        <div class="chat-header">
-            <div style="display:flex; align-items:center;">
-                <i class="fas fa-arrow-left back-btn" onclick="toggleSidebar()"></i>
-                <div class="list-info">
-                    <h3 id="chat-title">Genel Sohbet</h3>
-                    <span id="chat-status">çevrimiçi</span>
-                </div>
-            </div>
-            <div class="nav-icons">
-                <i class="fas fa-search"></i>
-                <i class="fas fa-ellipsis-v"></i>
-            </div>
+    <div id="story-area">
+        <div class="st-item" onclick="openCamForStory()">
+            <div style="width:55px;height:55px;border-radius:50%;background:#eee;display:flex;align-items:center;justify-content:center;font-size:24px;border:2px solid #ddd;">+</div>
+            <span>Durum</span>
         </div>
-
-        <div id="messages">
-            {% for msg in messages %}
-            <div class="message {{ 'sent' if msg.sender == current_user.username else 'received' }}">
-                <span class="sender-name">{{ msg.sender }}</span>
-                {% if msg.msg_type == 'image' %}
-                    <img src="{{ msg.content }}" class="msg-img" onclick="window.open(this.src)">
-                {% else %}
-                    {{ msg.content }}
-                {% endif %}
-                <span style="float:right; font-size:10px; color:#aaa; margin-top:5px; margin-left:10px;">
-                    {{ msg.timestamp.strftime('%H:%M') if msg.timestamp else '' }}
-                </span>
-            </div>
-            {% endfor %}
-        </div>
-
-        <div class="input-area">
-            <button class="icon-btn" onclick="document.getElementById('file-input').click()"><i class="fas fa-plus"></i></button>
-            <input type="file" id="file-input" hidden accept="image/*" onchange="sendFile()">
-            <input type="text" id="msg-input" placeholder="Bir mesaj yazın" onkeypress="handleEnter(event)">
-            <button class="icon-btn" onclick="sendMessage()"><i class="fas fa-paper-plane"></i></button>
-        </div>
+        <div id="st-list" style="display:flex; gap:15px;"></div>
     </div>
 
-    <script>
-        const socket = io();
-        const currentUser = "{{ current_user.username }}";
-        let currentRoom = "general";
-        let currentRecipient = null;
+    <div id="chat-box"></div>
 
-        // Arka Plan Yükle
-        window.onload = function() {
-            const bg = "{{ current_user.background }}";
-            if(bg) document.querySelector('.chat-area').style.backgroundImage = `url('${bg}')`;
-        };
+    <footer>
+        <button class="icon-btn" onclick="document.getElementById('file-in').click()">📎</button>
+        <button class="icon-btn" onclick="toggleMic()" id="mic-btn">🎤</button>
+        <input type="text" id="mIn" placeholder="Bir mesaj yazın..." onkeypress="if(event.key==='Enter') send()">
+        <button class="icon-btn" onclick="send()">➤</button>
+    </footer>
+</div>
 
-        // Mobil Uyumluluk
-        function toggleSidebar() {
-            document.getElementById('sidebar').classList.toggle('hidden');
+<input type="file" id="file-in" hidden onchange="processFile(this)">
+<input type="file" id="bg-in" hidden onchange="processImage(this, 'bg')">
+
+<div id="room-modal" class="modal">
+    <div class="modal-content">
+        <h3>Yeni Oda</h3>
+        <input type="text" id="new-room-name" placeholder="Oda Adı" style="width:90%; padding:10px; margin:5px;">
+        <input type="password" id="new-room-pass" placeholder="Şifre (Opsiyonel)" style="width:90%; padding:10px; margin:5px;">
+        <br>
+        <button class="btn" onclick="createRoom()">Oluştur</button>
+        <button class="btn btn-cancel" onclick="document.getElementById('room-modal').style.display='none'">İptal</button>
+    </div>
+</div>
+
+<div id="settings-modal" class="modal">
+    <div class="modal-content">
+        <h3>Ayarlar</h3>
+        <input type="text" id="set-avatar" placeholder="Avatar URL" style="width:90%; padding:10px;">
+        <input type="text" id="set-bg" placeholder="Arka Plan URL" style="width:90%; padding:10px; margin-top:5px;">
+        <br>
+        <button class="btn" onclick="saveSettings()">Kaydet</button>
+        <button class="btn btn-cancel" onclick="document.getElementById('settings-modal').style.display='none'">İptal</button>
+    </div>
+</div>
+
+<div id="story-viewer" onclick="nextStory(event)">
+    <div id="st-progress"></div>
+    <div style="position:absolute; top:20px; right:20px; color:white; font-size:24px; cursor:pointer;" onclick="closeStory()">✖</div>
+    <div id="st-content-box">
+        <img id="st-img" style="display:none">
+        <video id="st-vid" style="display:none" autoplay muted></video>
+    </div>
+</div>
+
+<div id="cam-modal" class="modal">
+    <div class="modal-content" style="width:400px;">
+        <video id="camera-preview" autoplay playsinline style="width:100%; border-radius:10px;"></video>
+        <canvas id="snapshot-canvas" style="display:none;"></canvas>
+        <br>
+        <button class="btn" onclick="takeSnapshot()">Çek & Paylaş</button>
+        <button class="btn btn-cancel" onclick="closeCam()">Kapat</button>
+    </div>
+</div>
+
+<script>
+    const socket = io();
+    const myUser = "{{ current_user.username }}";
+    let currentRoom = "general";
+    let currentRecipient = null;
+    
+    // --- BAŞLANGIÇ AYARLARI ---
+    window.onload = function() {
+        const bg = "{{ current_user.background }}";
+        if(bg) document.getElementById('main').style.backgroundImage = `url('${bg}')`;
+    };
+
+    function toggleSidebar() {
+        const side = document.getElementById('side');
+        side.classList.toggle('hidden');
+    }
+
+    function switchTab(tab) {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById('room-list').style.display = 'none';
+        document.getElementById('user-list').style.display = 'none';
+        
+        if(tab === 'rooms') {
+            document.getElementById('room-list').style.display = 'block';
+            document.querySelectorAll('.tab-btn')[0].classList.add('active');
+        } else {
+            document.getElementById('user-list').style.display = 'block';
+            document.querySelectorAll('.tab-btn')[1].classList.add('active');
         }
+    }
 
-        function handleEnter(e) { if(e.key === 'Enter') sendMessage(); }
+    // --- MESAJLAŞMA ---
+    function send() {
+        const inp = document.getElementById('mIn');
+        const content = inp.value.trim();
+        if(!content) return;
+        
+        socket.emit('send_msg', {
+            content: content,
+            room: currentRoom,
+            recipient: currentRecipient,
+            type: 'text'
+        });
+        inp.value = '';
+    }
 
-        function switchTab(tab) {
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.getElementById('room-list').style.display = 'none';
-            document.getElementById('user-list').style.display = 'none';
-            
-            if(tab === 'rooms') {
-                document.getElementById('room-list').style.display = 'block';
-                document.querySelectorAll('.tab-btn')[0].classList.add('active');
-            } else {
-                document.getElementById('user-list').style.display = 'block';
-                document.querySelectorAll('.tab-btn')[1].classList.add('active');
-            }
-        }
-
-        // --- MESAJ İŞLEMLERİ ---
-        function sendMessage() {
-            const input = document.getElementById('msg-input');
-            const content = input.value.trim();
-            if(!content) return;
-
+    function processFile(input) {
+        const file = input.files[0];
+        if(!file) return;
+        const reader = new FileReader();
+        reader.onload = e => {
+            const type = file.type.startsWith('image/') ? 'image' : 'text'; // Basit tuttum
             socket.emit('send_msg', {
-                content: content,
+                content: e.target.result,
                 room: currentRoom,
                 recipient: currentRecipient,
-                type: 'text'
+                type: type
             });
-            input.value = '';
+        };
+        reader.readAsDataURL(file);
+    }
+
+    socket.on('receive_msg', (data) => {
+        // Özel mesaj kontrolü
+        if (data.recipient && data.recipient === myUser && data.username !== currentRecipient && data.username !== myUser) return; // Başkasından gelen DM'yi şu anki ekrana basma
+        if (!data.recipient && data.room !== currentRoom) return; // Başka odadan geleni basma
+
+        const isMe = data.username === myUser;
+        const div = document.createElement('div');
+        div.className = `msg ${isMe ? 'me' : ''}`;
+        
+        let contentHtml = data.content;
+        if(data.type === 'image') contentHtml = `<img src="${data.content}" style="max-width:200px; border-radius:5px;">`;
+        if(data.type === 'audio') contentHtml = `<audio src="${data.content}" controls style="width:200px;"></audio>`;
+
+        div.innerHTML = `
+            ${!isMe ? `<img src="${data.avatar}" style="width:30px;height:30px;border-radius:50%">` : ''}
+            <div class="bubble">
+                <span class="sender-name">${data.username}</span>
+                ${contentHtml}
+                <div class="meta">
+                    <span>Now</span>
+                    <span class="tick">✓✓</span>
+                </div>
+            </div>`;
+        
+        const box = document.getElementById('chat-box');
+        box.appendChild(div);
+        box.scrollTop = box.scrollHeight;
+    });
+
+    // --- ODA & DM SİSTEMİ ---
+    function openRoomModal() { document.getElementById('room-modal').style.display = 'flex'; }
+    
+    function createRoom() {
+        const name = document.getElementById('new-room-name').value;
+        const pass = document.getElementById('new-room-pass').value;
+        socket.emit('create_room', { name: name, password: pass });
+    }
+    
+    socket.on('new_room_created', () => location.reload()); // Listeyi yenilemek için
+
+    function joinRoom(roomName, isPrivate) {
+        let password = null;
+        if(isPrivate) {
+            password = prompt("Şifre:");
+            if(!password) return;
         }
+        socket.emit('join_room_event', { room: roomName, previous_room: currentRoom, password: password });
+        if(window.innerWidth <= 768) toggleSidebar();
+    }
 
-        function sendFile() {
-            const file = document.getElementById('file-input').files[0];
-            if(!file) return;
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                socket.emit('send_msg', {
-                    content: e.target.result,
-                    room: currentRoom,
-                    recipient: currentRecipient,
-                    type: 'image'
-                });
-            };
-            reader.readAsDataURL(file);
-        }
+    socket.on('room_history', (data) => {
+        currentRoom = data.room;
+        currentRecipient = null;
+        document.getElementById('chat-title').innerText = data.room;
+        loadMessages(data.history);
+    });
 
-        socket.on('receive_msg', (data) => {
-            if (data.recipient && data.recipient === currentUser && data.username !== currentRecipient && data.username !== currentUser) return;
-            if (!data.recipient && data.room !== currentRoom) return;
+    function startPrivateChat(username) {
+        currentRecipient = username;
+        currentRoom = null;
+        document.getElementById('chat-title').innerText = username;
+        socket.emit('private_chat_start', { username: username });
+        if(window.innerWidth <= 768) toggleSidebar();
+    }
 
+    socket.on('private_history', (data) => loadMessages(data.history));
+
+    function loadMessages(history) {
+        const box = document.getElementById('chat-box');
+        box.innerHTML = '';
+        history.forEach(msg => {
+            // receive_msg mantığını simüle et
+            const isMe = msg.username === myUser;
             const div = document.createElement('div');
-            div.className = `message ${data.username === currentUser ? 'sent' : 'received'}`;
+            div.className = `msg ${isMe ? 'me' : ''}`;
+            let contentHtml = msg.content;
+            if(msg.type === 'image') contentHtml = `<img src="${msg.content}" style="max-width:200px; border-radius:5px;">`;
             
-            let contentHtml = data.type === 'image' ? `<img src="${data.content}" class="msg-img" onclick="window.open(this.src)">` : data.content;
-            div.innerHTML = `<span class="sender-name">${data.username}</span>${contentHtml} <span style="float:right; font-size:10px; color:#aaa; margin-top:5px; margin-left:10px;">Şimdi</span>`;
-            
-            const container = document.getElementById('messages');
-            container.appendChild(div);
-            container.scrollTop = container.scrollHeight;
+            div.innerHTML = `
+                ${!isMe ? `<img src="${msg.avatar}" style="width:30px;height:30px;border-radius:50%">` : ''}
+                <div class="bubble">
+                    <span class="sender-name">${msg.username}</span>
+                    ${contentHtml}
+                    <div class="meta"><span>Geçmiş</span></div>
+                </div>`;
+            box.appendChild(div);
         });
+        box.scrollTop = box.scrollHeight;
+    }
 
-        // --- ODA & ÖZEL SOHBET ---
-        function joinRoom(roomName, isPrivate) {
-            let password = null;
-            if(isPrivate) {
-                password = prompt("🔒 Bu oda şifreli. Lütfen şifreyi girin:");
-                if(!password) return;
-            }
-            socket.emit('join_room_event', { room: roomName, previous_room: currentRoom, password: password });
-            
-            // Mobil görünüm için menüyü kapat
-            if(window.innerWidth <= 768) document.getElementById('sidebar').classList.add('hidden');
+    // --- HİKAYE & KAMERA ---
+    function openCamForStory() {
+        document.getElementById('cam-modal').style.display = 'flex';
+        const v = document.getElementById('camera-preview');
+        navigator.mediaDevices.getUserMedia({video:true}).then(s => v.srcObject = s);
+    }
+    function closeCam() {
+        document.getElementById('cam-modal').style.display = 'none';
+        const v = document.getElementById('camera-preview');
+        if(v.srcObject) v.srcObject.getTracks().forEach(t=>t.stop());
+    }
+    function takeSnapshot() {
+        const v = document.getElementById('camera-preview');
+        const c = document.getElementById('snapshot-canvas');
+        c.width = v.videoWidth; c.height = v.videoHeight;
+        c.getContext('2d').drawImage(v,0,0);
+        const data = c.toDataURL('image/jpeg');
+        socket.emit('add_story', {content: data, type: 'image'});
+        closeCam();
+    }
+
+    // Hikaye listesi güncelleme (Basit simülasyon, backend'den gelen veri ile)
+    socket.on('new_story_alert', (data) => {
+        const list = document.getElementById('st-list');
+        const item = document.createElement('div');
+        item.className = 'st-item';
+        item.innerHTML = `
+            <img src="https://via.placeholder.com/50" style="border-color: #25D366">
+            <span>${data.username}</span>`;
+        item.onclick = () => alert("Hikaye izleme henüz tam entegre değil, ama eklendi!");
+        list.appendChild(item);
+    });
+
+    // --- AYARLAR & ENGEL ---
+    function openSettings() { document.getElementById('settings-modal').style.display = 'flex'; }
+    function saveSettings() {
+        const ava = document.getElementById('set-avatar').value;
+        const bg = document.getElementById('set-bg').value;
+        socket.emit('update_profile', {avatar: ava, background: bg});
+        if(bg) document.getElementById('main').style.backgroundImage = `url('${bg}')`;
+        document.getElementById('settings-modal').style.display = 'none';
+    }
+    
+    function blockUser(username) {
+        if(confirm(username + " engellensin mi?")) socket.emit('block_user', {username: username});
+    }
+
+    // Mikrofon
+    let mediaRec;
+    async function toggleMic() {
+        const btn = document.getElementById('mic-btn');
+        if(!mediaRec || mediaRec.state === "inactive") {
+            const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+            mediaRec = new MediaRecorder(stream);
+            const chunks = [];
+            mediaRec.ondataavailable = e => chunks.push(e.data);
+            mediaRec.onstop = () => {
+                const blob = new Blob(chunks, {type:'audio/ogg'});
+                const r = new FileReader();
+                r.onload = e => socket.emit('send_msg', {content:e.target.result, room:currentRoom, recipient:currentRecipient, type:'audio'});
+                r.readAsDataURL(blob);
+            };
+            mediaRec.start();
+            btn.style.color = "red";
+        } else {
+            mediaRec.stop();
+            btn.style.color = "#555";
         }
-
-        socket.on('room_history', (data) => {
-            currentRoom = data.room;
-            currentRecipient = null;
-            document.getElementById('chat-title').innerText = data.room;
-            document.getElementById('messages').innerHTML = '';
-            data.history.forEach(msg => {
-                const div = document.createElement('div');
-                div.className = `message ${msg.username === currentUser ? 'sent' : 'received'}`;
-                let contentHtml = msg.type === 'image' ? `<img src="${msg.content}" class="msg-img">` : msg.content;
-                div.innerHTML = `<span class="sender-name">${msg.username}</span>${contentHtml}`;
-                document.getElementById('messages').appendChild(div);
-            });
-            document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
-        });
-
-        function startPrivateChat(username) {
-            currentRecipient = username;
-            currentRoom = null;
-            document.getElementById('chat-title').innerText = username;
-            document.getElementById('messages').innerHTML = '<i>Sohbet yükleniyor...</i>';
-            socket.emit('private_chat_start', { username: username });
-            if(window.innerWidth <= 768) document.getElementById('sidebar').classList.add('hidden');
-        }
-
-        socket.on('private_history', (data) => {
-            document.getElementById('messages').innerHTML = '';
-            data.history.forEach(msg => {
-                const div = document.createElement('div');
-                div.className = `message ${msg.username === currentUser ? 'sent' : 'received'}`;
-                let contentHtml = msg.type === 'image' ? `<img src="${msg.content}" class="msg-img">` : msg.content;
-                div.innerHTML = `<span class="sender-name">${msg.username}</span>${contentHtml}`;
-                document.getElementById('messages').appendChild(div);
-            });
-        });
-
-        // --- MODALLER ---
-        function openSettings() { document.getElementById('settings-modal').style.display = 'flex'; }
-        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
-        
-        function saveSettings() {
-            const avatar = document.getElementById('settings-avatar').value;
-            const bg = document.getElementById('settings-bg').value;
-            socket.emit('update_profile', { avatar: avatar, background: bg });
-            if(bg) document.querySelector('.chat-area').style.backgroundImage = `url('${bg}')`;
-            closeModal('settings-modal');
-        }
-
-        socket.on('avatar_updated', (data) => {
-            document.querySelectorAll(`.avatar-${data.username}`).forEach(img => img.src = data.avatar);
-            if(data.username === currentUser) document.querySelector('.my-avatar').src = data.avatar;
-        });
-
-        // Oda Oluşturma
-        function openRoomModal() { document.getElementById('room-modal').style.display = 'flex'; }
-        function createRoom() {
-            const name = document.getElementById('new-room-name').value;
-            const pass = document.getElementById('new-room-pass').value;
-            socket.emit('create_room', { name: name, password: pass });
-            closeModal('room-modal');
-        }
-        socket.on('new_room_created', (data) => location.reload()); // Listeyi yenilemek için sayfayı yenile
-
-        // Kamera & Hikaye
-        function openStoryModal() { document.getElementById('story-modal').style.display = 'flex'; }
-        function closeStoryModal() { 
-            document.getElementById('story-modal').style.display = 'none';
-            const v = document.getElementById('camera-preview');
-            if(v.srcObject) v.srcObject.getTracks().forEach(t => t.stop());
-            v.style.display = 'none';
-        }
-        
-        function startCamera() {
-            const v = document.getElementById('camera-preview');
-            navigator.mediaDevices.getUserMedia({ video: true }).then(s => {
-                v.srcObject = s;
-                v.style.display = 'block';
-                document.getElementById('capture-btn').style.display = 'inline-block';
-            });
-        }
-
-        function takeSnapshot() {
-            const v = document.getElementById('camera-preview');
-            const c = document.getElementById('snapshot-canvas');
-            c.width = v.videoWidth; c.height = v.videoHeight;
-            c.getContext('2d').drawImage(v, 0, 0);
-            sendStory(c.toDataURL('image/png'));
-        }
-
-        function sendStory(imgData = null) {
-            const text = document.getElementById('story-text').value;
-            if (imgData) {
-                socket.emit('add_story', { content: imgData, type: 'image' });
-            } else if (text) {
-                socket.emit('add_story', { content: text, type: 'text' });
-            }
-            closeStoryModal();
-        }
-
-        function blockUser(username) {
-            if(confirm(username + " engellensin mi?")) socket.emit('block_user', { username: username });
-        }
-
-        socket.on('error_notice', (data) => alert(data.msg));
-        socket.on('new_story_alert', (data) => {
-            // Basit bildirim, geliştirilebilir
-            if(data.username !== currentUser) alert(data.username + " yeni bir hikaye paylaştı!");
-        });
-    </script>
+    }
+</script>
 </body>
 </html>
