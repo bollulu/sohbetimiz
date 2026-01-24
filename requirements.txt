@@ -3,7 +3,8 @@ flask-sqlalchemy
 flask-login
 flask-socketio
 gevent
-gevent-websocket
 gunicorn
 psycopg2-binary
+gevent-websocket
+
 
