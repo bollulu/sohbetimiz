@@ -12,13 +12,14 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'ultra_final_v2026_pro'
 app.config['MAX_CONTENT_LENGTH'] = 200 * 1024 * 1024 
 
+# Veritabanı dosya yolu ayarı 
 basedir = os.path.abspath(os.path.dirname(__file__))
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'database.db')
 
 db = SQLAlchemy(app)
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='gevent')
 
-# --- MODELLER ---
+# --- MODELLER --- 
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50), unique=True)
@@ -38,8 +39,8 @@ class Message(db.Model):
 class Story(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(50))
-    avatar = db.Column(db.Text) # Paylaşan kişinin o anki avatarı
-    content = db.Column(db.Text) # Hikaye resmi/videosu
+    avatar = db.Column(db.Text) 
+    content = db.Column(db.Text) 
     media_type = db.Column(db.String(10)) 
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -51,7 +52,12 @@ login_manager.login_view = 'login'
 @login_manager.user_loader
 def load_user(id): return db.session.get(User, int(id))
 
-# --- ROTALAR ---
+# --- ROTALAR (ROUTES) ---
+
+@app.route('/') # Ana sayfa hatasını çözen yeni rota 
+def index():
+    return redirect(url_for('login'))
+
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
@@ -79,6 +85,11 @@ def login():
 @login_required
 def chat(): return render_template('chat.html', user=current_user)
 
+@app.route('/live') # live.html için eklenen rota 
+@login_required
+def live():
+    return render_template('live.html')
+
 @app.route('/logout')
 def logout(): logout_user(); return redirect(url_for('login'))
 
@@ -90,7 +101,7 @@ def delete_acc():
         logout_user(); return "OK"
     return "FAIL", 403
 
-# --- SOCKET EVENTS ---
+# --- SOCKET EVENTS --- 
 online_users = {}
 
 @socketio.on('connect')
@@ -99,7 +110,6 @@ def on_connect():
         online_users[current_user.username] = {"avatar": current_user.avatar}
         emit('update_online', online_users, broadcast=True)
         
-        # Geçmiş Mesajlar
         messages = Message.query.all()
         history = []
         for m in messages:
@@ -108,7 +118,6 @@ def on_connect():
                 'content': m.content, 'type': m.msg_type, 'time': m.timestamp
             })
         emit('load_history', history)
-        
         send_stories()
 
 @socketio.on('disconnect')
@@ -157,12 +166,12 @@ def delete_story(data):
 def update_avatar_func(data):
     current_user.avatar = data['avatar']
     db.session.commit()
-    online_users[current_user.username]['avatar'] = data['avatar']
+    if current_user.username in online_users:
+        online_users[current_user.username]['avatar'] = data['avatar']
     emit('update_online', online_users, broadcast=True)
 
 def send_stories():
     stories = Story.query.all()
-    # Hikayeleri Kullanıcıya Göre Grupla
     grouped = {}
     for s in stories:
         if s.username not in grouped: grouped[s.username] = []
